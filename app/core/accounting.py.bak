@@ -1,0 +1,189 @@
+"""
+NextAccount v2 — core/accounting.py
+勘定科目分類・仕訳生成・商家名正規化を担当する。
+
+仕訳ルール:
+  借方: 経費科目（旅費交通費、消耗品費 など）
+  貸方: 未払費用（社員名）
+"""
+
+from __future__ import annotations
+
+import re
+import logging
+from dataclasses import dataclass
+from datetime import date, datetime
+from typing import Optional
+
+from .config import BRAND_MASTER, CREDIT_ACCOUNT_BASE
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# データクラス
+# ============================================================
+
+@dataclass
+class JournalEntry:
+    """仕訳データ"""
+    event_id: str
+    event_date: str                  # YYYY-MM-DD
+    counterparty: str                # 取引先（正規化済み）
+    total_amount: int                # 税込合計
+    taxable_10_amount: int           # 税率10%対象額
+    tax_10_amount: int               # 消費税（10%）
+    taxable_8_amount: int            # 税率8%対象額
+    tax_8_amount: int                # 消費税（8%）
+    debit_account: str               # 借方科目
+    credit_account: str              # 貸方科目（未払費用（社員名））
+    invoice_number: Optional[str]    # T番号
+    has_invoice: bool
+    employee_name: str               # 申請者
+    status: str = "申請中"
+    evidence_url: str = ""
+    memo: str = ""
+
+    def to_sheet_row(self) -> list:
+        """Google Sheets に書き込む行データを返す"""
+        return [
+            self.event_id,
+            self.event_date,
+            self.counterparty,
+            self.total_amount,
+            self.taxable_10_amount,
+            self.tax_10_amount,
+            self.taxable_8_amount,
+            self.tax_8_amount,
+            self.invoice_number or "",
+            self.debit_account,
+            self.credit_account,
+            self.employee_name,
+            self.status,
+            ('=HYPERLINK("' + self.evidence_url + '","証憑")') if self.evidence_url else (self.memo or ""),  # 備考欄にDriveリンク
+        ]
+
+    def to_db_dict(self) -> dict:
+        """データベース保存用 dict を返す"""
+        return {
+            "event_id": self.event_id,
+            "event_date": self.event_date,
+            "counterparty": self.counterparty,
+            "amount": self.total_amount,
+            "taxable_10_amount": self.taxable_10_amount,
+            "tax_10_amount": self.tax_10_amount,
+            "taxable_8_amount": self.taxable_8_amount,
+            "tax_8_amount": self.tax_8_amount,
+            "debit_account": self.debit_account,
+            "credit_account": self.credit_account,
+            "invoice_number": self.invoice_number,
+            "has_invoice": self.has_invoice,
+            "employee_name": self.employee_name,
+            "status": self.status,
+            "evidence_url": self.evidence_url,
+            "memo": self.memo,
+        }
+
+
+# ============================================================
+# 商家名正規化
+# ============================================================
+
+def normalize_merchant_name(raw_name: str) -> str:
+    """
+    BRAND_MASTER を参照して正規化された商家名を返す。
+    マッチしない場合は raw_name をそのまま返す。
+    """
+    lower = raw_name.lower()
+    for keyword, (normalized, _) in BRAND_MASTER.items():
+        if keyword.lower() in lower:
+            return normalized
+    return raw_name.strip() or "不明"
+
+
+# ============================================================
+# 勘定科目分類
+# ============================================================
+
+def classify_account(raw_text: str, merchant: str) -> str:
+    """
+    Claude AIが判定するため、このメソッドは使用しない。
+    フォールバック用として消耗品費を返す。
+    """
+    return "消耗品費"
+
+
+# ============================================================
+# 管理ID生成
+# ============================================================
+
+def generate_event_id(event_date: Optional[str], sequence: int) -> str:
+    """
+    管理ID を生成する。
+    形式: T{YYYYMMDD}-{連番5桁}
+    例:   T20260401-00003
+
+    Args:
+        event_date: YYYY-MM-DD 形式の発生日（None の場合は今日）
+        sequence:   当日の連番（DB から取得）
+    """
+    if event_date:
+        try:
+            d = datetime.strptime(event_date, "%Y-%m-%d")
+            date_str = d.strftime("%Y%m%d")
+        except ValueError:
+            date_str = datetime.now().strftime("%Y%m%d")
+    else:
+        date_str = datetime.now().strftime("%Y%m%d")
+
+    return f"T{date_str}-{sequence:05d}"
+
+
+# ============================================================
+# 貸方科目生成
+# ============================================================
+
+def build_credit_account(employee_name: str) -> str:
+    """
+    貸方科目を返す。
+    形式: 未払費用（{社員名}）
+    """
+    return f"{CREDIT_ACCOUNT_BASE}（{employee_name}）"
+
+
+# ============================================================
+# 仕訳生成
+# ============================================================
+
+def build_journal_entry(
+    *,
+    ocr_result,            # core.ocr.OcrResult
+    employee_name: str,
+    employee_slack_id: str,
+    event_id: str,
+    raw_text: str,
+) -> JournalEntry:
+    """
+    OcrResult + 社員情報から JournalEntry を生成する。
+    """
+    merchant = normalize_merchant_name(ocr_result.counterparty)
+    debit    = classify_account(raw_text, merchant)
+    credit   = build_credit_account(employee_name)
+
+    event_date = ocr_result.event_date or datetime.now().strftime("%Y-%m-%d")
+
+    return JournalEntry(
+        event_id          = event_id,
+        event_date        = event_date,
+        counterparty      = merchant,
+        total_amount      = ocr_result.total_amount,
+        taxable_10_amount = ocr_result.taxable_10_amount,
+        tax_10_amount     = ocr_result.tax_10_amount,
+        taxable_8_amount  = ocr_result.taxable_8_amount,
+        tax_8_amount      = ocr_result.tax_8_amount,
+        debit_account     = debit,
+        credit_account    = credit,
+        invoice_number    = ocr_result.invoice_number,
+        has_invoice       = ocr_result.has_invoice,
+        employee_name     = employee_name,
+    )

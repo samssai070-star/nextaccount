@@ -1,0 +1,255 @@
+"""
+NextAccount v2 — core/database.py  (マルチテナント対応版)
+"""
+from __future__ import annotations
+import logging
+from contextlib import contextmanager
+from datetime import datetime
+from typing import Optional
+import psycopg2
+import psycopg2.extras
+from .config import DATABASE_URL
+
+logger = logging.getLogger(__name__)
+
+@contextmanager
+def _get_conn(tenant_id=None):
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL が設定されていません")
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        if tenant_id:
+            with conn.cursor() as cur:
+                cur.execute("SET app.tenant_id = %s", (str(tenant_id),))
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+DDL = """
+CREATE TABLE IF NOT EXISTS accounting_events (
+    event_id            VARCHAR(30)  PRIMARY KEY,
+    event_date          DATE         NOT NULL,
+    counterparty        VARCHAR(200) NOT NULL,
+    amount              INTEGER      NOT NULL,
+    taxable_10_amount   INTEGER      DEFAULT 0,
+    tax_10_amount       INTEGER      DEFAULT 0,
+    taxable_8_amount    INTEGER      DEFAULT 0,
+    tax_8_amount        INTEGER      DEFAULT 0,
+    debit_account       VARCHAR(100) NOT NULL,
+    credit_account      VARCHAR(100) NOT NULL,
+    invoice_number      VARCHAR(20),
+    has_invoice         BOOLEAN      DEFAULT FALSE,
+    employee_name       VARCHAR(100) DEFAULT '',
+    employee_slack_id   VARCHAR(50)  DEFAULT '',
+    status              VARCHAR(50)  DEFAULT '申請中',
+    evidence_url        TEXT         DEFAULT '',
+    memo                TEXT         DEFAULT '',
+    source_type         VARCHAR(50)  DEFAULT 'expense',
+    approved_by         VARCHAR(100),
+    approved_at         TIMESTAMP,
+    created_at          TIMESTAMP    DEFAULT NOW(),
+    updated_at          TIMESTAMP    DEFAULT NOW(),
+    tenant_id           UUID         REFERENCES tenants(id)
+);
+CREATE INDEX IF NOT EXISTS idx_ae_invoice   ON accounting_events(invoice_number);
+CREATE INDEX IF NOT EXISTS idx_ae_date      ON accounting_events(event_date);
+CREATE INDEX IF NOT EXISTS idx_ae_status    ON accounting_events(status);
+CREATE INDEX IF NOT EXISTS idx_ae_employee  ON accounting_events(employee_name);
+CREATE INDEX IF NOT EXISTS idx_ae_created   ON accounting_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_ae_tenant_id ON accounting_events(tenant_id);
+"""
+
+def init_database():
+    try:
+        with _get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(DDL)
+                cur.execute(USERS_DDL)
+        init_users_table()
+        logger.info("データベース初期化完了")
+    except Exception as e:
+        logger.error(f"データベース初期化失敗: {e}")
+        raise
+
+def get_tenant_by_slack_team(slack_team_id):
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM tenants WHERE slack_team_id = %s AND is_active = TRUE", (slack_team_id,))
+            row = cur.fetchone()
+    return dict(row) if row else None
+
+def create_tenant(slack_team_id, slack_bot_token, google_sheet_id=None):
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                INSERT INTO tenants (slack_team_id, slack_bot_token, google_sheet_id)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (slack_team_id) DO UPDATE
+                  SET slack_bot_token = EXCLUDED.slack_bot_token, is_active = TRUE
+                RETURNING *
+            """, (slack_team_id, slack_bot_token, google_sheet_id))
+            row = cur.fetchone()
+    logger.info(f"テナント作成/更新: {slack_team_id}")
+    return dict(row)
+
+def update_tenant_sheet(tenant_id, google_sheet_id):
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE tenants SET google_sheet_id = %s WHERE id = %s", (google_sheet_id, tenant_id))
+
+def get_next_sequence(event_date, tenant_id):
+    date_prefix = event_date.replace("-", "")
+    like_pattern = f"T{date_prefix}-%"
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT event_id FROM accounting_events WHERE event_id LIKE %s AND tenant_id = %s ORDER BY event_id DESC LIMIT 1", (like_pattern, tenant_id))
+            row = cur.fetchone()
+    if row:
+        return int(row[0].split("-")[1]) + 1
+    return 1
+
+def check_duplicate(invoice_number, amount, event_date, tenant_id):
+    if not invoice_number:
+        return None
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT event_id, counterparty, status, created_at FROM accounting_events WHERE invoice_number = %s AND amount = %s AND event_date = %s AND tenant_id = %s LIMIT 1", (invoice_number, amount, event_date, tenant_id))
+            row = cur.fetchone()
+    return dict(row) if row else None
+
+def insert_event(entry_dict, tenant_id):
+    entry_dict.setdefault("taxable_10_amount", 0)
+    entry_dict.setdefault("tax_10_amount", 0)
+    entry_dict.setdefault("taxable_8_amount", 0)
+    entry_dict.setdefault("tax_8_amount", 0)
+    entry_dict.setdefault("has_invoice", False)
+    entry_dict.setdefault("employee_slack_id", "")
+    entry_dict.setdefault("evidence_url", "")
+    entry_dict.setdefault("memo", "")
+    entry_dict["tenant_id"] = tenant_id
+    sql = """INSERT INTO accounting_events (
+        event_id, event_date, counterparty, amount,
+        taxable_10_amount, tax_10_amount, taxable_8_amount, tax_8_amount,
+        debit_account, credit_account, invoice_number, has_invoice,
+        employee_name, employee_slack_id, status, evidence_url, memo, tenant_id
+    ) VALUES (
+        %(event_id)s, %(event_date)s, %(counterparty)s, %(amount)s,
+        %(taxable_10_amount)s, %(tax_10_amount)s, %(taxable_8_amount)s, %(tax_8_amount)s,
+        %(debit_account)s, %(credit_account)s, %(invoice_number)s, %(has_invoice)s,
+        %(employee_name)s, %(employee_slack_id)s, %(status)s, %(evidence_url)s, %(memo)s, %(tenant_id)s
+    )"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, entry_dict)
+    logger.info(f"INSERT 完了: {entry_dict['event_id']} (tenant: {tenant_id})")
+
+def get_event_by_id(event_id, tenant_id):
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM accounting_events WHERE event_id = %s AND tenant_id = %s", (event_id, tenant_id))
+            row = cur.fetchone()
+    return dict(row) if row else None
+
+def update_status(event_id, status, tenant_id, approved_by=None):
+    now = datetime.now()
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            if approved_by:
+                cur.execute("UPDATE accounting_events SET status=%s, approved_by=%s, approved_at=%s, updated_at=%s WHERE event_id=%s AND tenant_id=%s", (status, approved_by, now, now, event_id, tenant_id))
+            else:
+                cur.execute("UPDATE accounting_events SET status=%s, updated_at=%s WHERE event_id=%s AND tenant_id=%s", (status, now, event_id, tenant_id))
+    logger.info(f"ステータス更新: {event_id} → {status}")
+
+def list_events_by_employee_month(employee_name, year, month, tenant_id):
+    import calendar
+    last_day = calendar.monthrange(year, month)[1]
+    from_date = f"{year:04d}-{month:02d}-01"
+    to_date   = f"{year:04d}-{month:02d}-{last_day:02d}"
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM accounting_events WHERE employee_name = %s AND event_date BETWEEN %s AND %s AND tenant_id = %s ORDER BY event_date DESC", (employee_name, from_date, to_date, tenant_id))
+            rows = cur.fetchall()
+    return [dict(r) for r in rows]
+
+def list_all_events_by_month(year, month, tenant_id):
+    import calendar
+    last_day = calendar.monthrange(year, month)[1]
+    from_date = f"{year:04d}-{month:02d}-01"
+    to_date   = f"{year:04d}-{month:02d}-{last_day:02d}"
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM accounting_events WHERE event_date BETWEEN %s AND %s AND tenant_id = %s ORDER BY employee_name, event_date DESC", (from_date, to_date, tenant_id))
+            rows = cur.fetchall()
+    return [dict(r) for r in rows]
+
+# ============================================================
+# Users テーブル（定期券区間管理）
+# ============================================================
+
+USERS_DDL = """
+CREATE TABLE IF NOT EXISTS nextaccount_users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slack_user_id VARCHAR(50) NOT NULL,
+    employee_name VARCHAR(100) NOT NULL,
+    commute_from VARCHAR(100),
+    commute_to VARCHAR(100),
+    tenant_id UUID REFERENCES tenants(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(slack_user_id, tenant_id)
+);
+CREATE INDEX IF NOT EXISTS idx_users_slack_id ON users(slack_user_id);
+CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);
+"""
+
+def init_users_table():
+    """users テーブルを作成"""
+    try:
+        with _get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(USERS_DDL)
+        logger.info("users テーブル初期化完了")
+    except Exception as e:
+        logger.warning(f"users テーブル初期化: {e}")
+
+def get_user_by_slack_id(slack_user_id, tenant_id):
+    """Slack user_id からユーザーを取得"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT * FROM nextaccount_users WHERE slack_user_id = %s AND tenant_id = %s",
+                (slack_user_id, tenant_id)
+            )
+            row = cur.fetchone()
+    return dict(row) if row else None
+
+def upsert_user(slack_user_id, employee_name, tenant_id, commute_from=None, commute_to=None):
+    """ユーザーを作成または更新"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                INSERT INTO nextaccount_users (slack_user_id, employee_name, commute_from, commute_to, tenant_id)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (slack_user_id, tenant_id) DO UPDATE
+                  SET employee_name = EXCLUDED.employee_name,
+                      commute_from = COALESCE(EXCLUDED.commute_from, users.commute_from),
+                      commute_to = COALESCE(EXCLUDED.commute_to, users.commute_to),
+                      updated_at = NOW()
+                RETURNING *
+            """, (slack_user_id, employee_name, commute_from, commute_to, tenant_id))
+            row = cur.fetchone()
+    return dict(row) if row else None
+
+def update_commute_section(slack_user_id, tenant_id, commute_from, commute_to):
+    """定期券区間を更新"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE nextaccount_users SET commute_from=%s, commute_to=%s, updated_at=NOW() WHERE slack_user_id=%s AND tenant_id=%s",
+                (commute_from, commute_to, slack_user_id, tenant_id)
+            )
+    logger.info(f"定期券区間更新: {slack_user_id} ({commute_from}→{commute_to})")

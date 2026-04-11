@@ -1,0 +1,27 @@
+version: "3.9"
+services:
+  nextaccount:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    image: nextaccount-v2:latest
+    container_name: nextaccount
+    restart: always
+    env_file:
+      - ./app/.env
+    volumes:
+      - ./secrets:/secrets
+      - ./logs:/tmp/logs
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 25s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"

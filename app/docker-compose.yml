@@ -1,0 +1,35 @@
+version: "3.9"
+# ============================================================
+# NextAccount v2 — ローカル開発 / テスト用 Docker Compose
+#
+# 使い方:
+#   cp config/.env.example .env  # → .env を編集
+#   docker compose up --build
+# ============================================================
+
+services:
+  nextaccount:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nextaccount-v2:local
+    container_name: nextaccount-local
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # google_key.json をコンテナにマウント（.env の値は /secrets/google_key.json を指すこと）
+      - ./google_key.json:/secrets/google_key.json:ro
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

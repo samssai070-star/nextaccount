@@ -1,0 +1,31 @@
+# 認証情報（絶対にコミットしない）
+.env
+*.json
+!config/.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+
+# テスト
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Cloud
+.gcloudignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# 一時ファイル
+/tmp/
+*.tmp

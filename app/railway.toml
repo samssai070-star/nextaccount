@@ -1,0 +1,22 @@
+# ============================================================
+# NextAccount v2 — Railway デプロイ設定
+# Railway.app にデプロイする場合はこのファイルをルートに配置
+# ============================================================
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "./Dockerfile"
+
+[deploy]
+startCommand = "python main.py"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# 環境変数は Railway ダッシュボードで設定:
+# SLACK_BOT_TOKEN
+# SLACK_APP_TOKEN
+# DATABASE_URL
+# GOOGLE_SHEET_ID
+# GOOGLE_APPLICATION_CREDENTIALS  ← JSONの内容を直接貼る場合は GOOGLE_KEY_JSON に変更

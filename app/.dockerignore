@@ -1,0 +1,33 @@
+# 認証情報（絶対にイメージに含めない）
+.env
+*.json
+!requirements*.txt
+
+# Python キャッシュ
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+
+# 仮想環境
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Git
+.git/
+.gitignore
+
+# ドキュメント（イメージサイズ削減）
+README.md
+*.md
+
+# 一時ファイル
+/tmp/
+*.tar.gz
