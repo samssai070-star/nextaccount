@@ -69,7 +69,7 @@ def init_database():
             with conn.cursor() as cur:
                 cur.execute(DDL)
                 cur.execute(USERS_DDL)
-        init_users_table()
+#         # init_users_table()
         logger.info("データベース初期化完了")
     except Exception as e:
         logger.error(f"データベース初期化失敗: {e}")
@@ -202,8 +202,8 @@ CREATE TABLE IF NOT EXISTS nextaccount_users (
     updated_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(slack_user_id, tenant_id)
 );
-CREATE INDEX IF NOT EXISTS idx_users_slack_id ON users(slack_user_id);
-CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_users_slack_id ON nextaccount_users(slack_user_id);
+CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON nextaccount_users(tenant_id);
 """
 
 def init_users_table():
