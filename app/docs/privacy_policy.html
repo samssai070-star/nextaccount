@@ -5,77 +5,62 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>プライバシーポリシー | NextAccount</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-               max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; }
-        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        h2 { color: #34495e; margin-top: 30px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; max-width: 900px; margin: 0 auto; padding: 20px; background-color: #f5f5f5; }
+        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 30px; border-left: 4px solid #3498db; padding-left: 10px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th { background-color: #ecf0f1; font-weight: bold; }
+        th, td { border: 1px solid #bdc3c7; padding: 10px; text-align: left; }
+        footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #7f8c8d; }
     </style>
 </head>
 <body>
     <h1>プライバシーポリシー</h1>
-    <p><strong>最終更新日: 2026年4月12日</strong></p>
-    
+    <p><strong>最終更新日: 2026年4月11日</strong></p>
     <h2>1. はじめに</h2>
-    <p>NextAccount（以下、「当サービス」）は、個人情報の保護を最優先事項として考えています。本プライバシーポリシーは、当サービスがどのように個人情報を収集、使用、保護するかを説明するものです。</p>
-    
+    <p>NextAccount（以下、「当サービス」）は、個人情報の保護を最優先事項として考えています。</p>
     <h2>2. 個人情報の定義</h2>
-    <p>本ポリシーにおける「個人情報」とは、以下の情報を指します：</p>
     <ul>
-        <li>直接識別子：名前、メールアドレス、電話番号</li>
-        <li>間接識別子：Slack User ID、ユーザー名</li>
-        <li>位置情報：経費に関連する出発地・目的地</li>
-        <li>金融情報：申請金額、支払い情報</li>
-        <li>行動データ：サービス利用ログ、操作履歴</li>
+        <li><strong>直接識別子</strong>: 名前、メールアドレス、電話番号</li>
+        <li><strong>間接識別子</strong>: Slack User ID、ユーザー名</li>
+        <li><strong>位置情報</strong>: 経費に関連する出発地・目的地</li>
+        <li><strong>金融情報</strong>: 申請金額、支払い情報</li>
+        <li><strong>行動データ</strong>: サービス利用ログ、操作履歴</li>
     </ul>
-    
     <h2>3. 個人情報の収集</h2>
-    <p>当サービスは、以下の方法で個人情報を収集します：</p>
     <ul>
-        <li>ユーザーが直接入力した情報</li>
-        <li>Slack APIを通じて取得された情報</li>
-        <li>Google Maps APIを通じて取得された位置情報</li>
-        <li>サーバーログから自動収集されるアクセス情報</li>
+        <li>Slack API連携：Slack User ID、ユーザープロフィール</li>
+        <li>ユーザー入力：経費情報、申請内容</li>
+        <li>Google Maps API：経路検索</li>
+        <li>システムログ：アクセスログ、操作履歴</li>
     </ul>
-    
     <h2>4. 個人情報の利用目的</h2>
-    <p>収集した個人情報は、以下の目的で使用されます：</p>
     <ul>
-        <li>サービスの提供と改善</li>
-        <li>ユーザーサポート</li>
-        <li>利用状況の分析</li>
-        <li>不正防止</li>
-        <li>法的要件への準拠</li>
+        <li><strong>サービス提供</strong>：ユーザー認証、申請・承認処理、データ保存</li>
+        <li><strong>サービス改善</strong>：使用状況の分析、機能改善</li>
+        <li><strong>セキュリティ</strong>：不正防止、アクセス制御、監査ログ</li>
     </ul>
-    
-    <h2>5. セキュリティ措置</h2>
-    <p>当サービスは、個人情報を保護するため、以下のセキュリティ対策を実施しています：</p>
+    <h2>5. 個人情報の第三者提供</h2>
+    <table>
+        <tr><th>提供先</th><th>提供情報</th><th>目的</th></tr>
+        <tr><td>Supabase</td><td>ユーザーデータ全般</td><td>データ保管</td></tr>
+        <tr><td>Google Maps</td><td>出発地・目的地</td><td>経路検索</td></tr>
+        <tr><td>Slack</td><td>-</td><td>メッセージ送信</td></tr>
+    </table>
+    <h2>6. セキュリティ対策</h2>
     <ul>
-        <li>SSL/TLS暗号化による通信保護</li>
-        <li>Supabaseのデータベース暗号化</li>
-        <li>ロールベースのアクセス制御（RBAC）</li>
-        <li>OAuth 2.0による認証</li>
-        <li>定期的なセキュリティ監査</li>
+        <li><strong>通信暗号化</strong>: SSL/TLS による全通信の暗号化</li>
+        <li><strong>データベース暗号化</strong>: Supabase による at-rest 暗号化</li>
+        <li><strong>アクセス制御</strong>: RBAC実装</li>
+        <li><strong>認証</strong>: Slack OAuth 2.0</li>
+        <li><strong>監査ログ</strong>: すべてのアクセスを記録</li>
     </ul>
-    
-    <h2>6. 第三者提供</h2>
-    <p>個人情報は以下のサービスに提供されます：</p>
-    <ul>
-        <li>Supabase（データベース管理）</li>
-        <li>Google Maps Platform（経路検索）</li>
-        <li>Slack（チャットプラットフォーム）</li>
-    </ul>
-    
-    <h2>7. ユーザー権利</h2>
-    <p>ユーザーは以下の権利を有しています：</p>
-    <ul>
-        <li>個人情報の開示を請求する権利</li>
-        <li>個人情報の訂正を請求する権利</li>
-        <li>個人情報の削除を請求する権利</li>
-    </ul>
-    
-    <h2>8. お問い合わせ</h2>
-    <p>プライバシーに関するご質問やご懸念については、以下までお問い合わせください：</p>
-    <p><strong>メール:</strong> privacy@nextaccount.local</p>
-    <p><strong>営業時間:</strong> 平日 09:00-17:00 (日本時間)</p>
+    <h2>7. お問い合わせ</h2>
+    <p>個人情報に関するご質問: privacy@nextaccount.local</p>
+    <footer>
+        <p>このプライバシーポリシーは日本国の個人情報保護法に準拠しています。</p>
+        <p>最終更新日: 2026年4月11日</p>
+        <p>&copy; 2026 NextAccount. All rights reserved.</p>
+    </footer>
 </body>
 </html>
