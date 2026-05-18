@@ -1,0 +1,42 @@
+def check_duplicate(invoice_number, amount, event_date, tenant_id, counterparty=None):
+    """
+    重複チェック。
+    却下されたレコードは除外（再度アップロード可能）。
+    有効なステータス: 申請中, 承認済, 業務承認済
+
+    1. T番号 + 金額 + 日付（T番号がある場合）
+    2. 取引先 + 金額 + 日付（全件対象）
+    どちらかに一致したら重複と判定する。
+    """
+    # 有効なステータス（却下以外）
+    valid_statuses = ("申請中", "承認済", "業務承認済")
+
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+
+            # ① T番号 + 金額 + 日付チェック
+            if invoice_number:
+                cur.execute(
+                    "SELECT event_id, counterparty, status, created_at FROM accounting_events "
+                    "WHERE invoice_number = %s AND amount = %s AND event_date = %s AND tenant_id = %s "
+                    "AND status = ANY(%s) LIMIT 1",
+                    (invoice_number, amount, event_date, tenant_id, list(valid_statuses))
+                )
+                row = cur.fetchone()
+                if row:
+                    return dict(row)
+
+            # ② 取引先 + 金額 + 日付チェック（T番号なしでも対象）
+            if counterparty:
+                cur.execute(
+                    "SELECT event_id, counterparty, status, created_at FROM accounting_events "
+                    "WHERE counterparty = %s AND amount = %s AND event_date = %s AND tenant_id = %s "
+                    "AND status = ANY(%s) LIMIT 1",
+                    (counterparty, amount, event_date, tenant_id, list(valid_statuses))
+                )
+                row = cur.fetchone()
+                if row:
+                    return dict(row)
+
+    return None
+

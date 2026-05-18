@@ -52,6 +52,8 @@ class JournalEntry:
     status: str = "申請中"
     evidence_url: str = ""
     memo: str = ""
+    debit_subsidiary: str = ""
+    purpose: str = ""
 
     def get_deduction_info(self) -> dict:
         tax_total = self.tax_10_amount + self.tax_8_amount
@@ -60,21 +62,22 @@ class JournalEntry:
     def to_sheet_row(self) -> list:
         deduction = self.get_deduction_info()
         return [
-            self.event_id,
-            self.event_date,
-            self.counterparty,
-            self.total_amount,
-            self.taxable_10_amount,
-            self.tax_10_amount,
-            self.taxable_8_amount,
-            self.tax_8_amount,
-            self.invoice_number or "",
-            self.debit_account,
-            self.credit_account,
-            self.employee_name,
-            self.status,
-            ('=HYPERLINK("' + self.evidence_url + '","証憑")') if self.evidence_url else (self.memo or ""),
-            deduction["deduction_label"],
+            self.event_id,                          # A 管理ID
+            self.event_date,                        # B 発生日
+            self.counterparty,                      # C 取引先
+            self.total_amount,                      # D 税込金額
+            self.taxable_10_amount,                 # E 税率10%対象額
+            self.tax_10_amount,                     # F 消費税(10%)
+            self.taxable_8_amount,                  # G 税率8%対象額
+            self.tax_8_amount,                      # H 消費税(8%)
+            self.invoice_number or "",              # I T番号
+            self.debit_account,                     # J 借方科目
+            self.debit_subsidiary or "",            # K 借方補助科目
+            self.credit_account,                    # L 貳方科目
+            self.employee_name,                     # M 申請者
+            self.status,                            # N ステータス
+            ('\''=HYPERLINK("'\'' + self.evidence_url + '\''","証憑")'\'') if self.evidence_url else (self.memo or ""),  # O 証憑
+            self.purpose or "",                     # P 用途
         ]
 
     def to_db_dict(self) -> dict:
@@ -88,6 +91,7 @@ class JournalEntry:
             "taxable_8_amount": self.taxable_8_amount,
             "tax_8_amount": self.tax_8_amount,
             "debit_account": self.debit_account,
+            "debit_subsidiary": self.debit_subsidiary,
             "credit_account": self.credit_account,
             "invoice_number": self.invoice_number,
             "has_invoice": self.has_invoice,
@@ -95,6 +99,7 @@ class JournalEntry:
             "status": self.status,
             "evidence_url": self.evidence_url,
             "memo": self.memo,
+            "purpose": self.purpose,
         }
 
 def normalize_merchant_name(raw_name: str) -> str:
@@ -119,7 +124,7 @@ def generate_event_id(event_date: Optional[str], sequence: int) -> str:
     return f"T{date_str}-{sequence:05d}"
 
 def build_credit_account(employee_name: str) -> str:
-    return f"{CREDIT_ACCOUNT_BASE}（{employee_name}）"
+    return CREDIT_ACCOUNT_BASE
 
 def build_journal_entry(*, ocr_result, employee_name: str, employee_slack_id: str, event_id: str, raw_text: str) -> JournalEntry:
     merchant = normalize_merchant_name(ocr_result.counterparty)
@@ -133,4 +138,7 @@ def build_journal_entry(*, ocr_result, employee_name: str, employee_slack_id: st
         tax_8_amount=ocr_result.tax_8_amount, debit_account=debit, credit_account=credit,
         invoice_number=ocr_result.invoice_number, has_invoice=ocr_result.has_invoice,
         employee_name=employee_name,
+        debit_subsidiary=getattr(ocr_result, "debit_subsidiary", ""),
+        purpose=getattr(ocr_result, "purpose", ""),
     )
+

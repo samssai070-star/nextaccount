@@ -1,0 +1,115 @@
+<!-- NextAccount Footer -->
+<footer class="nextaccount-footer">
+    <div class="footer-container">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>NextAccount</h4>
+                <p>経費精算管理システム</p>
+            </div>
+
+            <div class="footer-section">
+                <h4>法律情報</h4>
+                <ul>
+                    <li><a href="/docs/privacy_policy.html" target="_blank">プライバシーポリシー</a></li>
+                    <li><a href="/docs/specified_commercial_transaction.html" target="_blank">特定商取引法に基づく表示</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-section">
+                <h4>お問い合わせ</h4>
+                <ul>
+                    <li><a href="mailto:support@nextaccount.local">サポート</a></li>
+                    <li><a href="mailto:privacy@nextaccount.local">個人情報について</a></li>
+                    <li><a href="mailto:info@nextaccount.jp">セキュリティについて</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-section">
+                <h4>営業時間</h4>
+                <p>平日 09:00-17:00 (日本時間)</p>
+                <p class="footer-copyright">
+                    &copy; 2026 NextAccount. All rights reserved.
+                </p>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<style>
+.nextaccount-footer {
+    background-color: #2c3e50;
+    color: #ecf0f1;
+    padding: 40px 20px;
+    margin-top: 60px;
+    border-top: 1px solid #34495e;
+}
+
+.footer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.footer-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 30px;
+}
+
+.footer-section h4 {
+    color: #3498db;
+    margin-bottom: 15px;
+    font-size: 1.1em;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
+}
+
+.footer-section p {
+    margin: 5px 0;
+    line-height: 1.6;
+}
+
+.footer-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.footer-section ul li {
+    margin: 8px 0;
+}
+
+.footer-section a {
+    color: #3498db;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.footer-section a:hover {
+    color: #2980b9;
+    text-decoration: underline;
+}
+
+.footer-copyright {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #34495e;
+    font-size: 0.9em;
+    color: #95a5a6;
+}
+
+@media (max-width: 768px) {
+    .footer-content {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .footer-section {
+        border-bottom: 1px solid #34495e;
+        padding-bottom: 20px;
+    }
+
+    .footer-section:last-child {
+        border-bottom: none;
+    }
+}
+</style>

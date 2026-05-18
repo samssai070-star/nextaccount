@@ -974,7 +974,7 @@ def handle_transportation_message(event, client, logger):
             "taxable_8_amount": 0,
             "tax_8_amount": 0,
             "debit_account": "旅費交通費",
-            "credit_account": f"未払費用（{employee_name}）",
+            "credit_account": "未払費用",
             "invoice_number": None,
             "has_invoice": False,
             "employee_name": employee_name,

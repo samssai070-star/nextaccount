@@ -51,6 +51,10 @@ class OcrResult:
     used_real_ocr: bool = False
     confidence: float = 0.0
 
+    # AI分類結果
+    debit_subsidiary: str = ""     # 借方補助科目
+    purpose: str = ""              # 用途（DM入力）
+
     def to_dict(self) -> dict:
         return {
             "total_amount": self.total_amount,
@@ -103,7 +107,7 @@ def perform_ocr_from_bytes(image_bytes: bytes) -> str:
 # ============================================================
 
 def _clean_number(s: str) -> int:
-    """'1,234' や '¥1,234' を int に変換する"""
+    """'\''1,234'\'' や '\''¥1,234'\'' を int に変換する"""
     s = re.sub(r"[^\d]", "", s)
     return int(s) if s else 0
 
@@ -347,3 +351,4 @@ def parse_receipt(image_path: str) -> OcrResult:
         f"取引先: {result.counterparty}"
     )
     return result
+
