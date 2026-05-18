@@ -76,7 +76,7 @@ class JournalEntry:
             self.credit_account,                    # L 貳方科目
             self.employee_name,                     # M 申請者
             self.status,                            # N ステータス
-            ('\''=HYPERLINK("'\'' + self.evidence_url + '\''","証憑")'\'') if self.evidence_url else (self.memo or ""),  # O 証憑
+            ('=HYPERLINK("' + self.evidence_url + '","証憑")') if self.evidence_url else (self.memo or ""),  # O 証憑
             self.purpose or "",                     # P 用途
         ]
 
