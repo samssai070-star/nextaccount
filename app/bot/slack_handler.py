@@ -208,6 +208,8 @@ def handle_file_shared(event, client, logger):
         # Claude判定の科目で上書き
         if ai_result.get("debit_account"):
             entry.debit_account = ai_result["debit_account"]
+        if ai_result.get("debit_subsidiary"):
+            ocr_result.debit_subsidiary = ai_result["debit_subsidiary"]
         from core.accounting import build_credit_account
         entry.credit_account = build_credit_account(employee_name)
 
