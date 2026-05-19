@@ -117,7 +117,7 @@ def check_duplicate(invoice_number, amount, event_date, tenant_id):
         return None
     with _get_conn(tenant_id) as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT event_id, counterparty, status, created_at FROM accounting_events WHERE invoice_number = %s AND amount = %s AND event_date = %s AND tenant_id = %s LIMIT 1", (invoice_number, amount, event_date, tenant_id))
+            cur.execute("SELECT event_id, counterparty, status, created_at FROM accounting_events WHERE invoice_number = %s AND amount = %s AND event_date = %s AND status = %s AND tenant_id = %s LIMIT 1", (invoice_number, amount, event_date, "業務承認済", tenant_id))
             row = cur.fetchone()
     return dict(row) if row else None
 

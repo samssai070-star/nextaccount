@@ -178,6 +178,10 @@ def handle_file_shared(event, client, logger):
                 ocr_result.counterparty = ai_result["counterparty"]
             if ai_result.get("event_date"):
                 ocr_result.event_date = ai_result["event_date"]
+            # AI が event_date を上書きした場合、event_id を再生成
+            event_date = ocr_result.event_date or datetime.now().strftime("%Y-%m-%d")
+            seq        = get_next_sequence(event_date, tenant_id)
+            event_id   = generate_event_id(event_date, seq)
             if ai_result.get("total_amount"):
                 ocr_result.total_amount = int(ai_result["total_amount"])
             if ai_result.get("taxable_10_amount"):
@@ -192,13 +196,6 @@ def handle_file_shared(event, client, logger):
                 ocr_result.invoice_number = ai_result["invoice_number"]
                 ocr_result.has_invoice = True
 
-        # 重複チェック（Claude確定値で判定）
-        event_date = ocr_result.event_date or datetime.now().strftime("%Y-%m-%d")
-        if ocr_result.invoice_number:
-            dup = check_duplicate(ocr_result.invoice_number, ocr_result.total_amount, event_date, tenant_id)
-            if dup:
-                _send_duplicate_warning(client, channel_id, msg_ts, dup, ocr_result)
-                return
 
         entry = build_journal_entry(
             ocr_result       = ocr_result,
@@ -959,7 +956,6 @@ def handle_transportation_message(event, client, logger):
                 is_commute_section = True
 
         # 仕訳生成
-        event_date = datetime.now().strftime("%Y-%m-%d")
         seq = get_next_sequence(event_date, tenant_id)
         event_id = generate_event_id(event_date, seq)
 
