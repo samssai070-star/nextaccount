@@ -59,6 +59,9 @@ CREATE TABLE IF NOT EXISTS accounting_events (
 );
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS debit_subsidiary VARCHAR(100) DEFAULT '';
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS purpose TEXT DEFAULT '';
+ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS timestamp_token TEXT DEFAULT NULL;
+ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS timestamp_at TIMESTAMP;
+ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS timestamp_verified BOOLEAN DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS idx_ae_invoice   ON accounting_events(invoice_number);
 CREATE INDEX IF NOT EXISTS idx_ae_date      ON accounting_events(event_date);
 CREATE INDEX IF NOT EXISTS idx_ae_status    ON accounting_events(status);
@@ -104,6 +107,23 @@ def update_tenant_sheet(tenant_id, google_sheet_id):
     with _get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("UPDATE tenants SET google_sheet_id = %s WHERE id = %s", (google_sheet_id, tenant_id))
+
+def update_tenant_billing(tenant_id: str, **kwargs) -> None:
+    """テナントの課金情報を更新する"""
+    allowed = {"stripe_customer_id", "stripe_subscription_id", "stripe_price_id",
+               "billing_status", "trial_ends_at"}
+    fields = {k: v for k, v in kwargs.items() if k in allowed}
+    if not fields:
+        return
+    set_clause = ", ".join(f"{k} = %({k})s" for k in fields)
+    fields["tenant_id"] = tenant_id
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE tenants SET {set_clause}, updated_at=NOW() WHERE id=%(tenant_id)s",
+                fields
+            )
+    logger.info(f"テナント課金情報更新: {tenant_id} fields={list(fields.keys())}")
 
 def get_next_sequence(event_date, tenant_id):
     date_prefix = event_date.replace("-", "")
@@ -172,6 +192,29 @@ def update_status(event_id, status, tenant_id, approved_by=None):
             else:
                 cur.execute("UPDATE accounting_events SET status=%s, updated_at=%s WHERE event_id=%s AND tenant_id=%s", (status, now, event_id, tenant_id))
     logger.info(f"ステータス更新: {event_id} → {status}")
+
+def update_event(event_id: str, tenant_id: str, fields: dict) -> bool:
+    """仕訳の任意フィールドを更新する（承認後の修正にも使用）"""
+    ALLOWED = {
+        "counterparty", "amount", "event_date", "debit_account", "debit_subsidiary",
+        "invoice_number", "has_invoice", "memo", "purpose",
+        "taxable_10_amount", "tax_10_amount", "taxable_8_amount", "tax_8_amount",
+    }
+    updates = {k: v for k, v in fields.items() if k in ALLOWED}
+    if not updates:
+        return False
+    set_clause = ", ".join(f"{k} = %({k})s" for k in updates)
+    updates["event_id"] = event_id
+    updates["tenant_id"] = tenant_id
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE accounting_events SET {set_clause}, updated_at=NOW() "
+                f"WHERE event_id=%(event_id)s AND tenant_id=%(tenant_id)s",
+                updates
+            )
+    logger.info(f"仕訳更新: {event_id} fields={list(updates.keys())}")
+    return True
 
 def list_events_by_employee_month(employee_name, year, month, tenant_id):
     import calendar

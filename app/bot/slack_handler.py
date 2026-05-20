@@ -863,6 +863,228 @@ def handle_list(ack, body, client, logger):
 
 
 # ============================================================
+# /edit コマンド（仕訳修正 — Slack モーダル）
+# ============================================================
+
+@app.command("/edit")
+def handle_edit(ack, body, client, logger):
+    """
+    /edit [event_id]
+    指定した管理IDの仕訳をモーダルで修正する。
+    """
+    ack()
+    event_id   = body.get("text", "").strip()
+    channel_id = body["channel_id"]
+    trigger_id = body["trigger_id"]
+    tenant     = _get_tenant(body.get("team_id", ""))
+    tenant_id  = tenant["id"] if tenant else None
+
+    if not event_id:
+        client.chat_postMessage(channel=channel_id,
+            text="❌ 使い方: `/edit T20260406-00001`")
+        return
+
+    evt = get_event_by_id(event_id, tenant_id)
+    if not evt:
+        client.chat_postMessage(channel=channel_id,
+            text=f"❌ 管理ID `{event_id}` が見つかりません。")
+        return
+
+    from core.config import DEBIT_ACCOUNTS
+    debit_options = [
+        {"text": {"type": "plain_text", "text": acc}, "value": acc}
+        for acc in DEBIT_ACCOUNTS
+    ]
+    current_account = evt.get("debit_account", "消耗品費")
+    if current_account not in DEBIT_ACCOUNTS:
+        current_account = "消耗品費"
+
+    client.views_open(
+        trigger_id=trigger_id,
+        view={
+            "type": "modal",
+            "callback_id": "edit_event_modal",
+            "private_metadata": f"{event_id}|{tenant_id or ''}",
+            "title": {"type": "plain_text", "text": "仕訳を修正"},
+            "submit": {"type": "plain_text", "text": "保存"},
+            "close":  {"type": "plain_text", "text": "キャンセル"},
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"*管理ID*: `{event_id}`　*ステータス*: {evt.get('status', '')}"}
+                },
+                {"type": "divider"},
+                {
+                    "type": "input", "block_id": "counterparty",
+                    "label": {"type": "plain_text", "text": "取引先"},
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": evt.get("counterparty", ""),
+                        "placeholder": {"type": "plain_text", "text": "例：スターバックスコーヒー"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "event_date",
+                    "label": {"type": "plain_text", "text": "発生日"},
+                    "element": {
+                        "type": "datepicker", "action_id": "value",
+                        "initial_date": str(evt.get("event_date", ""))[:10]
+                    }
+                },
+                {
+                    "type": "input", "block_id": "amount",
+                    "label": {"type": "plain_text", "text": "税込金額（円）"},
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("amount", 0)),
+                        "placeholder": {"type": "plain_text", "text": "例：1650"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "debit_account",
+                    "label": {"type": "plain_text", "text": "借方科目"},
+                    "element": {
+                        "type": "static_select", "action_id": "value",
+                        "options": debit_options,
+                        "initial_option": {
+                            "text": {"type": "plain_text", "text": current_account},
+                            "value": current_account
+                        }
+                    }
+                },
+                {
+                    "type": "input", "block_id": "debit_subsidiary",
+                    "label": {"type": "plain_text", "text": "借方補助科目（任意）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": evt.get("debit_subsidiary", "") or "",
+                        "placeholder": {"type": "plain_text", "text": "例：タクシー代"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "invoice_number",
+                    "label": {"type": "plain_text", "text": "T番号（任意）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": evt.get("invoice_number", "") or "",
+                        "placeholder": {"type": "plain_text", "text": "例：T1234567890123"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "purpose",
+                    "label": {"type": "plain_text", "text": "用途・メモ（任意）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": evt.get("purpose", "") or evt.get("memo", "") or "",
+                        "placeholder": {"type": "plain_text", "text": "例：取引先との打合せ"},
+                        "multiline": True
+                    }
+                },
+            ],
+        }
+    )
+    logger.info(f"/edit 開始: {event_id}")
+
+
+@app.view("edit_event_modal")
+def handle_edit_submit(ack, body, client, logger):
+    """モーダル送信時の処理"""
+    ack()
+    meta      = body["view"]["private_metadata"].split("|")
+    event_id  = meta[0]
+    tenant_id = meta[1] if len(meta) > 1 and meta[1] else None
+    user_id   = body["user"]["id"]
+    values    = body["view"]["state"]["values"]
+
+    def _val(block_id):
+        block = values.get(block_id, {})
+        v_elem = block.get("value", {})
+        if isinstance(v_elem, dict):
+            return (v_elem.get("value")
+                    or v_elem.get("selected_date")
+                    or (v_elem.get("selected_option") or {}).get("value")
+                    or "")
+        return ""
+
+    counterparty     = _val("counterparty")
+    event_date       = _val("event_date")
+    amount_str       = _val("amount")
+    debit_account    = _val("debit_account")
+    debit_subsidiary = _val("debit_subsidiary")
+    invoice_number   = _val("invoice_number").strip() or None
+    purpose          = _val("purpose")
+
+    try:
+        amount = int(amount_str.replace(",", "").replace("¥", "").strip())
+    except (ValueError, AttributeError):
+        amount = None
+
+    from core.database import update_event
+    fields = {}
+    if counterparty:        fields["counterparty"]      = counterparty
+    if event_date:          fields["event_date"]         = event_date
+    if amount is not None:  fields["amount"]             = amount
+    if debit_account:       fields["debit_account"]      = debit_account
+    fields["debit_subsidiary"] = debit_subsidiary or ""
+    fields["invoice_number"]   = invoice_number
+    fields["has_invoice"]      = bool(invoice_number)
+    fields["purpose"]          = purpose or ""
+
+    ok = update_event(event_id, tenant_id, fields)
+
+    # 承認済みなら Sheets を再同期
+    evt = get_event_by_id(event_id, tenant_id)
+    sheets_synced = False
+    if ok and evt and evt.get("status") == "業務承認済" and sheets:
+        from core.accounting import JournalEntry
+        updated_entry = JournalEntry(
+            event_id          = evt["event_id"],
+            event_date        = str(evt["event_date"]),
+            counterparty      = evt["counterparty"],
+            total_amount      = evt["amount"],
+            taxable_10_amount = evt.get("taxable_10_amount", 0),
+            tax_10_amount     = evt.get("tax_10_amount", 0),
+            taxable_8_amount  = evt.get("taxable_8_amount", 0),
+            tax_8_amount      = evt.get("tax_8_amount", 0),
+            debit_account     = evt["debit_account"],
+            debit_subsidiary  = evt.get("debit_subsidiary", ""),
+            credit_account    = evt["credit_account"],
+            invoice_number    = evt.get("invoice_number"),
+            has_invoice       = bool(evt.get("has_invoice")),
+            employee_name     = evt.get("employee_name", ""),
+            status            = evt.get("status", ""),
+            evidence_url      = evt.get("evidence_url", ""),
+            purpose           = evt.get("purpose", ""),
+        )
+        sheets.write_journal_entry(updated_entry)
+        sheets_synced = True
+        logger.info(f"Sheets 再同期: {event_id}")
+
+    editor_name = _get_employee_name(client, user_id)
+    sync_note = "\n✅ Google Sheets を再同期しました" if sheets_synced else ""
+    try:
+        client.chat_postMessage(
+            channel=user_id,
+            text=(
+                f"✏️ *仕訳を修正しました*\n\n"
+                f"管理ID: `{event_id}`\n"
+                f"取引先: {counterparty}\n"
+                f"金額: {_fmt_yen(amount) if amount else '-'}\n"
+                f"科目: {debit_account}\n"
+                f"修正者: {editor_name}"
+                f"{sync_note}"
+            )
+        )
+    except Exception as dm_err:
+        logger.warning(f"修正通知DM失敗: {dm_err}")
+
+    logger.info(f"仕訳修正完了: {event_id} by {user_id}")
+
+
+# ============================================================
 # /setup コマンド（管理者専用・新規テナント初期設定）
 # ============================================================
 

@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Optional
-from .config import BRAND_MASTER, CREDIT_ACCOUNT_BASE
+from .config import BRAND_MASTER, CREDIT_ACCOUNT_BASE, DEBIT_KEYWORDS
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,27 @@ def normalize_merchant_name(raw_name: str) -> str:
     return raw_name.strip() or "不明"
 
 def classify_account(raw_text: str, merchant: str) -> str:
+    """
+    raw_text と merchant から勘定科目を判定する。
+    1. BRAND_MASTER でのマッチ（正規化名→科目）
+    2. DEBIT_KEYWORDS でのキーワードマッチ（raw_text + merchant 全体）
+    3. デフォルト: 消耗品費
+    """
+    combined = (raw_text or "") + " " + (merchant or "")
+    combined_lower = combined.lower()
+
+    # 1. BRAND_MASTER でのマッチ
+    for keyword, (_, account) in BRAND_MASTER.items():
+        if keyword.lower() in combined_lower:
+            return account
+
+    # 2. DEBIT_KEYWORDS でのキーワードマッチ
+    for account, keywords in DEBIT_KEYWORDS.items():
+        for kw in keywords:
+            if kw.lower() in combined_lower:
+                return account
+
+    # 3. デフォルト
     return "消耗品費"
 
 def generate_event_id(event_date: Optional[str], sequence: int) -> str:
@@ -124,6 +145,9 @@ def generate_event_id(event_date: Optional[str], sequence: int) -> str:
     return f"T{date_str}-{sequence:05d}"
 
 def build_credit_account(employee_name: str) -> str:
+    """貸方科目を構築する。社員名が指定されていれば「未払費用（{employee_name}）」を返す。"""
+    if employee_name:
+        return f"{CREDIT_ACCOUNT_BASE}（{employee_name}）"
     return CREDIT_ACCOUNT_BASE
 
 def build_journal_entry(*, ocr_result, employee_name: str, employee_slack_id: str, event_id: str, raw_text: str) -> JournalEntry:

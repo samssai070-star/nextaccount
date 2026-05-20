@@ -146,6 +146,56 @@ def success():
     """, 200
 
 
+@flask_app.route("/slack/install", methods=["GET"])
+def slack_install():
+    from core.slack_oauth import generate_oauth_url
+    plan = request.args.get("plan", "micro")
+    try:
+        redirect_uri = request.host_url.rstrip("/") + "/slack/oauth/callback"
+        url = generate_oauth_url(plan=plan, redirect_uri=redirect_uri)
+        return redirect(url)
+    except Exception as e:
+        logger.error(f"OAuth URL生成失敗: {e}")
+        return f"設定エラー: {e}", 500
+
+
+@flask_app.route("/slack/oauth/callback", methods=["GET"])
+def slack_oauth_callback():
+    from core.slack_oauth import exchange_code
+    from core.database import create_tenant
+    code  = request.args.get("code", "")
+    state = request.args.get("state", "")
+    error = request.args.get("error", "")
+
+    if error:
+        logger.warning(f"OAuth キャンセル: {error}")
+        return redirect("https://nextaccount.jp/#pricing")
+
+    if not code:
+        return "不正なリクエスト", 400
+
+    redirect_uri = request.host_url.rstrip("/") + "/slack/oauth/callback"
+    result = exchange_code(code=code, state=state, redirect_uri=redirect_uri)
+
+    if not result.get("ok"):
+        logger.error(f"OAuth 失敗: {result.get('error')}")
+        return f"認証に失敗しました: {result.get('error')}", 400
+
+    team_id   = result["team_id"]
+    bot_token = result["bot_token"]
+    plan      = result.get("plan", "micro")
+
+    try:
+        tenant = create_tenant(slack_team_id=team_id, slack_bot_token=bot_token)
+        logger.info(f"テナント登録完了: {team_id} plan={plan}")
+    except Exception as e:
+        logger.error(f"テナント登録失敗: {e}")
+        return f"登録エラー: {e}", 500
+
+    checkout_url = f"/checkout/{plan}?tenant_id={tenant['id']}&team_id={team_id}"
+    return redirect(checkout_url)
+
+
 
 def _write_google_key_from_env():
     key_json = os.environ.get("GOOGLE_KEY_JSON", "")

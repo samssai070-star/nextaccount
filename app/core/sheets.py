@@ -8,10 +8,11 @@ Google Sheets API v4 との連携を担当する。
   - 財務部門集計シート: "財務部門_集計"
       → 全社員の承認済み仕訳を月次ロールアップ
 
-列定義（SHEET_COLUMNS に準拠）:
-  A: 管理ID  B: 発生日  C: 取引先  D: 税込金額
+列定義（SHEET_COLUMNS に準拠・16列）:
+  A: 管理ID     B: 発生日     C: 取引先     D: 税込金額
   E: 税率10%対象額  F: 消費税(10%)  G: 税率8%対象額  H: 消費税(8%)
-  I: T番号  J: 借方科目  K: 貸方科目  L: 申請者  M: ステータス  N: 備考
+  I: T番号      J: 借方科目   K: 借方補助科目  L: 貸方科目
+  M: 申請者     N: ステータス  O: 証憑       P: 用途
 """
 
 from __future__ import annotations
@@ -187,7 +188,7 @@ class SheetsManager:
             .values()
             .get(
                 spreadsheetId=self.spreadsheet_id,
-                range=f"'{sheet_name}'!A:N",
+                range=f"'{sheet_name}'!A:P",
             )
             .execute()
         )
@@ -262,7 +263,7 @@ class SheetsManager:
         total_row = [
             total_label, "", "", total_amount,
             total_10, total_tax10, total_8, total_tax8,
-            "", "", "", "", "", "",
+            "", "", "", "", "", "", "", "",
         ]
 
         if existing_total_row:
@@ -334,32 +335,36 @@ class SheetsManager:
         try:
             self._ensure_sheet(sheet_name)
 
-            # ヘッダー以降をクリア
+            # ヘッダー以降をクリア（16列）
             sheet_id = self._get_sheet_id(sheet_name)
             if sheet_id:
                 self.service.spreadsheets().values().clear(
                     spreadsheetId=self.spreadsheet_id,
-                    range=f"'{sheet_name}'!A2:N",
+                    range=f"'{sheet_name}'!A2:P",
                 ).execute()
 
+            from .accounting import JournalEntry
             for evt in events:
-                row = [
-                    evt.get("event_id", ""),
-                    str(evt.get("event_date", "")),
-                    evt.get("counterparty", ""),
-                    evt.get("amount", 0),
-                    evt.get("taxable_10_amount", 0),
-                    evt.get("tax_10_amount", 0),
-                    evt.get("taxable_8_amount", 0),
-                    evt.get("tax_8_amount", 0),
-                    evt.get("invoice_number", "") or "",
-                    evt.get("debit_account", ""),
-                    evt.get("credit_account", ""),
-                    evt.get("employee_name", ""),
-                    evt.get("status", ""),
-                    evt.get("memo", ""),
-                ]
-                self._append_row(sheet_name, row)
+                entry = JournalEntry(
+                    event_id          = evt.get("event_id", ""),
+                    event_date        = str(evt.get("event_date", "")),
+                    counterparty      = evt.get("counterparty", ""),
+                    total_amount      = evt.get("amount", 0),
+                    taxable_10_amount = evt.get("taxable_10_amount", 0),
+                    tax_10_amount     = evt.get("tax_10_amount", 0),
+                    taxable_8_amount  = evt.get("taxable_8_amount", 0),
+                    tax_8_amount      = evt.get("tax_8_amount", 0),
+                    invoice_number    = evt.get("invoice_number"),
+                    has_invoice       = bool(evt.get("has_invoice")),
+                    debit_account     = evt.get("debit_account", ""),
+                    debit_subsidiary  = evt.get("debit_subsidiary", ""),
+                    credit_account    = evt.get("credit_account", ""),
+                    employee_name     = evt.get("employee_name", ""),
+                    status            = evt.get("status", ""),
+                    evidence_url      = evt.get("evidence_url", ""),
+                    purpose           = evt.get("purpose", "") or evt.get("memo", ""),
+                )
+                self._append_row(sheet_name, entry.to_sheet_row())
 
             self._sort_by_date(sheet_name)
             self._update_monthly_total(sheet_name, year, month)

@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS accounting_events (
     source_type         VARCHAR(50)  DEFAULT 'expense',
     approved_by         VARCHAR(100),
     approved_at         TIMESTAMP,
+    timestamp_token     TEXT,
+    timestamp_at        TIMESTAMP,
+    timestamp_verified  BOOLEAN      DEFAULT FALSE,
     created_at          TIMESTAMP    DEFAULT NOW(),
     updated_at          TIMESTAMP    DEFAULT NOW()
 );
@@ -66,6 +69,11 @@ CREATE TABLE IF NOT EXISTS tenants (
     slack_bot_token VARCHAR(255),
     google_sheet_id VARCHAR(100),
     is_active BOOLEAN DEFAULT TRUE,
+    stripe_customer_id VARCHAR(100),
+    stripe_subscription_id VARCHAR(100),
+    stripe_price_id VARCHAR(100),
+    billing_status VARCHAR(50) DEFAULT 'trial',
+    trial_ends_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -91,3 +99,23 @@ CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON nextaccount_users(tenant_id);
 -- accounting_events に tenant_id を追加（存在しない場合）
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id);
 CREATE INDEX IF NOT EXISTS idx_ae_tenant_id ON accounting_events(tenant_id);
+
+-- ============================================================
+-- 既存DBへの追加カラム（ALTER TABLE）
+-- ============================================================
+
+-- accounting_events: タイムスタンプ関連カラム
+ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS timestamp_token TEXT DEFAULT NULL;
+ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS timestamp_at TIMESTAMP;
+ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS timestamp_verified BOOLEAN DEFAULT FALSE;
+
+-- accounting_events: その他不足カラム
+ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS debit_subsidiary VARCHAR(100) DEFAULT '';
+ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS purpose TEXT DEFAULT '';
+
+-- tenants: Stripe課金関連カラム
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(100);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(100);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stripe_price_id VARCHAR(100);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS billing_status VARCHAR(50) DEFAULT 'trial';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP;
