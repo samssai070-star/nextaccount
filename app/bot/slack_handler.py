@@ -1197,6 +1197,7 @@ def handle_edit_submit(ack, body, client, logger):
     fields["invoice_number"]   = invoice_number
     fields["has_invoice"]      = bool(invoice_number)
     fields["purpose"]          = purpose or ""
+    fields["credit_account"]   = build_credit_account("")   # 旧フォーマット（括弧付き）を修正
 
     ok = update_event(event_id, tenant_id, fields)
 
