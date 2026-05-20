@@ -106,8 +106,25 @@ _SUBSIDIARY_DEFAULT = {
     "諸雑費": "諸雑費",
 }
 
+# 取引先名から補助科目を推定するキーワードマッピング
+_COUNTERPARTY_SUBSIDIARY = [
+    (re.compile(r"タイムズ|パーキング|駐車|コインパーク|NPC|三井リパーク|ザ・パーク|リパーク", re.I), "駐車場代"),
+    (re.compile(r"タクシー|ハイヤー|DiDi|Uber|GO|エスライド", re.I), "タクシー代"),
+    (re.compile(r"航空|ANA|JAL|スカイマーク|ジェットスター|ピーチ", re.I), "航空券"),
+    (re.compile(r"ホテル|旅館|宿|イン$|inn", re.I), "宿泊費"),
+    (re.compile(r"郵便|ヤマト|佐川|日通|クロネコ|ゆうパック", re.I), "郵便・宅配"),
+    (re.compile(r"NTT|ドコモ|au|ソフトバンク|楽天モバイル|KDDI", re.I), "電話代"),
+    (re.compile(r"電力|東電|関電|中電|九電|東北電|北電|四電|沖電", re.I), "電気代"),
+    (re.compile(r"ガス|東京ガス|大阪ガス|東邦ガス", re.I), "ガス代"),
+]
 
-def _default_subsidiary(debit_account: str) -> str:
+
+def _default_subsidiary(debit_account: str, counterparty: str = "") -> str:
+    """勘定科目・取引先名から補助科目を推定する"""
+    if counterparty and "旅費交通費" in debit_account:
+        for pattern, subsidiary in _COUNTERPARTY_SUBSIDIARY:
+            if pattern.search(counterparty):
+                return subsidiary
     for key, val in _SUBSIDIARY_DEFAULT.items():
         if key in debit_account:
             return val
@@ -258,7 +275,7 @@ def handle_file_shared(event, client, logger):
         if ai_subsidiary:
             entry.debit_subsidiary = ai_subsidiary
         elif entry.debit_account:
-            entry.debit_subsidiary = _default_subsidiary(entry.debit_account)
+            entry.debit_subsidiary = _default_subsidiary(entry.debit_account, entry.counterparty)
         from core.accounting import build_credit_account
         entry.credit_account = build_credit_account(employee_name)
 
