@@ -1149,7 +1149,6 @@ def handle_edit(ack, body, client, logger):
 @app.view("edit_event_modal")
 def handle_edit_submit(ack, body, client, logger):
     """モーダル送信時の処理"""
-    ack()
     meta      = body["view"]["private_metadata"].split("|")
     event_id  = meta[0]
     tenant_id = meta[1] if len(meta) > 1 and meta[1] else None
@@ -1178,6 +1177,15 @@ def handle_edit_submit(ack, body, client, logger):
         amount = int(amount_str.replace(",", "").replace("¥", "").strip())
     except (ValueError, AttributeError):
         amount = None
+
+    # 承認済みの場合は金額変更を禁止
+    evt_pre = get_event_by_id(event_id, tenant_id)
+    if evt_pre and evt_pre.get("status") == "業務承認済" and amount is not None:
+        if amount != evt_pre.get("amount"):
+            ack(response_action="errors", errors={"amount": "承認済みのため金額を変更できません。取引先・科目・用途のみ修正可能です。"})
+            return
+
+    ack()
 
     from core.database import update_event
     fields = {}
