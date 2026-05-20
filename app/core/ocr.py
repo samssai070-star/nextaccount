@@ -115,22 +115,43 @@ def _clean_number(s: str) -> int:
 def extract_total_amount(text: str) -> int:
     """
     税込合計金額を抽出する。
-    複数の候補が見つかった場合は最大値を採用。
+    優先順位:
+      1. 税込合計・合計金額など明示的なキーワードに続く金額
+      2. お預り/おつり行を除外したうえで最大の ¥ 金額
     """
-    patterns = [
-        r"(?:合計|小計|合計金額|税込|税込合計|領収金額|請求金額|お支払い金額|お支払金額)"
+    # お預り・おつり行を含む行を事前除去
+    cleaned_lines = []
+    exclude_re = re.compile(
+        r"(?:お預り|お釣り|おつり|釣り銭|お釣|預り|釣銭|チェンジ|CHANGE|CASH\s*TENDERED|CHANGE\s*DUE)",
+        re.IGNORECASE,
+    )
+    for line in text.split("\n"):
+        if not exclude_re.search(line):
+            cleaned_lines.append(line)
+    cleaned = "\n".join(cleaned_lines)
+
+    # Priority 1: 合計・支払い金額を明示するキーワード（先頭マッチで即返す）
+    priority_patterns = [
+        r"(?:税込合計|合計金額|領収金額|ご請求金額|現金領収額|お支払い金額|お支払金額|請求金額|ご請求額)"
         r"\s*[：:￥¥]?\s*([\d,]+)",
-        r"[￥¥]\s*([\d,]+)",
-        r"([\d,]+)\s*円",
+        r"(?:合計|小計)\s*[：:￥¥]\s*([\d,]+)",   # ：または¥が必須（単なる「合計」後の改行対策）
+        r"(?:合計|小計)\s+([\d,]+)",
     ]
+    for pat in priority_patterns:
+        m = re.search(pat, cleaned, re.IGNORECASE)
+        if m:
+            v = _clean_number(m.group(1))
+            if v > 0:
+                return v
+
+    # Priority 2: お預り除去済みテキストから ¥ 金額を収集して最大値
     candidates: list[int] = []
-    for pat in patterns:
-        for m in re.finditer(pat, text, re.IGNORECASE):
+    for pat in [r"[￥¥]\s*([\d,]+)", r"([\d,]+)\s*円"]:
+        for m in re.finditer(pat, cleaned):
             v = _clean_number(m.group(1))
             if v > 0:
                 candidates.append(v)
 
-    # 最大値が合計金額である確率が高い
     return max(candidates) if candidates else 0
 
 
