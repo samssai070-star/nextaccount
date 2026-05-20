@@ -309,9 +309,11 @@ class SheetsManager:
                 )
 
                 row_index = next(
-                    (i + 1 for i, r in enumerate(col_a) if r and r[0] == entry.event_id),
+                    (i + 1 for i, r in enumerate(col_a) if r and r[0].strip() == entry.event_id.strip()),
                     None,
                 )
+
+                logger.info(f"update_journal_entry: sheet={sheet_name} event_id={entry.event_id} row_index={row_index} col_a_count={len(col_a)}")
 
                 if row_index:
                     self.service.spreadsheets().values().update(
