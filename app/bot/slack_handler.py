@@ -25,7 +25,7 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 from core.config import SLACK_BOT_TOKEN, SLACK_APP_TOKEN, GOOGLE_SHEET_ID
 import os
 APPROVAL_CHANNEL_ID = os.environ.get("APPROVAL_CHANNEL_ID", "")
-from core.ocr import parse_receipt
+from core.ocr import parse_receipt, OcrResult
 from core.accounting import build_journal_entry, generate_event_id, build_credit_account
 from core.database import get_tenant_by_slack_team
 from core import (
@@ -42,6 +42,7 @@ from core.database import (
     get_user_by_slack_id,
     upsert_user,
     update_commute_section,
+    update_event,
 )
 
 logger = logging.getLogger(__name__)
@@ -202,67 +203,68 @@ def handle_file_shared(event, client, logger):
             f.write(file_bytes)
         logger.info(f"ダウンロード完了: {len(file_bytes):,} bytes")
 
-        # OCR
-        ocr_result = parse_receipt(temp_path)
-        os.remove(temp_path)
-        logger.info(f"[DEBUG] OCR total={ocr_result.total_amount} tax10={ocr_result.tax_10_amount} raw_excerpt={repr(ocr_result.raw_text[:300])}")
+        # Claude Multimodal で画像から全項目を直接抽出
+        from core.ai_classifier import extract_all_by_claude_vision, classify
+
+        if mime.startswith("image/"):
+            ai_result = extract_all_by_claude_vision(file_bytes, mime)
+        else:
+            ai_result = {}
+
+        if ai_result:
+            # Claude Vision成功 → OcrResultに変換
+            ocr_result = OcrResult(used_real_ocr=True)
+            ocr_result.counterparty      = ai_result.get("counterparty") or "不明"
+            ocr_result.event_date        = ai_result.get("event_date")
+            ocr_result.total_amount      = int(ai_result.get("total_amount") or 0)
+            ocr_result.taxable_10_amount = int(ai_result.get("taxable_10_amount") or 0)
+            ocr_result.tax_10_amount     = int(ai_result.get("tax_10_amount") or 0)
+            ocr_result.taxable_8_amount  = int(ai_result.get("taxable_8_amount") or 0)
+            ocr_result.tax_8_amount      = int(ai_result.get("tax_8_amount") or 0)
+            inv = ai_result.get("invoice_number")
+            if inv and inv != "null":
+                ocr_result.invoice_number = str(inv)
+                ocr_result.has_invoice    = True
+        else:
+            # フォールバック: Google Vision OCR → Claude テキスト分類
+            logger.warning("Claude Vision失敗 → Google Vision OCRにフォールバック")
+            ocr_result = parse_receipt(temp_path)
+            fallback_ai = classify(ocr_result.raw_text, ocr_result.counterparty)
+            ai_result = fallback_ai or {}
+            if ai_result:
+                if ai_result.get("counterparty"):
+                    ocr_result.counterparty = ai_result["counterparty"]
+                if ai_result.get("event_date"):
+                    ocr_result.event_date = ai_result["event_date"]
+                ai_total  = int(ai_result["total_amount"]) if ai_result.get("total_amount") else 0
+                ocr_total = ocr_result.total_amount
+                if ocr_total == 0 and ai_total > 0:
+                    ocr_result.total_amount = ai_total
+                elif ai_total > 0 and ocr_total > 0 and ocr_total < ai_total / 10:
+                    ocr_result.total_amount = ai_total
+                ai_tax_10     = int(ai_result["tax_10_amount"])     if ai_result.get("tax_10_amount")     else 0
+                ai_taxable_10 = int(ai_result["taxable_10_amount"]) if ai_result.get("taxable_10_amount") else 0
+                ai_tax_8      = int(ai_result["tax_8_amount"])      if ai_result.get("tax_8_amount")      else 0
+                ai_taxable_8  = int(ai_result["taxable_8_amount"])  if ai_result.get("taxable_8_amount")  else 0
+                final_total = ocr_result.total_amount
+                if final_total > 0 and (ai_taxable_10 + ai_tax_10 + ai_taxable_8 + ai_tax_8) <= final_total:
+                    ocr_result.tax_10_amount     = ai_tax_10
+                    ocr_result.taxable_10_amount = ai_taxable_10
+                    ocr_result.tax_8_amount      = ai_tax_8
+                    ocr_result.taxable_8_amount  = ai_taxable_8
+                if ai_result.get("invoice_number"):
+                    ocr_result.invoice_number = ai_result["invoice_number"]
+                    ocr_result.has_invoice = True
+
+        try:
+            os.remove(temp_path)
+        except Exception:
+            pass
 
         # 仕訳生成
         event_date = ocr_result.event_date or datetime.now().strftime("%Y-%m-%d")
         seq        = get_next_sequence(event_date, tenant_id)
         event_id   = generate_event_id(event_date, seq)
-
-        # Claude AI で全項目を一括判定
-        from core.ai_classifier import classify
-        ai_result = classify(ocr_result.raw_text, ocr_result.counterparty)
-        logger.info(f"[DEBUG] AI total={ai_result.get('total_amount')} tax10={ai_result.get('tax_10_amount')} taxable10={ai_result.get('taxable_10_amount')}")
-
-        # Claude結果でOCR結果を上書き
-        if ai_result:
-            if ai_result.get("counterparty"):
-                ocr_result.counterparty = ai_result["counterparty"]
-            if ai_result.get("event_date"):
-                ocr_result.event_date = ai_result["event_date"]
-            # AI が event_date を上書きした場合、event_id を再生成
-            event_date = ocr_result.event_date or datetime.now().strftime("%Y-%m-%d")
-            seq        = get_next_sequence(event_date, tenant_id)
-            event_id   = generate_event_id(event_date, seq)
-
-            # total_amount: OCRが正規表現で取得した値を優先。
-            # ただしOCRが異常に小さい値（AIの1/10以下）の場合はAIを採用。
-            ai_total = int(ai_result["total_amount"]) if ai_result.get("total_amount") else 0
-            ocr_total = ocr_result.total_amount
-            if ocr_total == 0 and ai_total > 0:
-                ocr_result.total_amount = ai_total
-            elif ai_total > 0 and ocr_total > 0 and ocr_total < ai_total / 10:
-                # OCRが明らかに小さすぎる（例: OCR=10, AI=1600）→ AIを採用
-                logger.warning(f"OCR合計({ocr_total})がAI合計({ai_total})と大幅乖離 → AI値を採用")
-                ocr_result.total_amount = ai_total
-
-            # 税額内訳: AI値がOCR合計と整合する場合のみ採用
-            # （taxable + tax > total になるなら二重計上と判断して捨てる）
-            final_total = ocr_result.total_amount
-            ai_tax_10     = int(ai_result["tax_10_amount"])     if ai_result.get("tax_10_amount")     else 0
-            ai_taxable_10 = int(ai_result["taxable_10_amount"]) if ai_result.get("taxable_10_amount") else 0
-            ai_tax_8      = int(ai_result["tax_8_amount"])      if ai_result.get("tax_8_amount")      else 0
-            ai_taxable_8  = int(ai_result["taxable_8_amount"])  if ai_result.get("taxable_8_amount")  else 0
-
-            if final_total > 0 and (ai_taxable_10 + ai_tax_10 + ai_taxable_8 + ai_tax_8) <= final_total:
-                ocr_result.tax_10_amount     = ai_tax_10
-                ocr_result.taxable_10_amount = ai_taxable_10
-                ocr_result.tax_8_amount      = ai_tax_8
-                ocr_result.taxable_8_amount  = ai_taxable_8
-            elif final_total == 0:
-                # OCR合計が0のときはAI値をそのまま使う
-                ocr_result.tax_10_amount     = ai_tax_10
-                ocr_result.taxable_10_amount = ai_taxable_10
-                ocr_result.tax_8_amount      = ai_tax_8
-                ocr_result.taxable_8_amount  = ai_taxable_8
-
-            if ai_result.get("invoice_number"):
-                ocr_result.invoice_number = ai_result["invoice_number"]
-                ocr_result.has_invoice = True
-
 
         entry = build_journal_entry(
             ocr_result       = ocr_result,
@@ -272,10 +274,9 @@ def handle_file_shared(event, client, logger):
             raw_text         = ocr_result.raw_text,
         )
 
-        # Claude判定の科目で上書き（entry に直接反映）
+        # Claude判定の科目で上書き
         if ai_result.get("debit_account"):
             entry.debit_account = ai_result["debit_account"]
-        # debit_subsidiary: AI値を優先、空の場合は勘定科目から推定
         ai_subsidiary = ai_result.get("debit_subsidiary", "")
         if ai_subsidiary:
             entry.debit_subsidiary = ai_subsidiary
@@ -404,7 +405,7 @@ def _send_approval_card(client, channel_id, msg_ts, entry, used_real_ocr: bool, 
     from core.accounting import JournalEntry
     e: JournalEntry = entry
 
-    ocr_badge = "🤖 Google Vision" if used_real_ocr else "🎭 シミュレーション"
+    ocr_badge = "🤖 Claude Vision" if used_real_ocr else "🎭 シミュレーション"
     from core.timestamp import get_timestamp_badge
     evt_dict = e.to_db_dict()
     ts_badge = get_timestamp_badge(evt_dict)
@@ -792,7 +793,7 @@ def handle_mention(event, say):
     say(
         f"こんにちは！*NextAccount v2 Bot* です。\n\n"
         f"*現在の状態*\n"
-        f"• OCR: Google Cloud Vision 🤖\n"
+        f"• OCR: Claude Vision (Multimodal) 🤖\n"
         f"• Google Sheets 同期: {sheets_status}\n"
         f"• 重複チェック: 有効 ✅\n\n"
         f"*使い方*\n"

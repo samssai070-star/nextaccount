@@ -13,7 +13,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_PROMPT = """あなたは日本の経理・会計の専門家です。領収書・レシートのOCRテキストから全項目を正確に抽出・判定してください。
+_SYSTEM_PROMPT = """あなたは日本の経理・会計の専門家です。領収書・レシートから全項目を正確に抽出・判定してください。
 
 以下のJSON形式のみで回答してください（前後の説明・コードブロック不要）:
 {
@@ -117,9 +117,86 @@ def extract_all_by_claude(ocr_text: str) -> dict:
     return {}
 
 
+def extract_all_by_claude_vision(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
+    """
+    領収書画像をClaudeマルチモーダルに直接送り、全項目を一括抽出する。
+    Google Cloud Vision OCRを使わないため、縦2列レイアウト等の誤読がない。
+    """
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        logger.warning("ANTHROPIC_API_KEY 未設定")
+        return {}
+
+    try:
+        import anthropic
+        import base64
+
+        client = anthropic.Anthropic(api_key=api_key)
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        supported_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+        media_type = mime_type if mime_type in supported_types else "image/jpeg"
+
+        image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
+
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=800,
+            system=[
+                {
+                    "type": "text",
+                    "text": _SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": image_data,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": f"今日の日付: {today}\n\n上記の領収書・レシート画像から全項目を抽出してください。",
+                    },
+                ],
+            }],
+        )
+
+        text = response.content[0].text.strip()
+        logger.info(f"Claude Vision応答: {text[:200]}")
+
+        usage = response.usage
+        if hasattr(usage, "cache_read_input_tokens") and usage.cache_read_input_tokens:
+            logger.info(f"プロンプトキャッシュ: hit={usage.cache_read_input_tokens}tok")
+        elif hasattr(usage, "cache_creation_input_tokens") and usage.cache_creation_input_tokens:
+            logger.info(f"プロンプトキャッシュ: created={usage.cache_creation_input_tokens}tok")
+
+        text = re.sub(r"```json|```", "", text).strip()
+        m = re.search(r"\{.*\}", text, re.DOTALL)
+        if m:
+            data = json.loads(m.group(0))
+            logger.info(
+                f"Claude Vision判定完了: {data.get('counterparty')} → "
+                f"{data.get('debit_account')} "
+                f"¥{data.get('total_amount')} "
+                f"({data.get('reason')})"
+            )
+            return data
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Claude Vision JSON解析エラー: {e}")
+    except Exception as e:
+        logger.error(f"Claude Vision API エラー: {e}")
+
+    return {}
+
+
 def classify(ocr_text: str, current_counterparty: str) -> dict:
-    """
-    Claude API で全項目を判定して返す。
-    失敗時は空dictを返す（呼び出し元でOCR結果を使用）。
-    """
+    """テキストのみモード（フォールバック用）。"""
     return extract_all_by_claude(ocr_text)
