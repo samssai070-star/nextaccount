@@ -74,7 +74,7 @@ class JournalEntry:
             self.debit_account,                     # J 借方科目
             self.debit_subsidiary or "",            # K 借方補助科目
             self.credit_account,                    # L 貳方科目
-            self.employee_name,                     # M 申請者
+            self.employee_name,                     # M 貸方補助科目（社員名）
             self.status,                            # N ステータス
             ('=HYPERLINK("' + self.evidence_url + '","証憑")') if self.evidence_url else (self.memo or ""),  # O 証憑
             self.purpose or "",                     # P 用途
@@ -145,9 +145,7 @@ def generate_event_id(event_date: Optional[str], sequence: int) -> str:
     return f"T{date_str}-{sequence:05d}"
 
 def build_credit_account(employee_name: str) -> str:
-    """貸方科目を構築する。社員名が指定されていれば「未払費用（{employee_name}）」を返す。"""
-    if employee_name:
-        return f"{CREDIT_ACCOUNT_BASE}（{employee_name}）"
+    """貸方科目を返す。社員名は M列（貸方補助科目）に別途記載するため含めない。"""
     return CREDIT_ACCOUNT_BASE
 
 def build_journal_entry(*, ocr_result, employee_name: str, employee_slack_id: str, event_id: str, raw_text: str) -> JournalEntry:

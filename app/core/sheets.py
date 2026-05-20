@@ -12,7 +12,7 @@ Google Sheets API v4 との連携を担当する。
   A: 管理ID     B: 発生日     C: 取引先     D: 税込金額
   E: 税率10%対象額  F: 消費税(10%)  G: 税率8%対象額  H: 消費税(8%)
   I: T番号      J: 借方科目   K: 借方補助科目  L: 貸方科目
-  M: 申請者     N: ステータス  O: 証憑       P: 用途
+  M: 貸方補助科目  N: ステータス  O: 証憑     P: 用途
 """
 
 from __future__ import annotations
