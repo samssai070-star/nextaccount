@@ -312,11 +312,18 @@ def handle_file_shared(event, client, logger):
             entry.debit_subsidiary = _default_subsidiary(entry.debit_account, entry.counterparty)
         entry.credit_account = build_credit_account(employee_name)
 
-        # DB保存
+        # DB保存（重複チェック後）
         db_dict = entry.to_db_dict()
         db_dict["employee_slack_id"] = user_id
         db_dict["evidence_url"] = file_info.get("url_private", "")
         db_dict["source_type"]  = "expense"
+
+        dup = check_duplicate(entry.invoice_number, entry.total_amount, entry.event_date, tenant_id)
+        if dup:
+            _send_duplicate_warning(client, channel_id, msg_ts, dup, ocr_result)
+            logger.warning(f"重複検出 → スキップ: {dup['event_id']}")
+            return
+
         insert_event(db_dict, tenant_id)
 
         # Google Drive に証憑を保存（電子帳簿保存法対応）
