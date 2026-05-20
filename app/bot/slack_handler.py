@@ -207,11 +207,11 @@ def handle_file_shared(event, client, logger):
             raw_text         = ocr_result.raw_text,
         )
 
-        # Claude判定の科目で上書き
+        # Claude判定の科目で上書き（entry に直接反映）
         if ai_result.get("debit_account"):
             entry.debit_account = ai_result["debit_account"]
         if ai_result.get("debit_subsidiary"):
-            ocr_result.debit_subsidiary = ai_result["debit_subsidiary"]
+            entry.debit_subsidiary = ai_result["debit_subsidiary"]
         from core.accounting import build_credit_account
         entry.credit_account = build_credit_account(employee_name)
 
