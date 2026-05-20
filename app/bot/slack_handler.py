@@ -887,7 +887,7 @@ def handle_delete(ack, body, client, logger):
     ack()
     user_id    = body["user_id"]
     channel_id = body["channel_id"]
-    event_id   = body.get("text", "").strip()
+    event_id   = body.get("text", "").strip().split()[0] if body.get("text", "").strip() else ""
 
     if not event_id:
         client.chat_postMessage(
@@ -1030,7 +1030,7 @@ def handle_edit(ack, body, client, logger):
     指定した管理IDの仕訳をモーダルで修正する。
     """
     ack()
-    event_id   = body.get("text", "").strip()
+    event_id   = body.get("text", "").strip().split()[0] if body.get("text", "").strip() else ""
     channel_id = body["channel_id"]
     trigger_id = body["trigger_id"]
     tenant     = _get_tenant(body.get("team_id", ""))
