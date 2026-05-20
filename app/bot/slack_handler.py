@@ -447,6 +447,29 @@ def handle_file_shared(event, client, logger):
             blocks=dm_blocks,
         )
 
+        # 飲料代が含まれる場合は振り分け選択を促す
+        beverage_amount = int(ai_result.get("beverage_amount") or 0)
+        if beverage_amount > 0 and entry.debit_account == "旅費交通費":
+            client.chat_postMessage(
+                channel=channel_id,
+                blocks=[
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": (
+                                f"🍺 *飲料代 ¥{beverage_amount:,} を検出*\n"
+                                f"ビール・日本酒・ウイスキー等が含まれています。\n"
+                                f"用途に応じて `/edit {entry.event_id}` で科目を変更してください:\n"
+                                f"• 接待目的 → *接待交際費 / 接待飲食費*\n"
+                                f"• 社内慰安旅行 → *福利厚生費 / レクリエーション費*"
+                            ),
+                        },
+                    }
+                ],
+                text=f"🍺 飲料代 ¥{beverage_amount:,} を検出",
+            )
+
         # 入湯税分割仕訳の完了通知
         if nyutou_entry:
             client.chat_postMessage(
