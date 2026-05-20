@@ -107,35 +107,48 @@ def perform_ocr_from_bytes(image_bytes: bytes) -> str:
 # ============================================================
 
 def _clean_number(s: str) -> int:
-    """'\''1,234'\'' や '\''¥1,234'\'' を int に変換する"""
+    """'1,234' や '¥1,234' を int に変換する"""
     s = re.sub(r"[^\d]", "", s)
     return int(s) if s else 0
+
+
+def _normalize_text(text: str) -> str:
+    """全角数字・記号・スペースを半角に統一する"""
+    result = []
+    for c in text:
+        code = ord(c)
+        if 0xFF01 <= code <= 0xFF5E:   # 全角ASCII範囲 → 半角
+            result.append(chr(code - 0xFEE0))
+        elif c == "　":             # 全角スペース → 半角スペース
+            result.append(" ")
+        else:
+            result.append(c)
+    return "".join(result)
 
 
 def extract_total_amount(text: str) -> int:
     """
     税込合計金額を抽出する。
     優先順位:
-      1. 税込合計・合計金額など明示的なキーワードに続く金額
-      2. お預り/おつり行を除外したうえで最大の ¥ 金額
+      1. 税込合計・合計金額など明示的なキーワードに続く金額（同行 or 次行）
+      2. お預り/おつり行を除外したうえで最大の ¥/円 金額
     """
+    text = _normalize_text(text)
+
     # お預り・おつり行を含む行を事前除去
-    cleaned_lines = []
     exclude_re = re.compile(
         r"(?:お預り|お釣り|おつり|釣り銭|お釣|預り|釣銭|チェンジ|CHANGE|CASH\s*TENDERED|CHANGE\s*DUE)",
         re.IGNORECASE,
     )
-    for line in text.split("\n"):
-        if not exclude_re.search(line):
-            cleaned_lines.append(line)
+    cleaned_lines = [line for line in text.split("\n") if not exclude_re.search(line)]
     cleaned = "\n".join(cleaned_lines)
 
-    # Priority 1: 合計・支払い金額を明示するキーワード（先頭マッチで即返す）
+    # Priority 1a: 税込合計・ご請求金額など明示的なキーワード（同行に金額）
     priority_patterns = [
-        r"(?:税込合計|合計金額|領収金額|ご請求金額|現金領収額|お支払い金額|お支払金額|請求金額|ご請求額)"
-        r"\s*[：:￥¥]?\s*([\d,]+)",
-        r"(?:合計|小計)\s*[：:￥¥]\s*([\d,]+)",   # ：または¥が必須（単なる「合計」後の改行対策）
-        r"(?:合計|小計)\s+([\d,]+)",
+        r"(?:税込合計|合計金額|領収金額|ご請求金額|現金領収額|お支払い金額|お支払金額|請求金額|ご請求額|ご合計)"
+        r"[^\d\n]*([\d,]+)",
+        r"(?:合計|小計)[^\S\n]*[：:￥¥][^\d\n]*([\d,]+)",   # ：または¥が同行に必須
+        r"(?:合計|小計)[^\S\n]+([\d,]+)",                    # 合計 スペース 数字（同行）
     ]
     for pat in priority_patterns:
         m = re.search(pat, cleaned, re.IGNORECASE)
@@ -144,7 +157,19 @@ def extract_total_amount(text: str) -> int:
             if v > 0:
                 return v
 
-    # Priority 2: お預り除去済みテキストから ¥ 金額を収集して最大値
+    # Priority 1b: 合計の次の行に金額がある場合（OCRが改行で分割するケース）
+    lines = cleaned.split("\n")
+    total_kw = re.compile(r"^[^\S\n]*(?:合計|小計|ご合計|税込合計|合計金額)[^\S\n]*$")
+    for i, line in enumerate(lines):
+        if total_kw.match(line.strip()) and i + 1 < len(lines):
+            nxt = lines[i + 1].strip()
+            m = re.search(r"[￥¥]?\s*([\d,]+)", nxt)
+            if m:
+                v = _clean_number(m.group(1))
+                if v > 0:
+                    return v
+
+    # Priority 2: お預り除去済みテキストから ¥/円 金額を収集して最大値
     candidates: list[int] = []
     for pat in [r"[￥¥]\s*([\d,]+)", r"([\d,]+)\s*円"]:
         for m in re.finditer(pat, cleaned):

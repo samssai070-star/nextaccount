@@ -164,6 +164,7 @@ def handle_file_shared(event, client, logger):
         # OCR
         ocr_result = parse_receipt(temp_path)
         os.remove(temp_path)
+        logger.info(f"[DEBUG] OCR total={ocr_result.total_amount} tax10={ocr_result.tax_10_amount} raw_excerpt={repr(ocr_result.raw_text[:300])}")
 
         # 仕訳生成
         event_date = ocr_result.event_date or datetime.now().strftime("%Y-%m-%d")
@@ -173,6 +174,7 @@ def handle_file_shared(event, client, logger):
         # Claude AI で全項目を一括判定
         from core.ai_classifier import classify
         ai_result = classify(ocr_result.raw_text, ocr_result.counterparty)
+        logger.info(f"[DEBUG] AI total={ai_result.get('total_amount')} tax10={ai_result.get('tax_10_amount')} taxable10={ai_result.get('taxable_10_amount')}")
 
         # Claude結果でOCR結果を上書き
         if ai_result:
