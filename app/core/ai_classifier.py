@@ -45,6 +45,8 @@ _SYSTEM_PROMPT = """あなたは日本の経理・会計の専門家です。領
   例: タクシー・DiDi・Uber → debit_account=旅費交通費, debit_subsidiary=タクシー代
   例: ENEOS・出光・apollostation・ガソリンスタンド → debit_account=旅費交通費, debit_subsidiary=ガソリン代
   例: ビーチライン・道路公社・高速・有料道路・NEXCO → debit_account=旅費交通費, debit_subsidiary=高速料金
+  例: ホテル・旅館・イン・宿・リゾート・足和田ホテル・東横イン・アパホテル → debit_account=旅費交通費, debit_subsidiary=宿泊費
+  【重要】ホテル・旅館の宿泊領収書は必ず旅費交通費→宿泊費。福利厚生費やレクリエーション費は絶対に使わない。
 - 通信費 → 補助: 電話代 / 郵便・宅配 / インターネット
 - 水道光熱費 → 補助: 電気代 / ガス代 / 水道代
 - 接待交際費 → 補助: 接待飲食費 / 贈答品費 / 慶弔費
