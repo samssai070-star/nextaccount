@@ -1,15 +1,7 @@
 """
 NextAccount v2 — core/ai_classifier.py
-Claude API で領収書OCRテキストから全項目を一括判定する。
-
-判定項目:
-  - 取引先名
-  - 発生日
-  - 税込金額
-  - 税率10%対象額 / 消費税(10%)
-  - 税率8%対象額 / 消費税(8%)
-  - T番号
-  - 勘定科目（借方）
+Anthropic SDK で領収書OCRテキストから全項目を一括判定する。
+プロンプトキャッシングにより、静的な分類ルールをキャッシュしてコスト・レイテンシを削減する。
 """
 
 from __future__ import annotations
@@ -17,63 +9,28 @@ import os
 import json
 import logging
 import re
-import requests
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-
-
-def extract_all_by_claude(ocr_text: str) -> dict:
-    """
-    Claude API に領収書の全項目抽出・判定を依頼する。
-
-    Returns:
-        {
-            "counterparty": str,
-            "event_date": str (YYYY-MM-DD),
-            "total_amount": int,
-            "taxable_10_amount": int,
-            "tax_10_amount": int,
-            "taxable_8_amount": int,
-            "tax_8_amount": int,
-            "invoice_number": str or None,
-            "debit_account": str,
-            "reason": str
-        }
-    """
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        logger.warning("ANTHROPIC_API_KEY 未設定")
-        return {}
-
-    from datetime import datetime
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    prompt = f"""以下は領収書・レシートのOCRテキストです。
-全項目を正確に抽出・判定してください。
-
-OCRテキスト:
-\"\"\"
-{ocr_text[:2000]}
-\"\"\"
+_SYSTEM_PROMPT = """あなたは日本の経理・会計の専門家です。領収書・レシートのOCRテキストから全項目を正確に抽出・判定してください。
 
 以下のJSON形式のみで回答してください（前後の説明・コードブロック不要）:
-{{
+{
   "counterparty": "取引先名（店名・会社名。「領収書」「様」などは除く）",
-  "event_date": "発生日（YYYY-MM-DD形式。不明な場合は{today}）",
-  "total_amount": 実際に支払った税込合計金額（整数。円記号・カンマ不要。「お預り」「預り金」「お釣り」は含めない。「合計」「現金領収額」「ご請求額」の金額を使う）,
+  "event_date": "発生日（YYYY-MM-DD形式。不明な場合は今日の日付）",
+  "total_amount": 実際に支払った税込合計金額（整数。円記号・カンマ不要。「お預り」「お釣り」は含めない）,
   "taxable_10_amount": 税率10%対象の本体金額（整数。内税の場合は合計÷1.1で計算）,
   "tax_10_amount": 消費税10%の金額（整数）,
   "taxable_8_amount": 税率8%対象の本体金額（整数。なければ0）,
   "tax_8_amount": 消費税8%の金額（整数。なければ0）,
   "invoice_number": "T番号（T+13桁。登録番号・適格請求書番号も対象。なければnull）",
-  "debit_account": "勘定科目（科目名のみ。括弧内の説明は含めない）",
-  "debit_subsidiary": "借方補助科目（具体的な費目。例：電気料金、ガス代、水道代、タクシー代、駐車場代、携帯電話、宅配便、プリペイドSIMなど。該当なしは空文字列）",
+  "debit_account": "勘定科目（科目名のみ）",
+  "debit_subsidiary": "借方補助科目（例：電気料金、ガス代、タクシー代等。該当なしは空文字列）",
   "reason": "判定理由（一言）"
-}}
+}
 
-勘定科目の選択肢（debit_accountは科目名のみ、debit_subsidiaryは括弧内の該当項目を返す）:
+勘定科目の選択肢:
 - 旅費交通費（電車・バス・タクシー・駐車場・宿泊・航空券）
 - 通信費（電話・郵便・宅配・インターネット）
 - 水道光熱費（電気・ガス・水道）
@@ -92,35 +49,53 @@ OCRテキスト:
 - 「税務署」「国税」「都税」「市税」「源泉所得税」「法人税」「消費税」が含まれる → 租税公課
 - 「健康保険」「厚生年金」「労働保険」「雇用保険」が含まれる → 社会保険料
 - 「業務委託」「外注」「委託料」が含まれる → 外注費
-- 領収書の支払先が「税務署」「都税事務所」「市役所」などの官公署 → 租税公課
-- T番号がない場合でも上記ルールを優先する
-
-重要ルール:
-- T番号はT+13桁の数字。「登録番号」の後にある場合も含む
+- 領収書の支払先が官公署 → 租税公課
+- T番号はT+13桁の数字（「登録番号」の後も対象）
 - 税額が明記されている場合はその値を使う
-- 税額が明記されていない場合は税込合計から逆算（÷1.1）
+- 税額が不明な場合は税込合計から逆算（÷1.1）
 - 取引先は店名・会社名のみ（住所・電話番号は含めない）"""
 
+
+def extract_all_by_claude(ocr_text: str) -> dict:
+    """
+    Anthropic SDK でOCRテキストから全項目を抽出・判定する。
+    静的なシステムプロンプトをプロンプトキャッシングでキャッシュする。
+    """
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        logger.warning("ANTHROPIC_API_KEY 未設定")
+        return {}
+
     try:
-        resp = requests.post(
-            ANTHROPIC_API_URL,
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 500,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=15,
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        user_content = f"今日の日付: {today}\n\nOCRテキスト:\n\"\"\"\n{ocr_text[:2000]}\n\"\"\""
+
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=600,
+            system=[
+                {
+                    "type": "text",
+                    "text": _SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+            messages=[{"role": "user", "content": user_content}],
         )
-        resp.raise_for_status()
-        text = resp.json()["content"][0]["text"].strip()
+
+        text = response.content[0].text.strip()
         logger.info(f"Claude応答: {text[:200]}")
 
-        # コードブロックを除去してJSONを抽出
+        # キャッシュ使用状況をログ
+        usage = response.usage
+        if hasattr(usage, "cache_read_input_tokens") and usage.cache_read_input_tokens:
+            logger.info(f"プロンプトキャッシュ: hit={usage.cache_read_input_tokens}tok")
+        elif hasattr(usage, "cache_creation_input_tokens") and usage.cache_creation_input_tokens:
+            logger.info(f"プロンプトキャッシュ: created={usage.cache_creation_input_tokens}tok")
+
         text = re.sub(r"```json|```", "", text).strip()
         m = re.search(r"\{.*\}", text, re.DOTALL)
         if m:
@@ -134,7 +109,7 @@ OCRテキスト:
             return data
 
     except json.JSONDecodeError as e:
-        logger.error(f"JSON解析エラー: {e} / レスポンス: {text[:300]}")
+        logger.error(f"JSON解析エラー: {e}")
     except Exception as e:
         logger.error(f"Claude API エラー: {e}")
 

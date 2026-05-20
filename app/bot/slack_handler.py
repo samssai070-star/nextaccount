@@ -14,6 +14,7 @@ Slack ユーザー名を「申請者（社員名）」として使用する。
 from __future__ import annotations
 
 import os
+import re
 import logging
 import requests as http_requests
 from datetime import datetime
@@ -154,7 +155,8 @@ def handle_file_shared(event, client, logger):
 
         # ファイルダウンロード
         file_bytes = _download_file(file_info["url_private"], SLACK_BOT_TOKEN)
-        temp_path  = f"/tmp/receipt_{file_id}.jpg"
+        ext = ".pdf" if mime == "application/pdf" else ".jpg"
+        temp_path  = f"/tmp/receipt_{file_id}{ext}"
         with open(temp_path, "wb") as f:
             f.write(file_bytes)
         logger.info(f"ダウンロード完了: {len(file_bytes):,} bytes")
@@ -779,6 +781,88 @@ def handle_delete(ack, body, client, logger):
 
 
 # ============================================================
+# /list コマンド（当月の経費一覧）
+# ============================================================
+
+@app.command("/list")
+def handle_list(ack, body, client, logger):
+    """
+    /list [YYYY-MM] [status]
+    当月（または指定月）の経費一覧を表示する。
+    status: all(default) / pending / approved / rejected
+    例: /list 2026-04 approved
+    """
+    ack()
+    channel_id = body["channel_id"]
+    text       = body.get("text", "").strip().split()
+
+    STATUS_ALIAS = {
+        "pending":  "申請中",
+        "approved": "業務承認済",
+        "rejected": "却下",
+        "all":      None,
+    }
+
+    target_month = None
+    filter_status = None
+
+    for part in text:
+        if re.match(r"^\d{4}-\d{2}$", part):
+            target_month = part
+        elif part.lower() in STATUS_ALIAS:
+            filter_status = STATUS_ALIAS[part.lower()]
+
+    from datetime import datetime as _dt
+    if target_month:
+        try:
+            dt = _dt.strptime(target_month, "%Y-%m")
+        except ValueError:
+            client.chat_postMessage(channel=channel_id, text="❌ 形式: `/list 2026-04` または `/list 2026-04 approved`")
+            return
+    else:
+        dt = _dt.now()
+
+    year, month = dt.year, dt.month
+    ym_label = f"{year:04d}/{month:02d}"
+
+    tenant = _get_tenant(body.get("team_id", ""))
+    tenant_id = tenant["id"] if tenant else None
+
+    from core.database import list_all_events_by_month
+    events = list_all_events_by_month(year, month, tenant_id)
+
+    if filter_status:
+        events = [e for e in events if e.get("status") == filter_status]
+
+    if not events:
+        status_label = f"（{filter_status}）" if filter_status else ""
+        client.chat_postMessage(
+            channel=channel_id,
+            text=f"📭 {ym_label} の経費{status_label}が見つかりません。"
+        )
+        return
+
+    STATUS_ICON = {"申請中": "⏳", "業務承認済": "✅", "却下": "❌"}
+
+    lines = [f"*📋 {ym_label} 経費一覧 — {len(events)} 件*\n"]
+    for e in events[:20]:
+        icon = STATUS_ICON.get(e.get("status", ""), "•")
+        lines.append(
+            f"{icon} `{e['event_id']}` {e['event_date']} "
+            f"{e['counterparty']} *¥{e['amount']:,}* "
+            f"[{e.get('employee_name', '')}]"
+        )
+    if len(events) > 20:
+        lines.append(f"\n_…他 {len(events) - 20} 件（`/export {year:04d}-{month:02d} csv` でCSV出力可）_")
+
+    total = sum(e.get("amount", 0) for e in events)
+    lines.append(f"\n*合計: ¥{total:,}*")
+
+    client.chat_postMessage(channel=channel_id, text="\n".join(lines))
+    logger.info(f"/list: {ym_label} {len(events)}件")
+
+
+# ============================================================
 # /setup コマンド（管理者専用・新規テナント初期設定）
 # ============================================================
 
@@ -958,6 +1042,7 @@ def handle_transportation_message(event, client, logger):
                 is_commute_section = True
 
         # 仕訳生成
+        event_date = datetime.now().strftime("%Y-%m-%d")
         seq = get_next_sequence(event_date, tenant_id)
         event_id = generate_event_id(event_date, seq)
 

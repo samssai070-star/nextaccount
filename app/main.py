@@ -93,6 +93,23 @@ def stripe_webhook():
     elif event_type == "invoice.payment_failed":
         logger.warning(f"支払い失敗: {result}")
 
+    elif event_type == "invoice.payment_succeeded":
+        tenant_id = result.get("tenant_id", "")
+        amount_paid = result.get("amount_paid", 0)
+        logger.info(f"支払い成功: tenant={tenant_id} amount={amount_paid}")
+        if tenant_id:
+            try:
+                conn = psycopg2.connect(os.environ.get("DATABASE_URL", ""))
+                conn.autocommit = True
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE tenants SET billing_status='active', updated_at=NOW() WHERE id=%s",
+                        (tenant_id,)
+                    )
+                conn.close()
+            except Exception as e:
+                logger.error(f"支払い成功DB更新失敗: {e}")
+
     return jsonify({"status": "ok"}), 200
 
 

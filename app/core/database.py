@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS accounting_events (
     taxable_8_amount    INTEGER      DEFAULT 0,
     tax_8_amount        INTEGER      DEFAULT 0,
     debit_account       VARCHAR(100) NOT NULL,
+    debit_subsidiary    VARCHAR(100) DEFAULT '',
     credit_account      VARCHAR(100) NOT NULL,
     invoice_number      VARCHAR(20),
     has_invoice         BOOLEAN      DEFAULT FALSE,
@@ -48,6 +49,7 @@ CREATE TABLE IF NOT EXISTS accounting_events (
     status              VARCHAR(50)  DEFAULT '申請中',
     evidence_url        TEXT         DEFAULT '',
     memo                TEXT         DEFAULT '',
+    purpose             TEXT         DEFAULT '',
     source_type         VARCHAR(50)  DEFAULT 'expense',
     approved_by         VARCHAR(100),
     approved_at         TIMESTAMP,
@@ -55,6 +57,8 @@ CREATE TABLE IF NOT EXISTS accounting_events (
     updated_at          TIMESTAMP    DEFAULT NOW(),
     tenant_id           UUID         REFERENCES tenants(id)
 );
+ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS debit_subsidiary VARCHAR(100) DEFAULT '';
+ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS purpose TEXT DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_ae_invoice   ON accounting_events(invoice_number);
 CREATE INDEX IF NOT EXISTS idx_ae_date      ON accounting_events(event_date);
 CREATE INDEX IF NOT EXISTS idx_ae_status    ON accounting_events(status);
@@ -130,17 +134,22 @@ def insert_event(entry_dict, tenant_id):
     entry_dict.setdefault("employee_slack_id", "")
     entry_dict.setdefault("evidence_url", "")
     entry_dict.setdefault("memo", "")
+    entry_dict.setdefault("purpose", "")
+    entry_dict.setdefault("debit_subsidiary", "")
+    entry_dict.setdefault("source_type", "expense")
     entry_dict["tenant_id"] = tenant_id
     sql = """INSERT INTO accounting_events (
         event_id, event_date, counterparty, amount,
         taxable_10_amount, tax_10_amount, taxable_8_amount, tax_8_amount,
-        debit_account, credit_account, invoice_number, has_invoice,
-        employee_name, employee_slack_id, status, evidence_url, memo, tenant_id
+        debit_account, debit_subsidiary, credit_account, invoice_number, has_invoice,
+        employee_name, employee_slack_id, status, evidence_url, memo,
+        purpose, source_type, tenant_id
     ) VALUES (
         %(event_id)s, %(event_date)s, %(counterparty)s, %(amount)s,
         %(taxable_10_amount)s, %(tax_10_amount)s, %(taxable_8_amount)s, %(tax_8_amount)s,
-        %(debit_account)s, %(credit_account)s, %(invoice_number)s, %(has_invoice)s,
-        %(employee_name)s, %(employee_slack_id)s, %(status)s, %(evidence_url)s, %(memo)s, %(tenant_id)s
+        %(debit_account)s, %(debit_subsidiary)s, %(credit_account)s, %(invoice_number)s, %(has_invoice)s,
+        %(employee_name)s, %(employee_slack_id)s, %(status)s, %(evidence_url)s, %(memo)s,
+        %(purpose)s, %(source_type)s, %(tenant_id)s
     )"""
     with _get_conn(tenant_id) as conn:
         with conn.cursor() as cur:
@@ -236,8 +245,8 @@ def upsert_user(slack_user_id, employee_name, tenant_id, commute_from=None, comm
                 VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (slack_user_id, tenant_id) DO UPDATE
                   SET employee_name = EXCLUDED.employee_name,
-                      commute_from = COALESCE(EXCLUDED.commute_from, users.commute_from),
-                      commute_to = COALESCE(EXCLUDED.commute_to, users.commute_to),
+                      commute_from = COALESCE(EXCLUDED.commute_from, nextaccount_users.commute_from),
+                      commute_to = COALESCE(EXCLUDED.commute_to, nextaccount_users.commute_to),
                       updated_at = NOW()
                 RETURNING *
             """, (slack_user_id, employee_name, commute_from, commute_to, tenant_id))

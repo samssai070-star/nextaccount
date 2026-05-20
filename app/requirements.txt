@@ -21,6 +21,7 @@ flask==3.0.2
 python-dotenv==1.0.1
 requests==2.31.0
 pydantic==2.6.1
+anthropic>=0.40.0
 
 # Logging / monitoring
 structlog==24.1.0

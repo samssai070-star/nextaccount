@@ -9,13 +9,7 @@ logger = logging.getLogger(__name__)
 def _get_stripe():
     key = os.environ.get("STRIPE_SECRET_KEY", "")
     if not key:
-        # .envから読み込み
-        try:
-            for line in open("/opt/nextaccount/app/.env"):
-                if line.startswith("STRIPE_SECRET_KEY="):
-                    key = line.strip().split("=", 1)[1]
-        except Exception:
-            pass
+        raise RuntimeError("STRIPE_SECRET_KEY が設定されていません")
     stripe.api_key = key
     return stripe
 
@@ -127,6 +121,15 @@ def handle_webhook(payload: bytes, sig_header: str) -> dict:
             "tenant_id": sub["metadata"].get("tenant_id", ""),
             "subscription_id": sub["id"],
             "trial_end": sub.get("trial_end"),
+        })
+
+    elif event_type == "invoice.payment_succeeded":
+        invoice = event["data"]["object"]
+        result.update({
+            "customer_id": invoice.get("customer", ""),
+            "subscription_id": invoice.get("subscription", ""),
+            "amount_paid": invoice.get("amount_paid", 0),
+            "status": "paid",
         })
 
     return result

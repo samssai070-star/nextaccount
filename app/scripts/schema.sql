@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS accounting_events (
     taxable_8_amount    INTEGER      DEFAULT 0,
     tax_8_amount        INTEGER      DEFAULT 0,
     debit_account       VARCHAR(100) NOT NULL,
+    debit_subsidiary    VARCHAR(100) DEFAULT '',
     credit_account      VARCHAR(100) NOT NULL,          -- 未払費用（社員名）
     invoice_number      VARCHAR(20),
     has_invoice         BOOLEAN      DEFAULT FALSE,
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS accounting_events (
     status              VARCHAR(50)  DEFAULT '申請中',
     evidence_url        TEXT         DEFAULT '',
     memo                TEXT         DEFAULT '',
+    purpose             TEXT         DEFAULT '',
     source_type         VARCHAR(50)  DEFAULT 'expense',
     approved_by         VARCHAR(100),
     approved_at         TIMESTAMP,
@@ -83,8 +85,8 @@ CREATE TABLE IF NOT EXISTS nextaccount_users (
     updated_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(slack_user_id, tenant_id)
 );
-CREATE INDEX IF NOT EXISTS idx_users_slack_id ON users(slack_user_id);
-CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_users_slack_id ON nextaccount_users(slack_user_id);
+CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON nextaccount_users(tenant_id);
 
 -- accounting_events に tenant_id を追加（存在しない場合）
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id);
