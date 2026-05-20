@@ -90,6 +90,30 @@ def _fmt_yen(amount: int) -> str:
     return f"¥{amount:,}"
 
 
+_SUBSIDIARY_DEFAULT = {
+    "旅費交通費": "電車賃",
+    "通信費": "電話代",
+    "水道光熱費": "電気代",
+    "接待交際費": "接待飲食費",
+    "会議費": "会議飲食費",
+    "消耗品費": "その他消耗品",
+    "広告宣伝費": "広告費",
+    "地代家賃": "事務所家賃",
+    "租税公課": "租税公課",
+    "社会保険料": "社会保険料",
+    "外注費": "業務委託費",
+    "修繕費": "設備修繕費",
+    "諸雑費": "諸雑費",
+}
+
+
+def _default_subsidiary(debit_account: str) -> str:
+    for key, val in _SUBSIDIARY_DEFAULT.items():
+        if key in debit_account:
+            return val
+    return debit_account
+
+
 def _download_file(url: str, token: str) -> bytes:
     resp = http_requests.get(
         url,
@@ -229,8 +253,12 @@ def handle_file_shared(event, client, logger):
         # Claude判定の科目で上書き（entry に直接反映）
         if ai_result.get("debit_account"):
             entry.debit_account = ai_result["debit_account"]
-        if ai_result.get("debit_subsidiary"):
-            entry.debit_subsidiary = ai_result["debit_subsidiary"]
+        # debit_subsidiary: AI値を優先、空の場合は勘定科目から推定
+        ai_subsidiary = ai_result.get("debit_subsidiary", "")
+        if ai_subsidiary:
+            entry.debit_subsidiary = ai_subsidiary
+        elif entry.debit_account:
+            entry.debit_subsidiary = _default_subsidiary(entry.debit_account)
         from core.accounting import build_credit_account
         entry.credit_account = build_credit_account(employee_name)
 
@@ -280,12 +308,17 @@ def handle_file_shared(event, client, logger):
             logger.warning(f"タイムスタンプ付与スキップ: {ts_err}")
 
         # 申請者DMに登録済通知
-        _debug_raw = repr(ocr_result.raw_text[:400]) if ocr_result.raw_text else "(空)"
+        subsidiary_line = f"\n補助科目: {entry.debit_subsidiary}" if entry.debit_subsidiary else ""
         client.chat_update(
             channel=channel_id, ts=msg_ts,
             text=(
-                "📋 *登録済*\n\n管理ID: `" + str(entry.event_id) + "`\n取引先: " + str(entry.counterparty) + "\n金額: " + _fmt_yen(entry.total_amount) + "\n日付: " + str(entry.event_date) + "\n科目: " + str(entry.debit_account) + "\n\n財務担当者の承認をお待ちください。"
-                + f"\n\n🔍 *[DEBUG] OCR生テキスト（先頭400文字）:*\n```{_debug_raw}```"
+                "📋 *登録済*\n\n"
+                f"管理ID: `{entry.event_id}`\n"
+                f"取引先: {entry.counterparty}\n"
+                f"金額: {_fmt_yen(entry.total_amount)}\n"
+                f"日付: {entry.event_date}\n"
+                f"科目: {entry.debit_account}{subsidiary_line}\n\n"
+                "財務担当者の承認をお待ちください。"
             ),
         )
 
@@ -369,7 +402,14 @@ def _send_approval_card(client, channel_id, msg_ts, entry, used_real_ocr: bool, 
             "type": "section",
             "fields": [
                 {"type": "mrkdwn", "text": f"*借方科目*\n{e.debit_account}"},
+                {"type": "mrkdwn", "text": f"*借方補助科目*\n{e.debit_subsidiary or '（未設定）'}"},
+            ],
+        },
+        {
+            "type": "section",
+            "fields": [
                 {"type": "mrkdwn", "text": f"*貸方科目*\n{e.credit_account}"},
+                {"type": "mrkdwn", "text": f"*用途*\n{e.purpose or '—'}"},
             ],
         },
         {
