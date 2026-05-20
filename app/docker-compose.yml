@@ -17,6 +17,9 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     volumes:
       # google_key.json をコンテナにマウント（.env の値は /secrets/google_key.json を指すこと）
       - ./google_key.json:/secrets/google_key.json:ro
