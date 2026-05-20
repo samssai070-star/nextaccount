@@ -91,6 +91,28 @@ def _fmt_yen(amount: int) -> str:
     return f"¥{amount:,}"
 
 
+# 補助科目名 → 主科目名（Claude が補助科目を debit_account に入れた場合の補正用）
+_SUBSIDIARY_TO_MAIN = {
+    "電車賃": "旅費交通費", "タクシー代": "旅費交通費", "バス代": "旅費交通費",
+    "駐車場代": "旅費交通費", "宿泊費": "旅費交通費", "航空券": "旅費交通費",
+    "電話代": "通信費", "郵便・宅配": "通信費", "インターネット": "通信費",
+    "電気代": "水道光熱費", "ガス代": "水道光熱費", "水道代": "水道光熱費",
+    "接待飲食費": "接待交際費", "贈答品費": "接待交際費", "慶弔費": "接待交際費",
+    "会議飲食費": "会議費", "会議室費": "会議費",
+    "文具・事務用品": "消耗品費", "日用品": "消耗品費",
+    "PC周辺機器": "消耗品費", "その他消耗品": "消耗品費",
+    "広告費": "広告宣伝費", "印刷費": "広告宣伝費", "デザイン費": "広告宣伝費",
+    "事務所家賃": "地代家賃", "駐車場月極": "地代家賃",
+    "業務委託費": "外注費", "外注費": "外注費",
+    "設備修繕費": "修繕費", "機器修理費": "修繕費",
+}
+
+_VALID_MAIN_ACCOUNTS = {
+    "旅費交通費", "通信費", "水道光熱費", "接待交際費", "会議費",
+    "消耗品費", "広告宣伝費", "地代家賃", "租税公課", "社会保険料",
+    "外注費", "修繕費", "諸雑費",
+}
+
 _SUBSIDIARY_DEFAULT = {
     "旅費交通費": "電車賃",
     "通信費": "電話代",
@@ -274,8 +296,14 @@ def handle_file_shared(event, client, logger):
             raw_text         = ocr_result.raw_text,
         )
 
-        # Claude判定の科目で上書き
-        if ai_result.get("debit_account"):
+        # Claude判定の科目で上書き（補助科目名が誤って主科目に入っていたら補正）
+        ai_debit = ai_result.get("debit_account", "")
+        if ai_debit:
+            if ai_debit not in _VALID_MAIN_ACCOUNTS and ai_debit in _SUBSIDIARY_TO_MAIN:
+                fixed_main = _SUBSIDIARY_TO_MAIN[ai_debit]
+                logger.warning(f"debit_account補正: 補助科目「{ai_debit}」→ 主科目「{fixed_main}」")
+                ai_result["debit_account"]    = fixed_main
+                ai_result["debit_subsidiary"] = ai_debit
             entry.debit_account = ai_result["debit_account"]
         ai_subsidiary = ai_result.get("debit_subsidiary", "")
         if ai_subsidiary:
