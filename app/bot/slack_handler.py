@@ -358,6 +358,32 @@ def handle_file_shared(event, client, logger):
             logger.warning(f"タイムスタンプ付与スキップ: {ts_err}")
 
         # 申請者DMに登録済通知（用途入力ボタン付き）
+        # 飲食系レシートには会議費/接待交際費の切り替えボタンを追加
+        dm_action_elements = [
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "📝 用途・補助科目を入力"},
+                "action_id": "input_purpose_btn",
+                "value": f"{entry.event_id}|{tenant_id}",
+                "style": "primary",
+            }
+        ]
+        if entry.debit_account in ("接待交際費", "会議費"):
+            dm_action_elements += [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "🍽️ 会議費"},
+                    "action_id": "switch_to_kaigi_btn",
+                    "value": f"{entry.event_id}|{tenant_id}",
+                },
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "🤝 接待交際費"},
+                    "action_id": "switch_to_settai_btn",
+                    "value": f"{entry.event_id}|{tenant_id}",
+                },
+            ]
+
         client.chat_update(
             channel=channel_id, ts=msg_ts,
             text=f"📋 登録済 {entry.counterparty} {_fmt_yen(entry.total_amount)}",
@@ -379,18 +405,7 @@ def handle_file_shared(event, client, logger):
                     },
                 },
                 {"type": "divider"},
-                {
-                    "type": "actions",
-                    "elements": [
-                        {
-                            "type": "button",
-                            "text": {"type": "plain_text", "text": "📝 用途・補助科目を入力"},
-                            "action_id": "input_purpose_btn",
-                            "value": f"{entry.event_id}|{tenant_id}",
-                            "style": "primary",
-                        }
-                    ],
-                },
+                {"type": "actions", "elements": dm_action_elements},
             ],
         )
 
@@ -1355,6 +1370,42 @@ def _parse_transportation_expense(text: str) -> dict | None:
 # ============================================================
 # 用途・補助科目の入力（アップロード後の追加入力）
 # ============================================================
+
+@app.action("switch_to_kaigi_btn")
+def handle_switch_to_kaigi(ack, body, client, logger):
+    """飲食レシートを会議費に変更"""
+    ack()
+    raw = body["actions"][0]["value"]
+    parts = raw.split("|", 1)
+    event_id  = parts[0]
+    tenant    = _get_tenant(body.get("team", {}).get("id", ""))
+    tenant_id = tenant["id"] if tenant else (parts[1] if len(parts) > 1 else None)
+
+    update_event(event_id, tenant_id, {"debit_account": "会議費", "debit_subsidiary": "会議飲食費"})
+    client.chat_postMessage(
+        channel=body["user"]["id"],
+        text=f"✅ 借方科目を *会議費 / 会議飲食費* に変更しました。\n管理ID: `{event_id}`",
+    )
+    logger.info(f"科目変更 → 会議費: {event_id}")
+
+
+@app.action("switch_to_settai_btn")
+def handle_switch_to_settai(ack, body, client, logger):
+    """飲食レシートを接待交際費に変更"""
+    ack()
+    raw = body["actions"][0]["value"]
+    parts = raw.split("|", 1)
+    event_id  = parts[0]
+    tenant    = _get_tenant(body.get("team", {}).get("id", ""))
+    tenant_id = tenant["id"] if tenant else (parts[1] if len(parts) > 1 else None)
+
+    update_event(event_id, tenant_id, {"debit_account": "接待交際費", "debit_subsidiary": "接待飲食費"})
+    client.chat_postMessage(
+        channel=body["user"]["id"],
+        text=f"✅ 借方科目を *接待交際費 / 接待飲食費* に変更しました。\n管理ID: `{event_id}`",
+    )
+    logger.info(f"科目変更 → 接待交際費: {event_id}")
+
 
 @app.action("input_purpose_btn")
 def handle_input_purpose_btn(ack, body, client, logger):
