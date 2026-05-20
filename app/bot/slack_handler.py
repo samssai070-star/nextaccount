@@ -307,19 +307,41 @@ def handle_file_shared(event, client, logger):
         except Exception as ts_err:
             logger.warning(f"タイムスタンプ付与スキップ: {ts_err}")
 
-        # 申請者DMに登録済通知
-        subsidiary_line = f"\n補助科目: {entry.debit_subsidiary}" if entry.debit_subsidiary else ""
+        # 申請者DMに登録済通知（用途入力ボタン付き）
         client.chat_update(
             channel=channel_id, ts=msg_ts,
-            text=(
-                "📋 *登録済*\n\n"
-                f"管理ID: `{entry.event_id}`\n"
-                f"取引先: {entry.counterparty}\n"
-                f"金額: {_fmt_yen(entry.total_amount)}\n"
-                f"日付: {entry.event_date}\n"
-                f"科目: {entry.debit_account}{subsidiary_line}\n\n"
-                "財務担当者の承認をお待ちください。"
-            ),
+            text=f"📋 登録済 {entry.counterparty} {_fmt_yen(entry.total_amount)}",
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": (
+                            f"📋 *登録済*\n\n"
+                            f"管理ID: `{entry.event_id}`\n"
+                            f"取引先: {entry.counterparty}\n"
+                            f"金額: {_fmt_yen(entry.total_amount)}\n"
+                            f"日付: {entry.event_date}\n"
+                            f"借方科目: {entry.debit_account}\n"
+                            f"借方補助科目: *{entry.debit_subsidiary or '（未設定）'}*\n\n"
+                            "財務担当者の承認をお待ちください。"
+                        ),
+                    },
+                },
+                {"type": "divider"},
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "📝 用途・補助科目を入力"},
+                            "action_id": "input_purpose_btn",
+                            "value": f"{entry.event_id}|{tenant_id}",
+                            "style": "primary",
+                        }
+                    ],
+                },
+            ],
         )
 
         # 承認カードを財務承認チャンネルに送信（申請者のSlack IDをvalueに含める）
@@ -516,12 +538,14 @@ def handle_approve(ack, body, client, logger):
                     taxable_8_amount  = evt.get("taxable_8_amount", 0),
                     tax_8_amount      = evt.get("tax_8_amount", 0),
                     debit_account     = evt["debit_account"],
+                    debit_subsidiary  = evt.get("debit_subsidiary", ""),
                     credit_account    = evt["credit_account"],
                     invoice_number    = evt.get("invoice_number"),
                     has_invoice       = bool(evt.get("has_invoice")),
                     employee_name     = evt.get("employee_name", ""),
                     status            = "業務承認済",
                     evidence_url      = evt.get("evidence_url", ""),
+                    purpose           = evt.get("purpose", ""),
                 )
                 ok = sheets.write_journal_entry(entry)
                 if ok:
@@ -1276,6 +1300,144 @@ def _parse_transportation_expense(text: str) -> dict | None:
         }
     except (IndexError, ValueError):
         return None
+
+
+# ============================================================
+# 用途・補助科目の入力（アップロード後の追加入力）
+# ============================================================
+
+@app.action("input_purpose_btn")
+def handle_input_purpose_btn(ack, body, client, logger):
+    """アップロード後の「用途・補助科目を入力」ボタン"""
+    ack()
+    raw = body["actions"][0]["value"]          # "event_id|tenant_id"
+    parts = raw.split("|", 1)
+    event_id  = parts[0]
+    tenant_id = parts[1] if len(parts) > 1 else None
+
+    tenant = _get_tenant(body.get("team", {}).get("id", ""))
+    if tenant:
+        tenant_id = tenant["id"]
+
+    evt = get_event_by_id(event_id, tenant_id) or {}
+
+    try:
+        client.views_open(
+            trigger_id=body["trigger_id"],
+            view={
+                "type": "modal",
+                "callback_id": "purpose_modal",
+                "private_metadata": f"{event_id}|{tenant_id}",
+                "title": {"type": "plain_text", "text": "用途・補助科目の入力"},
+                "submit": {"type": "plain_text", "text": "💾 保存"},
+                "close": {"type": "plain_text", "text": "閉じる"},
+                "blocks": [
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": (
+                                f"*{evt.get('counterparty', '')}* "
+                                f"{_fmt_yen(evt.get('amount', 0))} / "
+                                f"{evt.get('debit_account', '')}"
+                            ),
+                        },
+                    },
+                    {
+                        "type": "input",
+                        "block_id": "purpose_block",
+                        "label": {"type": "plain_text", "text": "用途（DM入力欄）"},
+                        "element": {
+                            "type": "plain_text_input",
+                            "action_id": "purpose",
+                            "placeholder": {"type": "plain_text", "text": "例: 〇〇社との打合せ、△△の接待、□□の会議"},
+                            "initial_value": evt.get("purpose", "") or "",
+                        },
+                        "optional": True,
+                    },
+                    {
+                        "type": "input",
+                        "block_id": "subsidiary_block",
+                        "label": {"type": "plain_text", "text": "借方補助科目（K列）"},
+                        "element": {
+                            "type": "plain_text_input",
+                            "action_id": "debit_subsidiary",
+                            "initial_value": evt.get("debit_subsidiary", "") or "",
+                        },
+                        "optional": True,
+                    },
+                ],
+            },
+        )
+    except Exception as e:
+        logger.error(f"用途モーダル開発エラー: {e}")
+
+
+@app.view("purpose_modal")
+def handle_purpose_modal(ack, body, client, logger):
+    """用途・補助科目モーダルの送信処理"""
+    ack()
+    meta = body["view"]["private_metadata"].split("|", 1)
+    event_id  = meta[0]
+    tenant_id = meta[1] if len(meta) > 1 and meta[1] else None
+
+    tenant = _get_tenant(body.get("team", {}).get("id", ""))
+    if tenant:
+        tenant_id = tenant["id"]
+
+    vals = body["view"]["state"]["values"]
+    purpose          = (vals.get("purpose_block", {}).get("purpose", {}).get("value") or "").strip()
+    debit_subsidiary = (vals.get("subsidiary_block", {}).get("debit_subsidiary", {}).get("value") or "").strip()
+
+    fields = {}
+    if purpose:
+        fields["purpose"] = purpose
+    if debit_subsidiary:
+        fields["debit_subsidiary"] = debit_subsidiary
+    if fields:
+        update_event(event_id, tenant_id, fields)
+
+    # 承認済の場合は Sheets を再同期（K・P列を反映）
+    try:
+        evt = get_event_by_id(event_id, tenant_id)
+        if evt and evt.get("status") == "業務承認済" and sheets:
+            from core.accounting import JournalEntry
+            sync_entry = JournalEntry(
+                event_id          = evt["event_id"],
+                event_date        = str(evt["event_date"]),
+                counterparty      = evt["counterparty"],
+                total_amount      = evt["amount"],
+                taxable_10_amount = evt.get("taxable_10_amount", 0),
+                tax_10_amount     = evt.get("tax_10_amount", 0),
+                taxable_8_amount  = evt.get("taxable_8_amount", 0),
+                tax_8_amount      = evt.get("tax_8_amount", 0),
+                debit_account     = evt["debit_account"],
+                debit_subsidiary  = debit_subsidiary or evt.get("debit_subsidiary", ""),
+                credit_account    = evt["credit_account"],
+                invoice_number    = evt.get("invoice_number"),
+                has_invoice       = bool(evt.get("has_invoice")),
+                employee_name     = evt.get("employee_name", ""),
+                status            = "業務承認済",
+                evidence_url      = evt.get("evidence_url", ""),
+                purpose           = purpose or evt.get("purpose", ""),
+            )
+            sheets.write_journal_entry(sync_entry)
+            logger.info(f"Sheets 再同期完了 (purpose更新): {event_id}")
+    except Exception as e:
+        logger.warning(f"Sheets 再同期スキップ: {e}")
+
+    # 申請者に保存完了を通知
+    user_id = body["user"]["id"]
+    saved_items = []
+    if purpose:
+        saved_items.append(f"用途: {purpose}")
+    if debit_subsidiary:
+        saved_items.append(f"借方補助科目: {debit_subsidiary}")
+    notify_text = "✅ " + " / ".join(saved_items) + " を保存しました。" if saved_items else "（変更なし）"
+    try:
+        client.chat_postMessage(channel=user_id, text=notify_text)
+    except Exception:
+        pass
 
 
 @app.event("message")
