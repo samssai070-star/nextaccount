@@ -364,16 +364,21 @@ def handle_file_shared(event, client, logger):
         except Exception as ts_err:
             logger.warning(f"タイムスタンプ付与スキップ: {ts_err}")
 
-        # 申請者DMに登録済通知（用途入力ボタン付き）
-        # 飲食系レシートには会議費/接待交際費の切り替えボタンを追加
+        # 申請者DMに登録済通知（承認者と同じリッチ表示 + 修正ボタン）
         dm_action_elements = [
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "✏️ 内容を修正"},
+                "action_id": "quick_edit_btn",
+                "value": f"{entry.event_id}|{tenant_id}",
+            },
             {
                 "type": "button",
                 "text": {"type": "plain_text", "text": "📝 用途・補助科目を入力"},
                 "action_id": "input_purpose_btn",
                 "value": f"{entry.event_id}|{tenant_id}",
                 "style": "primary",
-            }
+            },
         ]
         if entry.debit_account in ("接待交際費", "会議費"):
             dm_action_elements += [
@@ -391,29 +396,13 @@ def handle_file_shared(event, client, logger):
                 },
             ]
 
+        dm_blocks = _build_entry_blocks(entry, ocr_result.used_real_ocr) + [
+            {"type": "actions", "elements": dm_action_elements},
+        ]
         client.chat_update(
             channel=channel_id, ts=msg_ts,
-            text=f"📋 登録済 {entry.counterparty} {_fmt_yen(entry.total_amount)}",
-            blocks=[
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": (
-                            f"📋 *登録済*\n\n"
-                            f"管理ID: `{entry.event_id}`\n"
-                            f"取引先: {entry.counterparty}\n"
-                            f"金額: {_fmt_yen(entry.total_amount)}\n"
-                            f"日付: {entry.event_date}\n"
-                            f"借方科目: {entry.debit_account}\n"
-                            f"借方補助科目: *{entry.debit_subsidiary or '（未設定）'}*\n\n"
-                            "財務担当者の承認をお待ちください。"
-                        ),
-                    },
-                },
-                {"type": "divider"},
-                {"type": "actions", "elements": dm_action_elements},
-            ],
+            text=f"🧾 登録済 {entry.counterparty} {_fmt_yen(entry.total_amount)}",
+            blocks=dm_blocks,
         )
 
         # 承認カードを財務承認チャンネルに送信（申請者のSlack IDをvalueに含める）
@@ -450,17 +439,15 @@ def handle_file_shared(event, client, logger):
 # 承認カード
 # ============================================================
 
-def _send_approval_card(client, channel_id, msg_ts, entry, used_real_ocr: bool, applicant_slack_id: str = ""):
-    # msg_tsがNoneの場合は新規投稿、あれば既存メッセージを更新
-    from core.accounting import JournalEntry
+def _build_entry_blocks(entry, used_real_ocr: bool) -> list:
+    """承認者・申請者共通の経費情報ブロックを生成する（アクションボタンは含まない）"""
+    from core.accounting import JournalEntry, get_invoice_deduction_rate
+    from core.timestamp import get_timestamp_badge
     e: JournalEntry = entry
 
     ocr_badge = "🤖 Claude Vision" if used_real_ocr else "🎭 シミュレーション"
-    from core.timestamp import get_timestamp_badge
-    evt_dict = e.to_db_dict()
-    ts_badge = get_timestamp_badge(evt_dict)
-    from core.accounting import get_invoice_deduction_rate
-    from datetime import date
+    ts_badge  = get_timestamp_badge(e.to_db_dict())
+
     if e.invoice_number:
         inv_badge = f"✅ T番号照合済 → 消費税控除対象\n{e.invoice_number}"
     else:
@@ -468,7 +455,7 @@ def _send_approval_card(client, channel_id, msg_ts, entry, used_real_ocr: bool, 
         pct = int(rate * 100)
         inv_badge = f"⚠️ T番号なし → 経費計上可・消費税控除不可\n現在の控除率: {pct}%（{label}）"
 
-    blocks = [
+    return [
         {"type": "header", "text": {"type": "plain_text", "text": "🧾 経費申請"}},
         {
             "type": "section",
@@ -523,6 +510,15 @@ def _send_approval_card(client, channel_id, msg_ts, entry, used_real_ocr: bool, 
         {"type": "section", "text": {"type": "mrkdwn", "text": f"*T番号*: {inv_badge}"}},
         {"type": "section", "text": {"type": "mrkdwn", "text": f"*電帳法*: {ts_badge}"}},
         {"type": "divider"},
+    ]
+
+
+def _send_approval_card(client, channel_id, msg_ts, entry, used_real_ocr: bool, applicant_slack_id: str = ""):
+    """承認チャンネルに経費申請カード（承認・却下ボタン付き）を送信する"""
+    from core.accounting import JournalEntry
+    e: JournalEntry = entry
+
+    blocks = _build_entry_blocks(e, used_real_ocr) + [
         {
             "type": "actions",
             "block_id": f"actions_{e.event_id}",
@@ -1421,6 +1417,121 @@ def handle_switch_to_settai(ack, body, client, logger):
         text=f"✅ 借方科目を *接待交際費 / 接待飲食費* に変更しました。\n管理ID: `{event_id}`",
     )
     logger.info(f"科目変更 → 接待交際費: {event_id}")
+
+
+@app.action("quick_edit_btn")
+def handle_quick_edit_btn(ack, body, client, logger):
+    """申請者DMの「内容を修正」ボタン → /edit と同じモーダルを開く"""
+    ack()
+    value     = body["actions"][0]["value"]
+    event_id, tenant_id_str = value.split("|", 1)
+    tenant_id = tenant_id_str or None
+    trigger_id = body["trigger_id"]
+
+    evt = get_event_by_id(event_id, tenant_id)
+    if not evt:
+        client.chat_postMessage(
+            channel=body["user"]["id"],
+            text=f"❌ 管理ID `{event_id}` が見つかりません。",
+        )
+        return
+
+    from core.config import DEBIT_ACCOUNTS
+    debit_options = [
+        {"text": {"type": "plain_text", "text": acc}, "value": acc}
+        for acc in DEBIT_ACCOUNTS
+    ]
+    current_account = evt.get("debit_account", "消耗品費")
+    if current_account not in DEBIT_ACCOUNTS:
+        current_account = "消耗品費"
+
+    client.views_open(
+        trigger_id=trigger_id,
+        view={
+            "type": "modal",
+            "callback_id": "edit_event_modal",
+            "private_metadata": f"{event_id}|{tenant_id or ''}",
+            "title": {"type": "plain_text", "text": "仕訳を修正"},
+            "submit": {"type": "plain_text", "text": "保存"},
+            "close":  {"type": "plain_text", "text": "キャンセル"},
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"*管理ID*: `{event_id}`　*ステータス*: {evt.get('status', '')}"}
+                },
+                {"type": "divider"},
+                {
+                    "type": "input", "block_id": "counterparty",
+                    "label": {"type": "plain_text", "text": "取引先"},
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": evt.get("counterparty", ""),
+                        "placeholder": {"type": "plain_text", "text": "例：スターバックスコーヒー"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "event_date",
+                    "label": {"type": "plain_text", "text": "発生日"},
+                    "element": {
+                        "type": "datepicker", "action_id": "value",
+                        "initial_date": str(evt.get("event_date", ""))[:10]
+                    }
+                },
+                {
+                    "type": "input", "block_id": "amount",
+                    "label": {"type": "plain_text", "text": "税込金額（円）"},
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("amount", 0)),
+                        "placeholder": {"type": "plain_text", "text": "例：1650"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "debit_account",
+                    "label": {"type": "plain_text", "text": "借方科目"},
+                    "element": {
+                        "type": "static_select", "action_id": "value",
+                        "options": debit_options,
+                        "initial_option": {
+                            "text": {"type": "plain_text", "text": current_account},
+                            "value": current_account
+                        }
+                    }
+                },
+                {
+                    "type": "input", "block_id": "debit_subsidiary",
+                    "label": {"type": "plain_text", "text": "借方補助科目（任意）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": evt.get("debit_subsidiary", "") or "",
+                        "placeholder": {"type": "plain_text", "text": "例：タクシー代"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "invoice_number",
+                    "label": {"type": "plain_text", "text": "T番号（任意）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": evt.get("invoice_number", "") or "",
+                        "placeholder": {"type": "plain_text", "text": "例：T1234567890123"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "purpose",
+                    "label": {"type": "plain_text", "text": "用途・メモ（任意）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": evt.get("purpose", "") or evt.get("memo", "") or "",
+                        "placeholder": {"type": "plain_text", "text": "例：取引先との打合せ"},
+                        "multiline": True
+                    }
+                },
+            ],
+        }
+    )
 
 
 @app.action("input_purpose_btn")
