@@ -280,10 +280,12 @@ def handle_file_shared(event, client, logger):
             logger.warning(f"タイムスタンプ付与スキップ: {ts_err}")
 
         # 申請者DMに登録済通知
+        _debug_raw = repr(ocr_result.raw_text[:400]) if ocr_result.raw_text else "(空)"
         client.chat_update(
             channel=channel_id, ts=msg_ts,
             text=(
                 "📋 *登録済*\n\n管理ID: `" + str(entry.event_id) + "`\n取引先: " + str(entry.counterparty) + "\n金額: " + _fmt_yen(entry.total_amount) + "\n日付: " + str(entry.event_date) + "\n科目: " + str(entry.debit_account) + "\n\n財務担当者の承認をお待ちください。"
+                + f"\n\n🔍 *[DEBUG] OCR生テキスト（先頭400文字）:*\n```{_debug_raw}```"
             ),
         )
 
