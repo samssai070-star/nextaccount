@@ -38,8 +38,10 @@ def infer_subsidiary(debit_account: str, counterparty: str) -> str:
             return "宿泊費"
         if any(k in cp for k in ["航空", "ana", "jal", "peach", "skymark", "エアライン"]):
             return "航空券"
-        if any(k in cp for k in ["ビーチライン", "道路", "有料", "高速", "eneos", "ガソリン", "ss", "スタンド", "apollo", "エネオス", "出光", "コスモ"]):
-            return "駐車場代"  # 有料道路・ガソリンは旅費交通費の駐車場代に準じる
+        if any(k in cp for k in ["eneos", "ガソリン", "ss", "スタンド", "apollo", "エネオス", "出光", "コスモ", "昭和シェル", "ジェネオス", "ホクレン"]):
+            return "ガソリン代"
+        if any(k in cp for k in ["ビーチライン", "道路", "有料", "高速"]):
+            return "駐車場代"  # 有料道路は駐車場代に準じる
         if any(k in cp for k in ["バス"]):
             return "バス代"
         return "電車賃"
