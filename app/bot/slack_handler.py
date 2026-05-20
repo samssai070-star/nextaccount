@@ -184,16 +184,33 @@ def handle_file_shared(event, client, logger):
             event_date = ocr_result.event_date or datetime.now().strftime("%Y-%m-%d")
             seq        = get_next_sequence(event_date, tenant_id)
             event_id   = generate_event_id(event_date, seq)
-            if ai_result.get("total_amount"):
-                ocr_result.total_amount = int(ai_result["total_amount"])
-            if ai_result.get("taxable_10_amount"):
-                ocr_result.taxable_10_amount = int(ai_result["taxable_10_amount"])
-            if ai_result.get("tax_10_amount"):
-                ocr_result.tax_10_amount = int(ai_result["tax_10_amount"])
-            if ai_result.get("taxable_8_amount") is not None:
-                ocr_result.taxable_8_amount = int(ai_result["taxable_8_amount"])
-            if ai_result.get("tax_8_amount") is not None:
-                ocr_result.tax_8_amount = int(ai_result["tax_8_amount"])
+
+            # total_amount: OCRが正規表現で取得した値を優先。
+            # AI は内消費税を二重計上するケースがあるため、OCRが0の場合のみ使用。
+            ai_total = int(ai_result["total_amount"]) if ai_result.get("total_amount") else 0
+            if ocr_result.total_amount == 0 and ai_total > 0:
+                ocr_result.total_amount = ai_total
+
+            # 税額内訳: AI値がOCR合計と整合する場合のみ採用
+            # （taxable + tax > total になるなら二重計上と判断して捨てる）
+            final_total = ocr_result.total_amount
+            ai_tax_10     = int(ai_result["tax_10_amount"])     if ai_result.get("tax_10_amount")     else 0
+            ai_taxable_10 = int(ai_result["taxable_10_amount"]) if ai_result.get("taxable_10_amount") else 0
+            ai_tax_8      = int(ai_result["tax_8_amount"])      if ai_result.get("tax_8_amount")      else 0
+            ai_taxable_8  = int(ai_result["taxable_8_amount"])  if ai_result.get("taxable_8_amount")  else 0
+
+            if final_total > 0 and (ai_taxable_10 + ai_tax_10 + ai_taxable_8 + ai_tax_8) <= final_total:
+                ocr_result.tax_10_amount     = ai_tax_10
+                ocr_result.taxable_10_amount = ai_taxable_10
+                ocr_result.tax_8_amount      = ai_tax_8
+                ocr_result.taxable_8_amount  = ai_taxable_8
+            elif final_total == 0:
+                # OCR合計が0のときはAI値をそのまま使う
+                ocr_result.tax_10_amount     = ai_tax_10
+                ocr_result.taxable_10_amount = ai_taxable_10
+                ocr_result.tax_8_amount      = ai_tax_8
+                ocr_result.taxable_8_amount  = ai_taxable_8
+
             if ai_result.get("invoice_number"):
                 ocr_result.invoice_number = ai_result["invoice_number"]
                 ocr_result.has_invoice = True
