@@ -281,6 +281,62 @@ class SheetsManager:
     # 公開 API
     # ----------------------------------------------------------
 
+    def update_journal_entry(self, entry) -> bool:
+        """
+        event_id で既存行を検索して上書きする。
+        見つからない場合は write_journal_entry にフォールバック。
+        /edit や用途更新後の再同期に使用する。
+        """
+        try:
+            event_date = entry.event_date
+            year, month = int(event_date[:4]), int(event_date[5:7])
+            ym = f"{year:04d}{month:02d}"
+
+            sheet_names = [
+                EMPLOYEE_SHEET_NAME_FORMAT.format(employee=entry.employee_name, ym=ym),
+                FINANCE_SUMMARY_SHEET_NAME,
+            ]
+
+            for sheet_name in sheet_names:
+                self._ensure_sheet(sheet_name)
+
+                col_a = (
+                    self.service.spreadsheets()
+                    .values()
+                    .get(spreadsheetId=self.spreadsheet_id, range=f"'{sheet_name}'!A:A")
+                    .execute()
+                    .get("values", [])
+                )
+
+                row_index = next(
+                    (i + 1 for i, r in enumerate(col_a) if r and r[0] == entry.event_id),
+                    None,
+                )
+
+                if row_index:
+                    self.service.spreadsheets().values().update(
+                        spreadsheetId=self.spreadsheet_id,
+                        range=f"'{sheet_name}'!A{row_index}",
+                        valueInputOption="USER_ENTERED",
+                        body={"values": [entry.to_sheet_row()]},
+                    ).execute()
+                    logger.info(f"行更新: {sheet_name} row={row_index} ({entry.event_id})")
+                else:
+                    self._append_row(sheet_name, entry.to_sheet_row())
+                    logger.info(f"行追加: {sheet_name} ({entry.event_id})")
+
+                self._sort_by_date(sheet_name)
+                self._update_monthly_total(sheet_name, year, month)
+
+            return True
+
+        except HttpError as e:
+            logger.error(f"Sheets 更新エラー: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Sheets 更新エラー: {e}", exc_info=True)
+            return False
+
     def write_journal_entry(self, entry) -> bool:
         """
         JournalEntry を受け取り、社員別月次シートと財務集計シートに書き込む。

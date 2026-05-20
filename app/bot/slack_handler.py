@@ -1216,7 +1216,7 @@ def handle_edit_submit(ack, body, client, logger):
             evidence_url      = evt.get("evidence_url", ""),
             purpose           = evt.get("purpose", ""),
         )
-        sheets.write_journal_entry(updated_entry)
+        sheets.update_journal_entry(updated_entry)
         sheets_synced = True
         logger.info(f"Sheets 再同期: {event_id}")
 
@@ -1529,7 +1529,7 @@ def handle_purpose_modal(ack, body, client, logger):
                 evidence_url      = evt.get("evidence_url", ""),
                 purpose           = purpose or evt.get("purpose", ""),
             )
-            sheets.write_journal_entry(sync_entry)
+            sheets.update_journal_entry(sync_entry)
             logger.info(f"Sheets 再同期完了 (purpose更新): {event_id}")
     except Exception as e:
         logger.warning(f"Sheets 再同期スキップ: {e}")
