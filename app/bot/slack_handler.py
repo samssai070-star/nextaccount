@@ -26,7 +26,7 @@ from core.config import SLACK_BOT_TOKEN, SLACK_APP_TOKEN, GOOGLE_SHEET_ID
 import os
 APPROVAL_CHANNEL_ID = os.environ.get("APPROVAL_CHANNEL_ID", "")
 from core.ocr import parse_receipt
-from core.accounting import build_journal_entry, generate_event_id
+from core.accounting import build_journal_entry, generate_event_id, build_credit_account
 from core.database import get_tenant_by_slack_team
 from core import (
     init_database,
@@ -276,7 +276,6 @@ def handle_file_shared(event, client, logger):
             entry.debit_subsidiary = ai_subsidiary
         elif entry.debit_account:
             entry.debit_subsidiary = _default_subsidiary(entry.debit_account, entry.counterparty)
-        from core.accounting import build_credit_account
         entry.credit_account = build_credit_account(employee_name)
 
         # DB保存
