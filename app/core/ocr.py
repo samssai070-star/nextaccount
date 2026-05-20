@@ -166,26 +166,34 @@ def extract_total_amount(text: str) -> int:
                 return v
 
     # Priority 1b: 合計の次の行に金額がある場合（OCRが改行で分割するケース）
+    # re.match を使い「行頭から数字で始まる行」のみ対象（"(内税10%..." のような行を除外）
     lines = cleaned.split("\n")
     total_kw = re.compile(r"^[^\S\n]*(?:合計|小計|ご合計|税込合計|合計金額)[^\S\n]*$")
     for i, line in enumerate(lines):
         if total_kw.match(line.strip()) and i + 1 < len(lines):
             nxt = lines[i + 1].strip()
-            m = re.search(r"[￥¥]?\s*([\d,]+)", nxt)
+            m = re.match(r"[￥¥]?\s*(\d[\d,]*)", nxt)   # 行頭が¥か数字のみ受け付ける
             if m:
                 v = _clean_number(m.group(1))
-                if v > 0:
+                if v > 100:   # 小さすぎる値は除外（税率%などを防ぐ）
                     return v
 
-    # Priority 2: お預り除去済みテキストから ¥/円 金額を収集して最大値
+    # Priority 2: お預り除去済みテキストから ¥/円 金額を収集
+    # 最頻値を優先（合計は複数行に登場することが多く、お預り系は1回のみ）
+    from collections import Counter
     candidates: list[int] = []
     for pat in [r"[￥¥]\s*([\d,]+)", r"([\d,]+)\s*円"]:
         for m in re.finditer(pat, cleaned):
             v = _clean_number(m.group(1))
-            if v > 0:
+            if v >= 100:   # 100円未満（税率%など）は除外
                 candidates.append(v)
 
-    return max(candidates) if candidates else 0
+    if not candidates:
+        return 0
+    counter = Counter(candidates)
+    most_common_val, most_common_count = counter.most_common(1)[0]
+    # 複数回出現する金額がある場合はそれを採用、なければ最大値
+    return most_common_val if most_common_count > 1 else max(candidates)
 
 
 def extract_tax_breakdown(text: str) -> dict:

@@ -229,9 +229,14 @@ def handle_file_shared(event, client, logger):
             event_id   = generate_event_id(event_date, seq)
 
             # total_amount: OCRが正規表現で取得した値を優先。
-            # AI は内消費税を二重計上するケースがあるため、OCRが0の場合のみ使用。
+            # ただしOCRが異常に小さい値（AIの1/10以下）の場合はAIを採用。
             ai_total = int(ai_result["total_amount"]) if ai_result.get("total_amount") else 0
-            if ocr_result.total_amount == 0 and ai_total > 0:
+            ocr_total = ocr_result.total_amount
+            if ocr_total == 0 and ai_total > 0:
+                ocr_result.total_amount = ai_total
+            elif ai_total > 0 and ocr_total > 0 and ocr_total < ai_total / 10:
+                # OCRが明らかに小さすぎる（例: OCR=10, AI=1600）→ AIを採用
+                logger.warning(f"OCR合計({ocr_total})がAI合計({ai_total})と大幅乖離 → AI値を採用")
                 ocr_result.total_amount = ai_total
 
             # 税額内訳: AI値がOCR合計と整合する場合のみ採用
