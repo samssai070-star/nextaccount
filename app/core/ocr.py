@@ -135,9 +135,15 @@ def extract_total_amount(text: str) -> int:
     """
     text = _normalize_text(text)
 
-    # お預り・おつり行を含む行を事前除去
+    # 「合 計」など文字間スペースを除去して「合計」に統一
+    text = re.sub(r"合\s+計", "合計", text)
+    text = re.sub(r"小\s+計", "小計", text)
+
+    # お預り・おつり・現金入金（お客が払った金額）行を事前除去
     exclude_re = re.compile(
-        r"(?:お預り|お釣り|おつり|釣り銭|お釣|預り|釣銭|チェンジ|CHANGE|CASH\s*TENDERED|CHANGE\s*DUE)",
+        r"(?:お預り|お釣り|おつり|釣り銭|お釣|預り|釣銭|チェンジ"
+        r"|現金入金|投入金額|お支払い額のうち現金"
+        r"|CHANGE|CASH\s*TENDERED|CHANGE\s*DUE)",
         re.IGNORECASE,
     )
     cleaned_lines = [line for line in text.split("\n") if not exclude_re.search(line)]
@@ -145,10 +151,12 @@ def extract_total_amount(text: str) -> int:
 
     # Priority 1a: 税込合計・ご請求金額など明示的なキーワード（同行に金額）
     priority_patterns = [
-        r"(?:税込合計|合計金額|領収金額|ご請求金額|現金領収額|お支払い金額|お支払金額|請求金額|ご請求額|ご合計)"
+        r"(?:税込合計|合計金額|領収金額|ご請求金額|現金領収額|現金領収金額"
+        r"|お支払い金額|お支払金額|請求金額|ご請求額|ご合計)"
         r"[^\d\n]*([\d,]+)",
         r"(?:合計|小計)[^\S\n]*[：:￥¥][^\d\n]*([\d,]+)",   # ：または¥が同行に必須
         r"(?:合計|小計)[^\S\n]+([\d,]+)",                    # 合計 スペース 数字（同行）
+        r"合計\s*\(税込\d+%\)[^\d\n]*([\d,]+)",              # 合計(税込10%) 形式
     ]
     for pat in priority_patterns:
         m = re.search(pat, cleaned, re.IGNORECASE)
