@@ -435,7 +435,7 @@ def handle_file_shared(event, client, logger):
         nyutou_entry  = None
         if nyutou_amount > 0 and nyutou_amount < entry.total_amount:
             entry.total_amount -= nyutou_amount
-            seq2 = seq + 1  # 主エントリ未挿入のためget_next_sequenceは同番号を返すので+1
+            seq2 = get_next_employee_sequence(upload_date, emp_code, tenant_id)  # カウンターを正しく進める
             from core.accounting import JournalEntry
             nyutou_entry = JournalEntry(
                 event_id          = generate_event_id(upload_date, seq2, employee_code=emp_code),
