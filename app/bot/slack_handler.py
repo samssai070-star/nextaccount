@@ -298,9 +298,10 @@ def handle_file_shared(event, client, logger):
             pass
 
         # 仕訳生成
-        event_date = ocr_result.event_date or datetime.now().strftime("%Y-%m-%d")
-        seq        = get_next_sequence(event_date, tenant_id)
-        event_id   = generate_event_id(event_date, seq)
+        event_date  = ocr_result.event_date or datetime.now().strftime("%Y-%m-%d")
+        upload_date = datetime.now().strftime("%Y-%m-%d")
+        seq         = get_next_sequence(upload_date, tenant_id)
+        event_id    = generate_event_id(upload_date, seq)
 
         entry = build_journal_entry(
             ocr_result       = ocr_result,
@@ -340,7 +341,7 @@ def handle_file_shared(event, client, logger):
             seq2 = seq + 1  # 主エントリ未挿入のためget_next_sequenceは同番号を返すので+1
             from core.accounting import JournalEntry
             nyutou_entry = JournalEntry(
-                event_id          = generate_event_id(event_date, seq2),
+                event_id          = generate_event_id(upload_date, seq2),
                 event_date        = entry.event_date,
                 counterparty      = entry.counterparty,
                 total_amount      = nyutou_amount,
