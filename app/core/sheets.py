@@ -339,37 +339,53 @@ class SheetsManager:
             logger.error(f"Sheets 更新エラー: {e}", exc_info=True)
             return False
 
+    def _find_row_by_event_id(self, sheet_name: str, event_id: str):
+        """シート内で event_id が一致する行番号（1始まり）を返す。なければ None。"""
+        col_a = (
+            self.service.spreadsheets()
+            .values()
+            .get(spreadsheetId=self.spreadsheet_id, range=f"'{sheet_name}'!A:A")
+            .execute()
+            .get("values", [])
+        )
+        return next(
+            (i + 1 for i, r in enumerate(col_a) if r and r[0].strip() == event_id.strip()),
+            None,
+        )
+
     def write_journal_entry(self, entry) -> bool:
         """
         JournalEntry を受け取り、社員別月次シートと財務集計シートに書き込む。
-
-        Args:
-            entry: core.accounting.JournalEntry
-
-        Returns:
-            bool: 成功した場合 True
+        既に同じ event_id の行が存在する場合は追記せず上書きする（二重登録防止）。
         """
         try:
             event_date = entry.event_date  # YYYY-MM-DD
             year, month = int(event_date[:4]), int(event_date[5:7])
             ym = f"{year:04d}{month:02d}"
 
-            # ===== 1. 社員別月次シート =====
-            employee_sheet = EMPLOYEE_SHEET_NAME_FORMAT.format(
-                employee=entry.employee_name, ym=ym
-            )
-            self._ensure_sheet(employee_sheet)
-            self._append_row(employee_sheet, entry.to_sheet_row())
-            self._sort_by_date(employee_sheet)
-            self._update_monthly_total(employee_sheet, year, month)
-            logger.info(f"社員シート書き込み: {employee_sheet}")
+            sheet_targets = [
+                EMPLOYEE_SHEET_NAME_FORMAT.format(employee=entry.employee_name, ym=ym),
+                FINANCE_SUMMARY_SHEET_NAME,
+            ]
 
-            # ===== 2. 財務集計シート =====
-            self._ensure_sheet(FINANCE_SUMMARY_SHEET_NAME)
-            self._append_row(FINANCE_SUMMARY_SHEET_NAME, entry.to_sheet_row())
-            self._sort_by_date(FINANCE_SUMMARY_SHEET_NAME)
-            self._update_monthly_total(FINANCE_SUMMARY_SHEET_NAME, year, month)
-            logger.info(f"財務集計シート書き込み完了")
+            for sheet_name in sheet_targets:
+                self._ensure_sheet(sheet_name)
+                row_index = self._find_row_by_event_id(sheet_name, entry.event_id)
+                if row_index:
+                    # 既存行を上書き（二重登録防止）
+                    col_end = chr(ord("A") + len(entry.to_sheet_row()) - 1)
+                    self.service.spreadsheets().values().update(
+                        spreadsheetId=self.spreadsheet_id,
+                        range=f"'{sheet_name}'!A{row_index}:{col_end}{row_index}",
+                        valueInputOption="USER_ENTERED",
+                        body={"values": [entry.to_sheet_row()]},
+                    ).execute()
+                    logger.info(f"既存行を上書き（重複防止）: {sheet_name} row={row_index} ({entry.event_id})")
+                else:
+                    self._append_row(sheet_name, entry.to_sheet_row())
+                    logger.info(f"新規行を追加: {sheet_name} ({entry.event_id})")
+                self._sort_by_date(sheet_name)
+                self._update_monthly_total(sheet_name, year, month)
 
             return True
 
