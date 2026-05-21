@@ -191,9 +191,17 @@ def get_or_assign_employee_code(slack_user_id: str, tenant_id: str, year_month: 
             return cur.fetchone()[0]
 
 def get_next_employee_sequence(upload_date: str, employee_code: int, tenant_id: str) -> int:
-    """指定社員コードの当日連番（001〜999）を取得する（同時アクセス安全）"""
+    """却下済みを除いた当日連番を返す（却下分は番号を消費しない）"""
+    prefix = f"T{upload_date.replace('-', '')}-{employee_code:02d}"
     with _get_conn(tenant_id) as conn:
-        return _atomic_next_seq(conn, tenant_id, f"daily:{upload_date}:{employee_code:02d}")
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM accounting_events "
+                "WHERE event_id LIKE %s AND tenant_id=%s AND status != '却下'",
+                (f"{prefix}%", tenant_id)
+            )
+            count = cur.fetchone()[0]
+    return count + 1
 
 def get_next_sequence(event_date, tenant_id):
     date_prefix = event_date.replace("-", "")
