@@ -207,14 +207,30 @@ def get_next_sequence(event_date, tenant_id):
         return int(row[0].split("-")[1]) + 1
     return 1
 
-def check_duplicate(invoice_number, amount, event_date, tenant_id):
+def check_duplicate(invoice_number, amount, event_date, tenant_id, purpose=None):
+    """重複チェック。invoice_number+amount+dateが一致しても、
+    purposeに固有識別子（管理番号等）があり値が異なる場合は別取引と判定する。"""
     if not invoice_number:
         return None
     with _get_conn(tenant_id) as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT event_id, counterparty, status, created_at FROM accounting_events WHERE invoice_number = %s AND amount = %s AND event_date = %s AND status IN ('業務承認済', '申請中') AND tenant_id = %s LIMIT 1", (invoice_number, amount, event_date, tenant_id))
+            cur.execute(
+                "SELECT event_id, counterparty, status, created_at, purpose "
+                "FROM accounting_events "
+                "WHERE invoice_number=%s AND amount=%s AND event_date=%s "
+                "AND status IN ('業務承認済', '申請中') AND tenant_id=%s LIMIT 1",
+                (invoice_number, amount, event_date, tenant_id)
+            )
             row = cur.fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    # 双方にpurpose(固有識別子)がある場合、内容が違えば別取引
+    existing_purpose = (row.get("purpose") or "").strip()
+    new_purpose = (purpose or "").strip()
+    if existing_purpose and new_purpose and existing_purpose != new_purpose:
+        logger.info(f"重複候補: purpose相違のため別取引と判定 ({existing_purpose!r} vs {new_purpose!r})")
+        return None
+    return dict(row)
 
 def insert_event(entry_dict, tenant_id):
     entry_dict.setdefault("taxable_10_amount", 0)

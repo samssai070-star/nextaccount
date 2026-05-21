@@ -419,6 +419,11 @@ def handle_file_shared(event, client, logger):
             entry.taxable_8_amount = 0
             entry.tax_8_amount = 0
 
+        # AIが返した管理番号等の固有識別子をpurposeに設定（重複判定に使用）
+        ai_purpose = (ai_result.get("purpose") or "").strip()
+        if ai_purpose and not entry.purpose:
+            entry.purpose = ai_purpose
+
         # DB保存（重複チェック後）
         db_dict = entry.to_db_dict()
         db_dict["employee_slack_id"] = user_id
@@ -453,7 +458,7 @@ def handle_file_shared(event, client, logger):
             )
             logger.info(f"入湯税分割: 主={entry.event_id} ¥{entry.total_amount} / 租税公課={nyutou_entry.event_id} ¥{nyutou_amount}")
 
-        dup = check_duplicate(entry.invoice_number, entry.total_amount, entry.event_date, tenant_id)
+        dup = check_duplicate(entry.invoice_number, entry.total_amount, entry.event_date, tenant_id, purpose=entry.purpose)
         if dup:
             _send_duplicate_warning(client, channel_id, msg_ts, dup, ocr_result)
             logger.warning(f"重複検出 → スキップ: {dup['event_id']}")
