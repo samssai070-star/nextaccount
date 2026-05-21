@@ -268,9 +268,6 @@ def handle_file_shared(event, client, logger):
                         f"reason={ai_result.get('reason')}")
             ocr_result = OcrResult(used_real_ocr=True)
             counterparty = ai_result.get("counterparty") or "不明"
-            # NTT社名誤読補正（東→海 等の誤認識）
-            counterparty = re.sub(r"NTT[^\s]*海日本", "NTT東日本", counterparty)
-            counterparty = re.sub(r"NTT[^\s]*果日本", "NTT東日本", counterparty)
             ocr_result.counterparty = counterparty
             raw_date = ai_result.get("event_date") or ""
             # YY-MM-DD → 2025年と誤って和暦変換された場合を補正（例: 2013→2025）
