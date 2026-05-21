@@ -886,6 +886,22 @@ def handle_approve(ack, body, client, logger):
                     logger.info(f"Sheets 同期完了: {event_id}")
                 else:
                     logger.warning(f"Sheets 同期失敗: {event_id}")
+                    # 申請者に再同期を促す通知
+                    applicant_id = evt.get("employee_slack_id", "") or applicant_slack_id
+                    if applicant_id:
+                        try:
+                            client.chat_postMessage(
+                                channel=applicant_id,
+                                text=(
+                                    f"⚠️ *Sheets同期エラー*\n\n"
+                                    f"管理ID `{event_id}` の承認は完了しましたが、"
+                                    f"Google Sheetsへの書き込みに失敗しました。\n"
+                                    f"Slackで `/edit {event_id}` を実行し、"
+                                    f"変更なしで「保存」を押すと再同期されます。"
+                                ),
+                            )
+                        except Exception:
+                            pass
 
         # 入湯税リンクエントリも同時承認
         from core.database import get_linked_nyutou_entry
