@@ -160,7 +160,24 @@ _COUNTERPARTY_SUBSIDIARY = [
     (re.compile(r"NTT|ドコモ|au|ソフトバンク|楽天モバイル|KDDI", re.I), "電話代"),
     (re.compile(r"電力|東電|関電|中電|九電|東北電|北電|四電|沖電", re.I), "電気代"),
     (re.compile(r"ガス|東京ガス|大阪ガス|東邦ガス", re.I), "ガス代"),
+    (re.compile(r"apollostation|アポロ|ENEOS|エネオス|出光|昭和シェル|コスモ石油|JA-SS|ガソリン|給油|SS$| SS ", re.I), "ガソリン代"),
 ]
+
+# 取引先名から主科目を強制補正するマッピング（AIの誤分類を防ぐ）
+_COUNTERPARTY_ACCOUNT_OVERRIDE = [
+    (re.compile(r"apollostation|アポロ|ENEOS|エネオス|出光|昭和シェル|コスモ石油|JA-SS|ガソリンスタンド|給油所|SS$| SS ", re.I),
+     "旅費交通費", "ガソリン代"),
+]
+
+
+def _correct_account_by_counterparty(counterparty: str, debit_account: str, debit_subsidiary: str):
+    """取引先名からAIの科目誤分類を強制補正する"""
+    for pattern, correct_account, correct_subsidiary in _COUNTERPARTY_ACCOUNT_OVERRIDE:
+        if pattern.search(counterparty):
+            if debit_account != correct_account:
+                logger.info(f"取引先補正: {counterparty} → {correct_account}/{correct_subsidiary} (元: {debit_account})")
+            return correct_account, correct_subsidiary
+    return debit_account, debit_subsidiary
 
 
 def _default_subsidiary(debit_account: str, counterparty: str = "") -> str:
@@ -381,6 +398,11 @@ def handle_file_shared(event, client, logger):
             entry.debit_subsidiary = ai_subsidiary
         elif entry.debit_account:
             entry.debit_subsidiary = _default_subsidiary(entry.debit_account, entry.counterparty)
+
+        # 取引先名による科目強制補正（ガソリンスタンド等AIが誤分類しやすいケース）
+        entry.debit_account, entry.debit_subsidiary = _correct_account_by_counterparty(
+            entry.counterparty, entry.debit_account, entry.debit_subsidiary
+        )
         entry.credit_account = build_credit_account(employee_name)
 
         # 不課税科目の補正（租税公課・預り金・社会保険料は消費税対象外）
