@@ -1408,6 +1408,46 @@ def handle_edit(ack, body, client, logger):
                     }
                 },
                 {
+                    "type": "input", "block_id": "taxable_10_amount",
+                    "label": {"type": "plain_text", "text": "税率10%対象額（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("taxable_10_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "不課税の場合は0"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "tax_10_amount",
+                    "label": {"type": "plain_text", "text": "消費税(10%)（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("tax_10_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "不課税の場合は0"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "taxable_8_amount",
+                    "label": {"type": "plain_text", "text": "税率8%対象額（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("taxable_8_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "軽減税率品がなければ0"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "tax_8_amount",
+                    "label": {"type": "plain_text", "text": "消費税(8%)（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("tax_8_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "軽減税率品がなければ0"}
+                    }
+                },
+                {
                     "type": "input", "block_id": "debit_account",
                     "label": {"type": "plain_text", "text": "借方科目"},
                     "element": {
@@ -1483,10 +1523,17 @@ def handle_edit_submit(ack, body, client, logger):
     invoice_number   = _val("invoice_number").strip() or None
     purpose          = _val("purpose")
 
-    try:
-        amount = int(amount_str.replace(",", "").replace("¥", "").strip())
-    except (ValueError, AttributeError):
-        amount = None
+    def _parse_int(s):
+        try:
+            return int(str(s).replace(",", "").replace("¥", "").strip())
+        except (ValueError, AttributeError):
+            return None
+
+    amount         = _parse_int(amount_str)
+    taxable_10     = _parse_int(_val("taxable_10_amount"))
+    tax_10         = _parse_int(_val("tax_10_amount"))
+    taxable_8      = _parse_int(_val("taxable_8_amount"))
+    tax_8          = _parse_int(_val("tax_8_amount"))
 
     # 承認済みの場合は金額変更を禁止
     evt_pre = get_event_by_id(event_id, tenant_id)
@@ -1499,10 +1546,14 @@ def handle_edit_submit(ack, body, client, logger):
 
     from core.database import update_event
     fields = {}
-    if counterparty:        fields["counterparty"]      = counterparty
-    if event_date:          fields["event_date"]         = event_date
-    if amount is not None:  fields["amount"]             = amount
-    if debit_account:       fields["debit_account"]      = debit_account
+    if counterparty:           fields["counterparty"]        = counterparty
+    if event_date:             fields["event_date"]          = event_date
+    if amount is not None:     fields["amount"]              = amount
+    if debit_account:          fields["debit_account"]       = debit_account
+    if taxable_10 is not None: fields["taxable_10_amount"]   = taxable_10
+    if tax_10     is not None: fields["tax_10_amount"]       = tax_10
+    if taxable_8  is not None: fields["taxable_8_amount"]    = taxable_8
+    if tax_8      is not None: fields["tax_8_amount"]        = tax_8
     fields["debit_subsidiary"] = debit_subsidiary or ""
     fields["invoice_number"]   = invoice_number
     fields["has_invoice"]      = bool(invoice_number)
@@ -1804,6 +1855,46 @@ def handle_quick_edit_btn(ack, body, client, logger):
                         "type": "plain_text_input", "action_id": "value",
                         "initial_value": str(evt.get("amount", 0)),
                         "placeholder": {"type": "plain_text", "text": "例：1650"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "taxable_10_amount",
+                    "label": {"type": "plain_text", "text": "税率10%対象額（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("taxable_10_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "不課税の場合は0"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "tax_10_amount",
+                    "label": {"type": "plain_text", "text": "消費税(10%)（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("tax_10_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "不課税の場合は0"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "taxable_8_amount",
+                    "label": {"type": "plain_text", "text": "税率8%対象額（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("taxable_8_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "軽減税率品がなければ0"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "tax_8_amount",
+                    "label": {"type": "plain_text", "text": "消費税(8%)（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("tax_8_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "軽減税率品がなければ0"}
                     }
                 },
                 {
