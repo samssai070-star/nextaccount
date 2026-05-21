@@ -191,17 +191,10 @@ def get_or_assign_employee_code(slack_user_id: str, tenant_id: str, year_month: 
             return cur.fetchone()[0]
 
 def get_next_employee_sequence(upload_date: str, employee_code: int, tenant_id: str) -> int:
-    """当日の有効エントリ数 + 1 を連番として返す。
-    却下時はDBから削除されるため、カウントに含まれない。"""
-    prefix = f"T{upload_date.replace('-', '')}-{employee_code:02d}"
+    """アトミックカウンターで採番する（同時アクセス安全）。
+    却下時はレコード削除＋カウンターをリセットするため、却下分は番号を消費しない。"""
     with _get_conn(tenant_id) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT COUNT(*) FROM accounting_events WHERE event_id LIKE %s AND tenant_id=%s",
-                (f"{prefix}%", tenant_id)
-            )
-            count = cur.fetchone()[0]
-    return count + 1
+        return _atomic_next_seq(conn, tenant_id, f"daily:{upload_date}:{employee_code:02d}")
 
 def get_next_sequence(event_date, tenant_id):
     date_prefix = event_date.replace("-", "")
@@ -315,7 +308,7 @@ def get_approval_card_info(event_id: str, tenant_id: str):
 
 def update_status(event_id, status, tenant_id, approved_by=None) -> bool:
     """ステータスを更新する。申請中→承認/却下のみ成功（既に承認済みならFalseを返す）。
-    却下の場合はレコードを削除してIDを解放する（連番の穴を防ぐ）。"""
+    却下の場合はレコードを削除し、アトミックカウンターを残存MAXにリセットする。"""
     now = datetime.now()
     with _get_conn(tenant_id) as conn:
         with conn.cursor() as cur:
@@ -324,19 +317,47 @@ def update_status(event_id, status, tenant_id, approved_by=None) -> bool:
                     "DELETE FROM accounting_events WHERE event_id=%s AND tenant_id=%s AND status='申請中'",
                     (event_id, tenant_id)
                 )
+                deleted = cur.rowcount > 0
+                if deleted:
+                    # event_id形式: T20260521-01052 → date=20260521, emp=01
+                    inner = event_id[1:]           # "20260521-01052"
+                    date_str = inner[:8]           # "20260521"
+                    emp_str  = inner[9:11]         # "01"
+                    upload_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+                    seq_key  = f"daily:{upload_date}:{int(emp_str):02d}"
+                    prefix   = f"T{date_str}-{emp_str}"
+                    # 残存エントリのMAX連番にカウンターをリセット（残存0なら行ごと削除）
+                    cur.execute(
+                        "SELECT MAX(CAST(RIGHT(event_id, 3) AS INT)) FROM accounting_events "
+                        "WHERE event_id LIKE %s AND tenant_id=%s",
+                        (f"{prefix}%", tenant_id)
+                    )
+                    max_remaining = cur.fetchone()[0]
+                    if max_remaining is None:
+                        cur.execute(
+                            "DELETE FROM tenant_sequences WHERE tenant_id=%s AND seq_key=%s",
+                            (tenant_id, seq_key)
+                        )
+                    else:
+                        cur.execute(
+                            "UPDATE tenant_sequences SET current_val=%s WHERE tenant_id=%s AND seq_key=%s",
+                            (max_remaining, tenant_id, seq_key)
+                        )
+                updated = deleted
             elif approved_by:
                 cur.execute(
                     "UPDATE accounting_events SET status=%s, approved_by=%s, approved_at=%s, updated_at=%s "
                     "WHERE event_id=%s AND tenant_id=%s AND status='申請中'",
                     (status, approved_by, now, now, event_id, tenant_id)
                 )
+                updated = cur.rowcount > 0
             else:
                 cur.execute(
                     "UPDATE accounting_events SET status=%s, updated_at=%s "
                     "WHERE event_id=%s AND tenant_id=%s AND status='申請中'",
                     (status, now, event_id, tenant_id)
                 )
-            updated = cur.rowcount > 0
+                updated = cur.rowcount > 0
     if updated:
         logger.info(f"ステータス更新: {event_id} → {status}")
     else:
