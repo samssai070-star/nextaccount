@@ -191,27 +191,17 @@ def get_or_assign_employee_code(slack_user_id: str, tenant_id: str, year_month: 
             return cur.fetchone()[0]
 
 def get_next_employee_sequence(upload_date: str, employee_code: int, tenant_id: str) -> int:
-    """却下済みを除いた当日連番を返す（却下分は番号を消費しない）。
-    count-based で起算し、既存IDと衝突する場合はスキップして次を返す。"""
+    """当日の有効エントリ数 + 1 を連番として返す。
+    却下時はDBから削除されるため、カウントに含まれない。"""
     prefix = f"T{upload_date.replace('-', '')}-{employee_code:02d}"
     with _get_conn(tenant_id) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT COUNT(*) FROM accounting_events "
-                "WHERE event_id LIKE %s AND tenant_id=%s AND status != '却下'",
+                "SELECT COUNT(*) FROM accounting_events WHERE event_id LIKE %s AND tenant_id=%s",
                 (f"{prefix}%", tenant_id)
             )
             count = cur.fetchone()[0]
-            seq = count + 1
-            # 却下済みIDと衝突する場合はスキップ
-            while True:
-                cur.execute(
-                    "SELECT 1 FROM accounting_events WHERE event_id=%s AND tenant_id=%s",
-                    (f"{prefix}{seq:03d}", tenant_id)
-                )
-                if not cur.fetchone():
-                    return seq
-                seq += 1
+    return count + 1
 
 def get_next_sequence(event_date, tenant_id):
     date_prefix = event_date.replace("-", "")
@@ -324,11 +314,17 @@ def get_approval_card_info(event_id: str, tenant_id: str):
     return None
 
 def update_status(event_id, status, tenant_id, approved_by=None) -> bool:
-    """ステータスを更新する。申請中→承認/却下のみ成功（既に承認済みならFalseを返す）"""
+    """ステータスを更新する。申請中→承認/却下のみ成功（既に承認済みならFalseを返す）。
+    却下の場合はレコードを削除してIDを解放する（連番の穴を防ぐ）。"""
     now = datetime.now()
     with _get_conn(tenant_id) as conn:
         with conn.cursor() as cur:
-            if approved_by:
+            if status == "却下":
+                cur.execute(
+                    "DELETE FROM accounting_events WHERE event_id=%s AND tenant_id=%s AND status='申請中'",
+                    (event_id, tenant_id)
+                )
+            elif approved_by:
                 cur.execute(
                     "UPDATE accounting_events SET status=%s, approved_by=%s, approved_at=%s, updated_at=%s "
                     "WHERE event_id=%s AND tenant_id=%s AND status='申請中'",
