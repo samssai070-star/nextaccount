@@ -6,6 +6,8 @@ from .database import (
     init_database,
     init_users_table,
     get_next_sequence,
+    get_or_assign_employee_code,
+    get_next_employee_sequence,
     check_duplicate,
     insert_event,
     get_event_by_id,
