@@ -75,6 +75,12 @@ CREATE TABLE IF NOT EXISTS employee_monthly_codes (
     UNIQUE(tenant_id, year_month, employee_code)
 );
 CREATE INDEX IF NOT EXISTS idx_emp_codes_tenant ON employee_monthly_codes(tenant_id, year_month);
+CREATE TABLE IF NOT EXISTS tenant_sequences (
+    tenant_id   UUID        NOT NULL,
+    seq_key     VARCHAR(60) NOT NULL,
+    current_val INTEGER     NOT NULL DEFAULT 0,
+    PRIMARY KEY (tenant_id, seq_key)
+);
 CREATE INDEX IF NOT EXISTS idx_ae_invoice   ON accounting_events(invoice_number);
 CREATE INDEX IF NOT EXISTS idx_ae_date      ON accounting_events(event_date);
 CREATE INDEX IF NOT EXISTS idx_ae_status    ON accounting_events(status);
@@ -138,23 +144,44 @@ def update_tenant_billing(tenant_id: str, **kwargs) -> None:
             )
     logger.info(f"テナント課金情報更新: {tenant_id} fields={list(fields.keys())}")
 
+def _atomic_next_seq(conn, tenant_id: str, seq_key: str) -> int:
+    """tenant_sequencesを使ったアトミックな採番（同時アクセス安全）"""
+    with conn.cursor() as cur:
+        cur.execute("""
+            INSERT INTO tenant_sequences (tenant_id, seq_key, current_val)
+            VALUES (%s, %s, 1)
+            ON CONFLICT (tenant_id, seq_key) DO UPDATE
+                SET current_val = tenant_sequences.current_val + 1
+            RETURNING current_val
+        """, (tenant_id, seq_key))
+        return cur.fetchone()[0]
+
 def get_or_assign_employee_code(slack_user_id: str, tenant_id: str, year_month: str) -> int:
-    """当月の社員コード（01-99）を取得または新規割当する"""
+    """当月の社員コード（01-99）を取得または新規割当する（同時アクセス安全）"""
     with _get_conn(tenant_id) as conn:
         with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO employee_monthly_codes (tenant_id, slack_user_id, year_month, employee_code)
-                VALUES (%s, %s, %s, (
-                    SELECT COALESCE(MAX(employee_code), 0) + 1
-                    FROM employee_monthly_codes
-                    WHERE tenant_id = %s AND year_month = %s
-                ))
-                ON CONFLICT (tenant_id, year_month, slack_user_id) DO NOTHING
-                RETURNING employee_code
-            """, (tenant_id, slack_user_id, year_month, tenant_id, year_month))
+            # 既存コードを確認
+            cur.execute(
+                "SELECT employee_code FROM employee_monthly_codes WHERE tenant_id=%s AND year_month=%s AND slack_user_id=%s",
+                (tenant_id, year_month, slack_user_id)
+            )
             row = cur.fetchone()
             if row:
                 return row[0]
+            # アトミックに次のコードを採番
+            new_code = _atomic_next_seq(conn, tenant_id, f"emp_code:{year_month}")
+            if new_code > 99:
+                new_code = 99
+            cur.execute("""
+                INSERT INTO employee_monthly_codes (tenant_id, slack_user_id, year_month, employee_code)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (tenant_id, year_month, slack_user_id) DO NOTHING
+                RETURNING employee_code
+            """, (tenant_id, slack_user_id, year_month, new_code))
+            row = cur.fetchone()
+            if row:
+                return row[0]
+            # 極めて稀な競合ケース: 既存を再取得
             cur.execute(
                 "SELECT employee_code FROM employee_monthly_codes WHERE tenant_id=%s AND year_month=%s AND slack_user_id=%s",
                 (tenant_id, year_month, slack_user_id)
@@ -162,19 +189,9 @@ def get_or_assign_employee_code(slack_user_id: str, tenant_id: str, year_month: 
             return cur.fetchone()[0]
 
 def get_next_employee_sequence(upload_date: str, employee_code: int, tenant_id: str) -> int:
-    """指定社員コードの当日連番（001〜999）を取得する"""
-    date_prefix = upload_date.replace("-", "")
-    like_pattern = f"T{date_prefix}-{employee_code:02d}%"
+    """指定社員コードの当日連番（001〜999）を取得する（同時アクセス安全）"""
     with _get_conn(tenant_id) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT event_id FROM accounting_events WHERE event_id LIKE %s AND tenant_id=%s ORDER BY event_id DESC LIMIT 1",
-                (like_pattern, tenant_id)
-            )
-            row = cur.fetchone()
-    if row:
-        return int(row[0][-3:]) + 1
-    return 1
+        return _atomic_next_seq(conn, tenant_id, f"daily:{upload_date}:{employee_code:02d}")
 
 def get_next_sequence(event_date, tenant_id):
     date_prefix = event_date.replace("-", "")
