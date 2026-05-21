@@ -346,7 +346,7 @@ def handle_file_shared(event, client, logger):
                 employee_name     = employee_name,
                 status            = "申請中",
                 evidence_url      = db_dict.get("evidence_url", ""),
-                purpose           = "入湯税（宿泊費から自動分割）",
+                purpose           = f"入湯税（{entry.event_id}から分割）",
             )
             logger.info(f"入湯税分割: 主={entry.event_id} ¥{entry.total_amount} / 租税公課={nyutou_entry.event_id} ¥{nyutou_amount}")
 
@@ -358,15 +358,11 @@ def handle_file_shared(event, client, logger):
 
         insert_event(db_dict, tenant_id)
         if nyutou_entry:
-            nyutou_entry.status = "業務承認済"  # 入湯税は金額固定のため自動承認
             nyutou_db = nyutou_entry.to_db_dict()
             nyutou_db["employee_slack_id"] = user_id
             nyutou_db["evidence_url"]      = db_dict.get("evidence_url", "")
             nyutou_db["source_type"]       = "expense"
-            nyutou_db["status"]            = "業務承認済"
             insert_event(nyutou_db, tenant_id)
-            if sheets:
-                sheets.write_journal_entry(nyutou_entry)
 
         # Google Drive に証憑を保存（電子帳簿保存法対応）
         try:
@@ -476,8 +472,8 @@ def handle_file_shared(event, client, logger):
                 channel=channel_id,
                 text=(
                     f"🏨 *入湯税を自動分割しました*\n\n"
-                    f"• `{entry.event_id}` 旅費交通費 / 宿泊費: *¥{entry.total_amount:,}* （申請中）\n"
-                    f"• `{nyutou_entry.event_id}` 租税公課 / 入湯税: *¥{nyutou_amount:,}* （自動承認済）"
+                    f"• `{entry.event_id}` 旅費交通費 / 宿泊費: *¥{entry.total_amount:,}* （承認待ち）\n"
+                    f"• `{nyutou_entry.event_id}` 租税公課 / 入湯税: *¥{nyutou_amount:,}* （承認待ち・宿泊費承認時に同時登録）"
                 ),
             )
 
@@ -696,6 +692,35 @@ def handle_approve(ack, body, client, logger):
                     logger.info(f"Sheets 同期完了: {event_id}")
                 else:
                     logger.warning(f"Sheets 同期失敗: {event_id}")
+
+        # 入湯税リンクエントリも同時承認
+        from core.database import get_linked_nyutou_entry
+        nyutou_evt = get_linked_nyutou_entry(event_id, tenant_id)
+        if nyutou_evt:
+            update_status(nyutou_evt["event_id"], "業務承認済", tenant_id, approved_by=approver)
+            if sheets:
+                from core.accounting import JournalEntry as JE
+                nyutou_je = JE(
+                    event_id          = nyutou_evt["event_id"],
+                    event_date        = str(nyutou_evt["event_date"]),
+                    counterparty      = nyutou_evt["counterparty"],
+                    total_amount      = nyutou_evt["amount"],
+                    taxable_10_amount = nyutou_evt.get("taxable_10_amount", 0),
+                    tax_10_amount     = nyutou_evt.get("tax_10_amount", 0),
+                    taxable_8_amount  = nyutou_evt.get("taxable_8_amount", 0),
+                    tax_8_amount      = nyutou_evt.get("tax_8_amount", 0),
+                    debit_account     = nyutou_evt["debit_account"],
+                    debit_subsidiary  = nyutou_evt.get("debit_subsidiary", ""),
+                    credit_account    = nyutou_evt["credit_account"],
+                    invoice_number    = nyutou_evt.get("invoice_number"),
+                    has_invoice       = bool(nyutou_evt.get("has_invoice")),
+                    employee_name     = nyutou_evt.get("employee_name", ""),
+                    status            = "業務承認済",
+                    evidence_url      = nyutou_evt.get("evidence_url", ""),
+                    purpose           = nyutou_evt.get("purpose", ""),
+                )
+                sheets.write_journal_entry(nyutou_je)
+            logger.info(f"入湯税連動承認: {nyutou_evt['event_id']}")
 
         # Phase 2: 会計ソフトへ自動計上
         accounting_msg = ""
