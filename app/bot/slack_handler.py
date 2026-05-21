@@ -383,6 +383,19 @@ def handle_file_shared(event, client, logger):
             entry.debit_subsidiary = _default_subsidiary(entry.debit_account, entry.counterparty)
         entry.credit_account = build_credit_account(employee_name)
 
+        # 不課税科目の補正（租税公課・預り金・社会保険料は消費税対象外）
+        _NON_TAXABLE_ACCOUNTS = {"租税公課", "預り金", "社会保険料"}
+        if entry.debit_account in _NON_TAXABLE_ACCOUNTS:
+            if entry.taxable_10_amount or entry.taxable_8_amount:
+                logger.info(
+                    f"不課税補正: {entry.debit_account} → taxable_10={entry.taxable_10_amount}"
+                    f", tax_10={entry.tax_10_amount}, taxable_8={entry.taxable_8_amount} を0にリセット"
+                )
+            entry.taxable_10_amount = 0
+            entry.tax_10_amount = 0
+            entry.taxable_8_amount = 0
+            entry.tax_8_amount = 0
+
         # DB保存（重複チェック後）
         db_dict = entry.to_db_dict()
         db_dict["employee_slack_id"] = user_id
