@@ -1043,6 +1043,36 @@ def handle_reject(ack, body, client, logger):
         update_status(event_id, "却下", tenant_id, approved_by=rejector)
         rejector_name = _get_employee_name(client, rejector)
 
+        # Sheets同期: 社員シート + 財務集計シートのステータスを「却下」に更新
+        if sheets:
+            try:
+                evt_data = get_event_by_id(event_id, tenant_id)
+                if evt_data:
+                    from core.accounting import JournalEntry
+                    _rej_entry = JournalEntry(
+                        event_id          = evt_data["event_id"],
+                        event_date        = str(evt_data["event_date"]),
+                        counterparty      = evt_data["counterparty"],
+                        total_amount      = evt_data["amount"],
+                        taxable_10_amount = evt_data.get("taxable_10_amount", 0),
+                        tax_10_amount     = evt_data.get("tax_10_amount", 0),
+                        taxable_8_amount  = evt_data.get("taxable_8_amount", 0),
+                        tax_8_amount      = evt_data.get("tax_8_amount", 0),
+                        debit_account     = evt_data["debit_account"],
+                        debit_subsidiary  = evt_data.get("debit_subsidiary", ""),
+                        credit_account    = evt_data["credit_account"],
+                        invoice_number    = evt_data.get("invoice_number"),
+                        has_invoice       = bool(evt_data.get("has_invoice")),
+                        employee_name     = evt_data.get("employee_name", ""),
+                        status            = "却下",
+                        evidence_url      = evt_data.get("evidence_url", ""),
+                        purpose           = evt_data.get("purpose", ""),
+                    )
+                    sheets.update_journal_entry(_rej_entry)
+                    logger.info(f"Sheets却下同期完了: {event_id}")
+            except Exception as _se:
+                logger.warning(f"Sheets却下同期失敗（処理続行）: {_se}")
+
         # #経費承認チャンネルの承認カードを更新
         client.chat_update(
             channel=channel_id, ts=msg_ts,
@@ -1469,6 +1499,19 @@ def handle_delete(ack, body, client, logger):
                     (event_id, tenant_id)
                 )
         logger.info(f"削除: {event_id} by {user_id}")
+
+        # Sheets同期: 社員シート + 財務集計シートから行を削除
+        if sheets:
+            try:
+                event_date    = str(evt.get("event_date", ""))
+                _year         = int(event_date[:4])
+                _month        = int(event_date[5:7])
+                _emp          = evt.get("employee_name", "")
+                sheets.remove_event(event_id, _emp, _year, _month)
+                logger.info(f"Sheets行削除完了: {event_id}")
+            except Exception as _se:
+                logger.warning(f"Sheets行削除失敗（処理続行）: {_se}")
+
         client.chat_postMessage(
             channel=channel_id,
             text=(
