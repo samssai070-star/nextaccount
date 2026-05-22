@@ -451,6 +451,19 @@ def list_all_events_by_month(year, month, tenant_id):
             rows = cur.fetchall()
     return [dict(r) for r in rows]
 
+def list_events_by_date_range(from_date: str, to_date: str, tenant_id):
+    """任意の日付範囲で全仕訳を取得する (from_date, to_date: YYYY-MM-DD)"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT * FROM accounting_events "
+                "WHERE event_date BETWEEN %s AND %s AND tenant_id = %s "
+                "ORDER BY employee_name, event_date DESC",
+                (from_date, to_date, tenant_id)
+            )
+            rows = cur.fetchall()
+    return [dict(r) for r in rows]
+
 # ============================================================
 # Users テーブル（定期券区間管理）
 # ============================================================
