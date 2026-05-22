@@ -31,6 +31,11 @@ def get_logger(name: str) -> logging.Logger:
 # ============================================================
 SLACK_BOT_TOKEN: str = os.environ.get("SLACK_BOT_TOKEN", "")
 SLACK_APP_TOKEN: str = os.environ.get("SLACK_APP_TOKEN", "")
+# ブートストラップ用管理者SlackユーザーID（カンマ区切り）
+# DBにロール未設定でもこのIDは常にadmin扱い
+ADMIN_SLACK_IDS: list[str] = [
+    s.strip() for s in os.environ.get("ADMIN_SLACK_IDS", "").split(",") if s.strip()
+]
 
 # ============================================================
 # Google

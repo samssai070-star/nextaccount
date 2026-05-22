@@ -22,7 +22,8 @@ from datetime import datetime
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-from core.config import SLACK_BOT_TOKEN, SLACK_APP_TOKEN, GOOGLE_SHEET_ID
+from core.config import SLACK_BOT_TOKEN, SLACK_APP_TOKEN, GOOGLE_SHEET_ID, ADMIN_SLACK_IDS
+from core.database import get_user_role, ROLE_LEVEL
 import os
 APPROVAL_CHANNEL_ID = os.environ.get("APPROVAL_CHANNEL_ID", "")
 from core.ocr import parse_receipt, OcrResult
@@ -99,6 +100,25 @@ _csv_date_state: dict = {}
 # ============================================================
 # ユーティリティ
 # ============================================================
+
+def _check_role(user_id: str, tenant_id: str, min_role: str) -> bool:
+    """
+    ユーザーの権限が min_role 以上かチェックする。
+    ADMIN_SLACK_IDS に含まれるユーザーは常に admin 扱い。
+    DBにロール未設定の場合は employee として扱う。
+    """
+    if user_id in ADMIN_SLACK_IDS:
+        return True
+    role = get_user_role(user_id, tenant_id) if tenant_id else "employee"
+    return ROLE_LEVEL.get(role, 1) >= ROLE_LEVEL.get(min_role, 1)
+
+def _role_denied(client, channel_id: str, min_role: str) -> None:
+    """権限不足メッセージを送信する。"""
+    label = {"manager": "主管以上", "finance": "財務担当以上", "admin": "管理者"}.get(min_role, min_role)
+    client.chat_postMessage(
+        channel=channel_id,
+        text=f"🚫 この操作には *{label}* の権限が必要です。管理者にお問い合わせください。"
+    )
 
 def _get_employee_name(client, user_id: str) -> str:
     """Slack ユーザーIDから表示名を取得する"""
@@ -886,12 +906,16 @@ def handle_approve(ack, body, client, logger):
     channel_id = body["channel"]["id"]
     msg_ts     = body["message"]["ts"]
 
+    tenant    = _get_tenant(body.get("team", {}).get("id", ""))
+    tenant_id = tenant["id"] if tenant else None
+    if not _check_role(approver, tenant_id, "manager"):
+        _role_denied(client, channel_id, "manager")
+        return
+
     logger.info(f"承認: {event_id} by {approver}")
 
     try:
         # DB更新（申請中の場合のみ成功 — 二重承認防止）
-        tenant = _get_tenant(body.get("team", {}).get("id", ""))
-        tenant_id = tenant["id"] if tenant else None
         updated = update_status(event_id, "業務承認済", tenant_id, approved_by=approver)
         if not updated:
             client.chat_update(
@@ -1035,11 +1059,15 @@ def handle_reject(ack, body, client, logger):
     channel_id = body["channel"]["id"]
     msg_ts     = body["message"]["ts"]
 
+    tenant    = _get_tenant(body.get("team", {}).get("id", ""))
+    tenant_id = tenant["id"] if tenant else None
+    if not _check_role(rejector, tenant_id, "manager"):
+        _role_denied(client, channel_id, "manager")
+        return
+
     logger.info(f"却下: {event_id} by {rejector} applicant={applicant_slack_id} raw={raw_value}")
 
     try:
-        tenant = _get_tenant(body.get("team", {}).get("id", ""))
-        tenant_id = tenant["id"] if tenant else None
         update_status(event_id, "却下", tenant_id, approved_by=rejector)
         rejector_name = _get_employee_name(client, rejector)
 
@@ -1291,6 +1319,12 @@ def _build_csv_menu_blocks(start: str, end: str) -> list:
 def handle_csv(ack, body, client, logger):
     """/csv → インタラクティブメッセージで日付・形式を選択"""
     ack()
+    user_id   = body["user_id"]
+    tenant    = _get_tenant(body.get("team_id", ""))
+    tenant_id = tenant["id"] if tenant else None
+    if not _check_role(user_id, tenant_id, "finance"):
+        _role_denied(client, body["channel_id"], "finance")
+        return
     import calendar
     from datetime import datetime
     now = datetime.now()
@@ -1462,11 +1496,16 @@ def start():
 def handle_delete(ack, body, client, logger):
     """
     /delete [event_id] コマンド:
-    指定した管理IDのレコードをDBから削除する（管理者専用）
+    指定した管理IDのレコードをDBから削除する（finance以上専用）
     """
     ack()
     user_id    = body["user_id"]
     channel_id = body["channel_id"]
+    tenant    = _get_tenant(body.get("team_id", ""))
+    tenant_id = tenant["id"] if tenant else None
+    if not _check_role(user_id, tenant_id, "finance"):
+        _role_denied(client, channel_id, "finance")
+        return
     event_id   = body.get("text", "").strip().split()[0] if body.get("text", "").strip() else ""
 
     if not event_id:
@@ -1475,10 +1514,6 @@ def handle_delete(ack, body, client, logger):
             text="❌ 管理IDを指定してください。例: `/delete T20260406-00014`"
         )
         return
-
-    # テナント解決
-    tenant = _get_tenant(body.get("team_id", ""))
-    tenant_id = tenant["id"] if tenant else None
 
     # レコード存在確認
     evt = get_event_by_id(event_id, tenant_id)
@@ -1544,6 +1579,12 @@ def handle_list(ack, body, client, logger):
     """
     ack()
     channel_id = body["channel_id"]
+    user_id    = body["user_id"]
+    tenant     = _get_tenant(body.get("team_id", ""))
+    tenant_id  = tenant["id"] if tenant else None
+    if not _check_role(user_id, tenant_id, "finance"):
+        _role_denied(client, channel_id, "finance")
+        return
     text       = body.get("text", "").strip().split()
 
     STATUS_ALIAS = {
@@ -1626,8 +1667,12 @@ def handle_edit(ack, body, client, logger):
     event_id   = body.get("text", "").strip().split()[0] if body.get("text", "").strip() else ""
     channel_id = body["channel_id"]
     trigger_id = body["trigger_id"]
+    user_id    = body["user_id"]
     tenant     = _get_tenant(body.get("team_id", ""))
     tenant_id  = tenant["id"] if tenant else None
+    if not _check_role(user_id, tenant_id, "finance"):
+        _role_denied(client, channel_id, "finance")
+        return
 
     if not event_id:
         client.chat_postMessage(channel=channel_id,

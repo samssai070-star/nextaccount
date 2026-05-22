@@ -89,6 +89,38 @@ CREATE INDEX IF NOT EXISTS idx_ae_status    ON accounting_events(status);
 CREATE INDEX IF NOT EXISTS idx_ae_employee  ON accounting_events(employee_name);
 CREATE INDEX IF NOT EXISTS idx_ae_created   ON accounting_events(created_at);
 CREATE INDEX IF NOT EXISTS idx_ae_tenant_id ON accounting_events(tenant_id);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS fy_start_month INTEGER DEFAULT 4;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS drive_folder_id VARCHAR(100);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS company_name VARCHAR(200);
+CREATE TABLE IF NOT EXISTS user_roles (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id     UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    slack_user_id VARCHAR(50)  NOT NULL,
+    role          VARCHAR(20)  NOT NULL DEFAULT 'employee',
+    created_at    TIMESTAMP    DEFAULT NOW(),
+    updated_at    TIMESTAMP    DEFAULT NOW(),
+    UNIQUE(tenant_id, slack_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_roles_tenant ON user_roles(tenant_id, slack_user_id);
+CREATE TABLE IF NOT EXISTS sheet_registry (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id      UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    employee_name  VARCHAR(100),
+    fiscal_year    INTEGER NOT NULL,
+    spreadsheet_id VARCHAR(100) NOT NULL,
+    created_at     TIMESTAMP DEFAULT NOW(),
+    UNIQUE(tenant_id, employee_name, fiscal_year)
+);
+CREATE INDEX IF NOT EXISTS idx_sheet_registry_tenant ON sheet_registry(tenant_id, fiscal_year);
+CREATE TABLE IF NOT EXISTS admin_emails (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id  UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    email      VARCHAR(200) NOT NULL,
+    role       VARCHAR(20)  DEFAULT 'finance',
+    created_at TIMESTAMP    DEFAULT NOW(),
+    UNIQUE(tenant_id, email)
+);
+CREATE INDEX IF NOT EXISTS idx_admin_emails_tenant ON admin_emails(tenant_id);
 """
 
 def init_database():
@@ -531,3 +563,153 @@ def update_commute_section(slack_user_id, tenant_id, commute_from, commute_to):
                 (commute_from, commute_to, slack_user_id, tenant_id)
             )
     logger.info(f"定期券区間更新: {slack_user_id} ({commute_from}→{commute_to})")
+
+
+# ============================================================
+# 権限管理（user_roles）
+# ============================================================
+
+ROLE_LEVEL = {"employee": 1, "manager": 2, "finance": 3, "admin": 4}
+
+def get_user_role(slack_user_id: str, tenant_id: str) -> str:
+    """ユーザーのロールを返す。未設定は 'employee'。"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT role FROM user_roles WHERE slack_user_id=%s AND tenant_id=%s",
+                (slack_user_id, tenant_id)
+            )
+            row = cur.fetchone()
+    return row[0] if row else "employee"
+
+def set_user_role(slack_user_id: str, role: str, tenant_id: str) -> None:
+    """ユーザーのロールを設定する（upsert）。"""
+    if role not in ROLE_LEVEL:
+        raise ValueError(f"無効なロール: {role}")
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO user_roles (slack_user_id, role, tenant_id)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (tenant_id, slack_user_id)
+                DO UPDATE SET role = EXCLUDED.role, updated_at = NOW()
+            """, (slack_user_id, role, tenant_id))
+    logger.info(f"ロール設定: {slack_user_id} → {role}")
+
+def list_user_roles(tenant_id: str) -> list[dict]:
+    """テナントの全ロール一覧を返す。"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT slack_user_id, role, updated_at FROM user_roles WHERE tenant_id=%s ORDER BY role, slack_user_id",
+                (tenant_id,)
+            )
+            rows = cur.fetchall()
+    return [dict(r) for r in rows]
+
+
+# ============================================================
+# 会計年度ユーティリティ
+# ============================================================
+
+def get_fiscal_year(date_str: str, fy_start_month: int = 4) -> int:
+    """
+    日付文字列（YYYY-MM-DD）から会計年度を返す。
+    例: fy_start_month=4 の場合、2026-01-15 → 2025（FY2025）
+                                   2026-04-01 → 2026（FY2026）
+    """
+    year  = int(date_str[:4])
+    month = int(date_str[5:7])
+    return year if month >= fy_start_month else year - 1
+
+def get_tenant_fy_start(tenant_id: str) -> int:
+    """テナントの会計年度開始月を返す（デフォルト4）。"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT fy_start_month FROM tenants WHERE id=%s", (tenant_id,))
+            row = cur.fetchone()
+    return row[0] if row and row[0] else 4
+
+def update_tenant_settings(tenant_id: str, **kwargs) -> None:
+    """テナント設定を更新する。対応キー: fy_start_month, drive_folder_id, company_name"""
+    allowed = {"fy_start_month", "drive_folder_id", "company_name"}
+    fields  = {k: v for k, v in kwargs.items() if k in allowed}
+    if not fields:
+        return
+    set_clause = ", ".join(f"{k} = %({k})s" for k in fields)
+    fields["tenant_id"] = tenant_id
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE tenants SET {set_clause}, updated_at=NOW() WHERE id=%(tenant_id)s",
+                fields
+            )
+    logger.info(f"テナント設定更新: {tenant_id} {list(fields.keys())}")
+
+
+# ============================================================
+# シートレジストリ（sheet_registry）
+# ============================================================
+
+def get_sheet_registry(tenant_id: str, employee_name: Optional[str], fiscal_year: int) -> Optional[str]:
+    """社員×会計年度のスプレッドシートIDを返す。なければ None。"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            if employee_name is None:
+                cur.execute(
+                    "SELECT spreadsheet_id FROM sheet_registry WHERE tenant_id=%s AND employee_name IS NULL AND fiscal_year=%s",
+                    (tenant_id, fiscal_year)
+                )
+            else:
+                cur.execute(
+                    "SELECT spreadsheet_id FROM sheet_registry WHERE tenant_id=%s AND employee_name=%s AND fiscal_year=%s",
+                    (tenant_id, employee_name, fiscal_year)
+                )
+            row = cur.fetchone()
+    return row[0] if row else None
+
+def upsert_sheet_registry(tenant_id: str, employee_name: Optional[str], fiscal_year: int, spreadsheet_id: str) -> None:
+    """シートレジストリを登録・更新する。"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO sheet_registry (tenant_id, employee_name, fiscal_year, spreadsheet_id)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (tenant_id, employee_name, fiscal_year)
+                DO UPDATE SET spreadsheet_id = EXCLUDED.spreadsheet_id
+            """, (tenant_id, employee_name, fiscal_year, spreadsheet_id))
+    logger.info(f"シートレジストリ登録: {employee_name or '会社集計'} FY{fiscal_year} → {spreadsheet_id}")
+
+
+# ============================================================
+# 共有メール管理（admin_emails）
+# ============================================================
+
+def get_admin_emails(tenant_id: str) -> list[dict]:
+    """共有メール一覧を返す。"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT email, role FROM admin_emails WHERE tenant_id=%s ORDER BY role, email",
+                (tenant_id,)
+            )
+            rows = cur.fetchall()
+    return [dict(r) for r in rows]
+
+def upsert_admin_email(tenant_id: str, email: str, role: str = "finance") -> None:
+    """共有メールを登録・更新する。"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO admin_emails (tenant_id, email, role)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (tenant_id, email) DO UPDATE SET role = EXCLUDED.role
+            """, (tenant_id, email, role))
+    logger.info(f"共有メール登録: {email} ({role})")
+
+def delete_admin_email(tenant_id: str, email: str) -> None:
+    """共有メールを削除する。"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM admin_emails WHERE tenant_id=%s AND email=%s", (tenant_id, email))
+    logger.info(f"共有メール削除: {email}")
