@@ -92,6 +92,7 @@ CREATE INDEX IF NOT EXISTS idx_ae_tenant_id ON accounting_events(tenant_id);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS fy_start_month INTEGER DEFAULT 4;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS drive_folder_id VARCHAR(100);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS company_name VARCHAR(200);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS dept_code VARCHAR(20) DEFAULT '';
 CREATE TABLE IF NOT EXISTS user_roles (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id     UUID REFERENCES tenants(id) ON DELETE CASCADE,

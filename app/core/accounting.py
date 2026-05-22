@@ -54,6 +54,7 @@ class JournalEntry:
     memo: str = ""
     debit_subsidiary: str = ""
     purpose: str = ""
+    dept_code: str = ""
 
     def get_deduction_info(self) -> dict:
         tax_total = self.tax_10_amount + self.tax_8_amount
@@ -78,6 +79,7 @@ class JournalEntry:
             self.status,                            # N ステータス
             ('=HYPERLINK("' + self.evidence_url + '","証憑")') if self.evidence_url else (self.memo or ""),  # O 証憑
             self.purpose or "",                     # P 用途
+            self.dept_code or "",                   # Q 部門コード
         ]
 
     def to_db_dict(self) -> dict:

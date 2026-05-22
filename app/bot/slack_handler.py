@@ -1043,6 +1043,7 @@ def handle_approve(ack, body, client, logger):
                 status            = "業務承認済",
                 evidence_url      = evidence_url,
                 purpose           = evt.get("purpose", ""),
+                dept_code         = (tenant.get("dept_code") or "") if tenant else "",
             )
 
             # Drive設定済み → 社員ファイルと会社集計ファイルに書き込む
@@ -1505,6 +1506,7 @@ def handle_csv_download_action(ack, body, action, client, logger):
     from core.database import list_events_by_date_range
     tenant    = _get_tenant(team_id)
     tenant_id = tenant["id"] if tenant else None
+    dept_code = (tenant.get("dept_code") or "") if tenant else ""
     events    = [e for e in list_events_by_date_range(start_date, end_date, tenant_id)
                  if e.get("status") == "業務承認済"]
 
@@ -1543,19 +1545,19 @@ def handle_csv_download_action(ack, body, action, client, logger):
         csv_bytes = build_mf_csv(events)
     elif fmt == "obc":
         from core.multi_software_export import build_kanjo_ahra_csv
-        csv_bytes = build_kanjo_ahra_csv(events)
+        csv_bytes = build_kanjo_ahra_csv(events, dept_code=dept_code)
     elif fmt == "pca":
         from core.multi_software_export import build_pca_csv
-        csv_bytes = build_pca_csv(events)
+        csv_bytes = build_pca_csv(events, dept_code=dept_code)
     elif fmt == "tkc":
         from core.multi_software_export import build_tkc_csv
-        csv_bytes = build_tkc_csv(events)
+        csv_bytes = build_tkc_csv(events, dept_code=dept_code)
     elif fmt == "jdl":
         from core.multi_software_export import build_jdl_csv
-        csv_bytes = build_jdl_csv(events)
+        csv_bytes = build_jdl_csv(events, dept_code=dept_code)
     elif fmt == "mjs":
         from core.multi_software_export import build_mjs_csv
-        csv_bytes = build_mjs_csv(events)
+        csv_bytes = build_mjs_csv(events, dept_code=dept_code)
     else:
         from core.csv_export import build_generic_csv
         csv_bytes = build_generic_csv(events)
@@ -2668,9 +2670,10 @@ def _create_transportation_entry(entry_dict):
 
 def _build_home_view(tenant: dict, user_roles: list[dict], admin_emails: list[dict]) -> dict:
     """App Home の設定画面 Block Kit を構築する。"""
-    fy_start = tenant.get("fy_start_month") or 4
-    company  = tenant.get("company_name") or ""
-    folder   = tenant.get("drive_folder_id") or ""
+    fy_start  = tenant.get("fy_start_month") or 4
+    company   = tenant.get("company_name") or ""
+    folder    = tenant.get("drive_folder_id") or ""
+    dept_code = tenant.get("dept_code") or ""
 
     month_options = [
         {"text": {"type": "plain_text", "text": f"{m}月"}, "value": str(m)}
@@ -2759,6 +2762,18 @@ def _build_home_view(tenant: dict, user_roles: list[dict], admin_emails: list[di
                 "action_id": "input_drive_folder",
                 "initial_value": folder,
                 "placeholder": {"type": "plain_text", "text": "Drive共有フォルダのID"},
+            },
+        },
+        {
+            "type": "input",
+            "block_id": "block_dept_code",
+            "label": {"type": "plain_text", "text": "部門コード（勘定奉行用・全社共通）"},
+            "optional": True,
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "input_dept_code",
+                "initial_value": dept_code,
+                "placeholder": {"type": "plain_text", "text": "例: 001"},
             },
         },
         {
@@ -2917,12 +2932,14 @@ def handle_home_save_company(ack, body, client, logger):
 
     from core.database import update_tenant_settings
     values = body.get("view", {}).get("state", {}).get("values", {})
-    company = (values.get("block_company_name", {})
-               .get("input_company_name", {}).get("value") or "").strip()
-    fy_raw  = (values.get("block_fy_start", {})
-               .get("select_fy_start", {}).get("selected_option") or {}).get("value")
-    folder  = (values.get("block_drive_folder", {})
-               .get("input_drive_folder", {}).get("value") or "").strip()
+    company   = (values.get("block_company_name", {})
+                 .get("input_company_name", {}).get("value") or "").strip()
+    fy_raw    = (values.get("block_fy_start", {})
+                 .get("select_fy_start", {}).get("selected_option") or {}).get("value")
+    folder    = (values.get("block_drive_folder", {})
+                 .get("input_drive_folder", {}).get("value") or "").strip()
+    dept_code = (values.get("block_dept_code", {})
+                 .get("input_dept_code", {}).get("value") or "").strip()
 
     kwargs = {}
     if company:
@@ -2931,6 +2948,8 @@ def handle_home_save_company(ack, body, client, logger):
         kwargs["fy_start_month"] = int(fy_raw)
     if folder is not None:
         kwargs["drive_folder_id"] = folder
+    if dept_code is not None:
+        kwargs["dept_code"] = dept_code
 
     if kwargs:
         update_tenant_settings(tenant["id"], **kwargs)
@@ -2963,12 +2982,14 @@ def handle_home_add_email(ack, body, client, logger):
     logger.info(f"メール追加: {email} ({role_raw})")
 
     # 会社設定も同時保存
-    company = (values.get("block_company_name", {})
-               .get("input_company_name", {}).get("value") or "").strip()
-    fy_raw  = (values.get("block_fy_start", {})
-               .get("select_fy_start", {}).get("selected_option") or {}).get("value")
-    folder  = (values.get("block_drive_folder", {})
-               .get("input_drive_folder", {}).get("value") or "").strip()
+    company   = (values.get("block_company_name", {})
+                 .get("input_company_name", {}).get("value") or "").strip()
+    fy_raw    = (values.get("block_fy_start", {})
+                 .get("select_fy_start", {}).get("selected_option") or {}).get("value")
+    folder    = (values.get("block_drive_folder", {})
+                 .get("input_drive_folder", {}).get("value") or "").strip()
+    dept_code = (values.get("block_dept_code", {})
+                 .get("input_dept_code", {}).get("value") or "").strip()
     kwargs  = {}
     if company:
         kwargs["company_name"] = company
@@ -2976,6 +2997,8 @@ def handle_home_add_email(ack, body, client, logger):
         kwargs["fy_start_month"] = int(fy_raw)
     if folder is not None:
         kwargs["drive_folder_id"] = folder
+    if dept_code is not None:
+        kwargs["dept_code"] = dept_code
     if kwargs:
         update_tenant_settings(tenant["id"], **kwargs)
         tenant.update(kwargs)
