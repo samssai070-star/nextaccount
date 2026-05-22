@@ -268,10 +268,16 @@ class SheetsManager:
         total_8 = 0
         total_tax8 = 0
 
+        month_prefix = f"{year:04d}-{month:02d}"  # 発生日列でフィルタ用
+
         existing_total_row = None
         for i, row in enumerate(rows):
             if len(row) > 0 and row[0] == total_label:
                 existing_total_row = i + 1  # 1-indexed
+                continue
+            # 発生日（B列=index1）が当月でない行はスキップ
+            date_val = str(row[1]) if len(row) > 1 else ""
+            if not date_val.startswith(month_prefix):
                 continue
             if len(row) >= 4:
                 try:
