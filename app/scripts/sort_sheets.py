@@ -11,8 +11,8 @@ from google.oauth2 import service_account
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("sort_sheets")
 
-SKIP_SHEETS   = ["sheet1", "財務部門_集計"]
-SUMMARY_SHEET = "財務部門_集計"
+SKIP_SHEETS   = ["sheet1", "年間集計"]
+SUMMARY_SHEET = "年間集計"
 APPROVED      = "\u696d\u52d9\u627f\u8a8d\u6e08"  # 業務承認済
 
 HEADER = [
