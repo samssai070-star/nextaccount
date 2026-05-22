@@ -307,6 +307,61 @@ class SheetsManager:
         else:
             self._append_row(sheet_name, total_row)
 
+    def _update_annual_total(self, sheet_name: str) -> None:
+        """
+        年間合計額行を最下行に更新する（常に最終行に配置）。
+        全月の月合計行を合算して年間集計を算出する。
+        """
+        LABEL = "年間合計額"
+        rows  = self._get_all_values(sheet_name)
+
+        total_amount = total_10 = total_tax10 = total_8 = total_tax8 = 0
+        existing_row_index = None
+
+        for i, row in enumerate(rows):
+            id_val = str(row[0]).strip() if len(row) > 0 else ""
+            if id_val == LABEL:
+                existing_row_index = i + 1  # 1-indexed
+                continue
+            # 月合計行を検出: "YYYY/MM合計" (9文字)
+            if len(id_val) == 9 and id_val[4:5] == "/" and id_val[7:] == "合計":
+                try:
+                    total_amount += int(str(row[3]).replace(",", "") or 0) if len(row) > 3 else 0
+                    total_10     += int(str(row[4]).replace(",", "") or 0) if len(row) > 4 else 0
+                    total_tax10  += int(str(row[5]).replace(",", "") or 0) if len(row) > 5 else 0
+                    total_8      += int(str(row[6]).replace(",", "") or 0) if len(row) > 6 else 0
+                    total_tax8   += int(str(row[7]).replace(",", "") or 0) if len(row) > 7 else 0
+                except (ValueError, TypeError):
+                    pass
+
+        annual_row = [
+            LABEL, "", "", total_amount,
+            total_10, total_tax10, total_8, total_tax8,
+            "", "", "", "", "", "", "", "",
+        ]
+
+        # 既存行を削除してから末尾に再追記（常に最下行に固定）
+        if existing_row_index is not None:
+            sheet_id = self._get_sheet_id(sheet_name)
+            if sheet_id is not None:
+                self._execute(
+                    self.service.spreadsheets().batchUpdate(
+                        spreadsheetId=self.spreadsheet_id,
+                        body={"requests": [{
+                            "deleteDimension": {
+                                "range": {
+                                    "sheetId": sheet_id,
+                                    "dimension": "ROWS",
+                                    "startIndex": existing_row_index - 1,
+                                    "endIndex": existing_row_index,
+                                }
+                            }
+                        }]},
+                    )
+                )
+        self._append_row(sheet_name, annual_row)
+        logger.info(f"年間合計額更新: {sheet_name} → ¥{total_amount:,}")
+
     # ----------------------------------------------------------
     # 公開 API
     # ----------------------------------------------------------
@@ -364,6 +419,8 @@ class SheetsManager:
                 deleted = self.delete_row_by_event_id(sheet_name, event_id)
                 if deleted:
                     self._update_monthly_total(sheet_name, year, month)
+                    if sheet_name == FINANCE_SUMMARY_SHEET_NAME:
+                        self._update_annual_total(sheet_name)
         except Exception as e:
             logger.error(f"Sheets行削除エラー: {e}", exc_info=True)
             return False
@@ -434,6 +491,7 @@ class SheetsManager:
 
             self._sort_by_date(sheet_name)
             self._update_monthly_total(sheet_name, year, month)
+            self._update_annual_total(sheet_name)
             logger.info(f"財務集計シート再構築完了: {ym_prefix} ({len(all_events)}件)")
             return True
 
@@ -475,6 +533,8 @@ class SheetsManager:
                     logger.info(f"新規行を追加: {sheet_name} ({entry.event_id})")
                 self._sort_by_date(sheet_name)
                 self._update_monthly_total(sheet_name, year, month)
+                if sheet_name == FINANCE_SUMMARY_SHEET_NAME:
+                    self._update_annual_total(sheet_name)
 
             return True
 
@@ -533,6 +593,8 @@ class SheetsManager:
 
                 self._sort_by_date(sheet_name)
                 self._update_monthly_total(sheet_name, year, month)
+                if sheet_name == FINANCE_SUMMARY_SHEET_NAME:
+                    self._update_annual_total(sheet_name)
 
             return True
 
