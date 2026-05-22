@@ -1113,7 +1113,7 @@ def handle_export(ack, body, client, logger):
         except ValueError:
             client.chat_postMessage(
                 channel=channel_id,
-                text="❌ 形式が正しくありません。例: `/export 2026-03`"
+                text="❌ 形式が正しくありません。例: `/csv 2026-03`"
             )
             return
     else:
@@ -1171,7 +1171,7 @@ def handle_export(ack, body, client, logger):
             f"📊 *{ym_label} 承認済み仕訳 — {fmt_label}形式*\n"
             f"件数: {len(events)} 件\n"
             f"{fmt_note}\n"
-            f"使い方: `/export YYYY-MM yayoi` / `freee` / `mf` / `csv`"
+            f"使い方: `/csv YYYY-MM yayoi` / `freee` / `mf` / `csv`"
         ),
     )
     logger.info(f"弥生CSV出力: {filename} ({len(events)}件)")
