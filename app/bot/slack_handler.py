@@ -101,6 +101,91 @@ _csv_date_state: dict = {}
 # ユーティリティ
 # ============================================================
 
+def _get_or_create_employee_sheets(employee_name: str, event_date: str, tenant: dict):
+    """
+    社員×会計年度のSheetsManagerを返す。
+    sheet_registryにIDがなければDriveでファイルを新規作成して登録する。
+    drive_folder_idが未設定の場合はNoneを返す（レガシーシングルファイルへフォールバック）。
+    """
+    from core.database import (
+        get_fiscal_year, get_tenant_fy_start,
+        get_sheet_registry, upsert_sheet_registry, get_admin_emails,
+    )
+    tenant_id       = tenant["id"]
+    drive_folder_id = tenant.get("drive_folder_id") or ""
+    if not drive_folder_id:
+        return None
+
+    fy_start    = tenant.get("fy_start_month") or get_tenant_fy_start(tenant_id)
+    fiscal_year = get_fiscal_year(event_date, fy_start)
+    sid         = get_sheet_registry(tenant_id, employee_name, fiscal_year)
+
+    if not sid:
+        from core.drive import DriveManager
+        emails = [e["email"] for e in get_admin_emails(tenant_id)]
+        title  = f"{employee_name}_FY{fiscal_year}"
+        sid    = DriveManager(drive_folder_id).create_spreadsheet(title, emails)
+        upsert_sheet_registry(tenant_id, employee_name, fiscal_year, sid)
+        logger.info(f"社員ファイル新規作成: {title}")
+
+    return SheetsManager(sid)
+
+
+def _get_or_create_company_sheets(event_date: str, tenant: dict):
+    """
+    会社集計用SheetsManagerを返す（会計年度単位）。
+    drive_folder_idが未設定の場合はNoneを返す。
+    """
+    from core.database import (
+        get_fiscal_year, get_tenant_fy_start,
+        get_sheet_registry, upsert_sheet_registry, get_admin_emails,
+    )
+    tenant_id       = tenant["id"]
+    drive_folder_id = tenant.get("drive_folder_id") or ""
+    if not drive_folder_id:
+        return None
+
+    fy_start    = tenant.get("fy_start_month") or get_tenant_fy_start(tenant_id)
+    fiscal_year = get_fiscal_year(event_date, fy_start)
+    sid         = get_sheet_registry(tenant_id, None, fiscal_year)
+
+    if not sid:
+        from core.drive import DriveManager
+        emails = [e["email"] for e in get_admin_emails(tenant_id)]
+        title  = f"会社集計_FY{fiscal_year}"
+        sid    = DriveManager(drive_folder_id).create_spreadsheet(title, emails)
+        upsert_sheet_registry(tenant_id, None, fiscal_year, sid)
+        logger.info(f"会社集計ファイル新規作成: {title}")
+
+    return SheetsManager(sid)
+
+
+def _upload_receipt_to_drive(event_id: str, evidence_url: str, employee_name: str, tenant: dict) -> str:
+    """
+    Slack画像をGoogle Driveにアップロードし、Drive URLを返す。
+    Drive未設定またはエラー時は元のURLをそのまま返す。
+    """
+    drive_folder_id = tenant.get("drive_folder_id") or ""
+    if not drive_folder_id or not evidence_url:
+        return evidence_url
+    try:
+        from core.drive import DriveManager
+        from core.config import SLACK_BOT_TOKEN as _BOT_TOKEN
+        ext      = "jpg"
+        if "png" in evidence_url.lower():
+            ext = "png"
+        elif "pdf" in evidence_url.lower():
+            ext = "pdf"
+        filename = f"{event_id}.{ext}"
+        drive_url = DriveManager(drive_folder_id).upload_receipt_image(
+            evidence_url, filename, _BOT_TOKEN, subfolder_name=employee_name
+        )
+        return drive_url or evidence_url
+    except Exception as e:
+        logger.warning(f"Drive画像アップロード失敗（元URLを使用）: {e}")
+        return evidence_url
+
+
 def _check_role(user_id: str, tenant_id: str, min_role: str) -> bool:
     """
     ユーザーの権限が min_role 以上かチェックする。
@@ -926,64 +1011,101 @@ def handle_approve(ack, body, client, logger):
             )
             return
 
-        # Google Sheets 同期
+        # Google Sheets 同期（Drive統合）
         sheets_sync_failed = False
-        if sheets:
-            evt = get_event_by_id(event_id, tenant_id)
-            if evt:
-                from core.accounting import JournalEntry
-                entry = JournalEntry(
-                    event_id          = evt["event_id"],
-                    event_date        = str(evt["event_date"]),
-                    counterparty      = evt["counterparty"],
-                    total_amount      = evt["amount"],
-                    taxable_10_amount = evt.get("taxable_10_amount", 0),
-                    tax_10_amount     = evt.get("tax_10_amount", 0),
-                    taxable_8_amount  = evt.get("taxable_8_amount", 0),
-                    tax_8_amount      = evt.get("tax_8_amount", 0),
-                    debit_account     = evt["debit_account"],
-                    debit_subsidiary  = evt.get("debit_subsidiary", ""),
-                    credit_account    = evt["credit_account"],
-                    invoice_number    = evt.get("invoice_number"),
-                    has_invoice       = bool(evt.get("has_invoice")),
-                    employee_name     = evt.get("employee_name", ""),
-                    status            = "業務承認済",
-                    evidence_url      = evt.get("evidence_url", ""),
-                    purpose           = evt.get("purpose", ""),
+        evt = get_event_by_id(event_id, tenant_id)
+        entry = None
+        if evt:
+            from core.accounting import JournalEntry
+
+            # Drive設定済みなら領収書をDriveにアップロードしてURLを差し替え
+            evidence_url = evt.get("evidence_url", "")
+            if tenant and tenant.get("drive_folder_id"):
+                evidence_url = _upload_receipt_to_drive(
+                    event_id, evidence_url, evt.get("employee_name", ""), tenant
                 )
+
+            entry = JournalEntry(
+                event_id          = evt["event_id"],
+                event_date        = str(evt["event_date"]),
+                counterparty      = evt["counterparty"],
+                total_amount      = evt["amount"],
+                taxable_10_amount = evt.get("taxable_10_amount", 0),
+                tax_10_amount     = evt.get("tax_10_amount", 0),
+                taxable_8_amount  = evt.get("taxable_8_amount", 0),
+                tax_8_amount      = evt.get("tax_8_amount", 0),
+                debit_account     = evt["debit_account"],
+                debit_subsidiary  = evt.get("debit_subsidiary", ""),
+                credit_account    = evt["credit_account"],
+                invoice_number    = evt.get("invoice_number"),
+                has_invoice       = bool(evt.get("has_invoice")),
+                employee_name     = evt.get("employee_name", ""),
+                status            = "業務承認済",
+                evidence_url      = evidence_url,
+                purpose           = evt.get("purpose", ""),
+            )
+
+            # Drive設定済み → 社員ファイルと会社集計ファイルに書き込む
+            if tenant and tenant.get("drive_folder_id"):
+                emp_sheets = _get_or_create_employee_sheets(
+                    evt.get("employee_name", ""), str(evt["event_date"]), tenant
+                )
+                cmp_sheets = _get_or_create_company_sheets(str(evt["event_date"]), tenant)
+                ok_emp = emp_sheets.write_journal_entry_employee(entry) if emp_sheets else True
+                ok_cmp = cmp_sheets.write_journal_entry_summary(entry) if cmp_sheets else True
+                ok = ok_emp and ok_cmp
+            elif sheets:
                 ok = sheets.write_journal_entry(entry)
-                if ok:
-                    logger.info(f"Sheets 同期完了: {event_id}")
-                else:
-                    logger.warning(f"Sheets 同期失敗: {event_id}")
-                    sheets_sync_failed = True
+            else:
+                ok = True
+
+            if ok:
+                logger.info(f"Sheets 同期完了: {event_id}")
+            else:
+                logger.warning(f"Sheets 同期失敗: {event_id}")
+                sheets_sync_failed = True
 
         # 入湯税リンクエントリも同時承認
         from core.database import get_linked_nyutou_entry
         nyutou_evt = get_linked_nyutou_entry(event_id, tenant_id)
         if nyutou_evt:
             update_status(nyutou_evt["event_id"], "業務承認済", tenant_id, approved_by=approver)
-            if sheets:
-                from core.accounting import JournalEntry as JE
-                nyutou_je = JE(
-                    event_id          = nyutou_evt["event_id"],
-                    event_date        = str(nyutou_evt["event_date"]),
-                    counterparty      = nyutou_evt["counterparty"],
-                    total_amount      = nyutou_evt["amount"],
-                    taxable_10_amount = nyutou_evt.get("taxable_10_amount", 0),
-                    tax_10_amount     = nyutou_evt.get("tax_10_amount", 0),
-                    taxable_8_amount  = nyutou_evt.get("taxable_8_amount", 0),
-                    tax_8_amount      = nyutou_evt.get("tax_8_amount", 0),
-                    debit_account     = nyutou_evt["debit_account"],
-                    debit_subsidiary  = nyutou_evt.get("debit_subsidiary", ""),
-                    credit_account    = nyutou_evt["credit_account"],
-                    invoice_number    = nyutou_evt.get("invoice_number"),
-                    has_invoice       = bool(nyutou_evt.get("has_invoice")),
-                    employee_name     = nyutou_evt.get("employee_name", ""),
-                    status            = "業務承認済",
-                    evidence_url      = nyutou_evt.get("evidence_url", ""),
-                    purpose           = nyutou_evt.get("purpose", ""),
+            from core.accounting import JournalEntry as JE
+            nyutou_evidence = nyutou_evt.get("evidence_url", "")
+            if tenant and tenant.get("drive_folder_id"):
+                nyutou_evidence = _upload_receipt_to_drive(
+                    nyutou_evt["event_id"], nyutou_evidence,
+                    nyutou_evt.get("employee_name", ""), tenant
                 )
+            nyutou_je = JE(
+                event_id          = nyutou_evt["event_id"],
+                event_date        = str(nyutou_evt["event_date"]),
+                counterparty      = nyutou_evt["counterparty"],
+                total_amount      = nyutou_evt["amount"],
+                taxable_10_amount = nyutou_evt.get("taxable_10_amount", 0),
+                tax_10_amount     = nyutou_evt.get("tax_10_amount", 0),
+                taxable_8_amount  = nyutou_evt.get("taxable_8_amount", 0),
+                tax_8_amount      = nyutou_evt.get("tax_8_amount", 0),
+                debit_account     = nyutou_evt["debit_account"],
+                debit_subsidiary  = nyutou_evt.get("debit_subsidiary", ""),
+                credit_account    = nyutou_evt["credit_account"],
+                invoice_number    = nyutou_evt.get("invoice_number"),
+                has_invoice       = bool(nyutou_evt.get("has_invoice")),
+                employee_name     = nyutou_evt.get("employee_name", ""),
+                status            = "業務承認済",
+                evidence_url      = nyutou_evidence,
+                purpose           = nyutou_evt.get("purpose", ""),
+            )
+            if tenant and tenant.get("drive_folder_id"):
+                n_emp = _get_or_create_employee_sheets(
+                    nyutou_evt.get("employee_name", ""), str(nyutou_evt["event_date"]), tenant
+                )
+                n_cmp = _get_or_create_company_sheets(str(nyutou_evt["event_date"]), tenant)
+                if n_emp:
+                    n_emp.write_journal_entry_employee(nyutou_je)
+                if n_cmp:
+                    n_cmp.write_journal_entry_summary(nyutou_je)
+            elif sheets:
                 sheets.write_journal_entry(nyutou_je)
             logger.info(f"入湯税連動承認: {nyutou_evt['event_id']}")
 
@@ -2538,3 +2660,365 @@ def _create_transportation_entry(entry_dict):
         employee_name=entry_dict["employee_name"],
         status="申請中",
     )
+
+
+# ============================================================
+# Phase 4: App Home — 設定UI
+# ============================================================
+
+def _build_home_view(tenant: dict, user_roles: list[dict], admin_emails: list[dict]) -> dict:
+    """App Home の設定画面 Block Kit を構築する。"""
+    fy_start = tenant.get("fy_start_month") or 4
+    company  = tenant.get("company_name") or ""
+    folder   = tenant.get("drive_folder_id") or ""
+
+    month_options = [
+        {"text": {"type": "plain_text", "text": f"{m}月"}, "value": str(m)}
+        for m in range(1, 13)
+    ]
+
+    role_options = [
+        {"text": {"type": "plain_text", "text": "admin（全機能）"},     "value": "admin"},
+        {"text": {"type": "plain_text", "text": "finance（財務）"},     "value": "finance"},
+        {"text": {"type": "plain_text", "text": "manager（承認のみ）"}, "value": "manager"},
+        {"text": {"type": "plain_text", "text": "employee（一般）"},    "value": "employee"},
+    ]
+
+    # 管理メールリスト
+    email_rows = []
+    for ae in admin_emails:
+        email_rows.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"• `{ae['email']}` ({ae.get('role','finance')})"},
+            "accessory": {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "削除"},
+                "style": "danger",
+                "action_id": "home_delete_email",
+                "value": ae["email"],
+                "confirm": {
+                    "title": {"type": "plain_text", "text": "削除確認"},
+                    "text": {"type": "mrkdwn", "text": f"`{ae['email']}` を共有リストから削除しますか？"},
+                    "confirm": {"type": "plain_text", "text": "削除"},
+                    "deny": {"type": "plain_text", "text": "キャンセル"},
+                },
+            },
+        })
+    if not email_rows:
+        email_rows.append({"type": "section", "text": {"type": "mrkdwn", "text": "_登録なし_"}})
+
+    # ユーザーロールリスト
+    role_rows = []
+    for ur in user_roles[:20]:
+        role_rows.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"• <@{ur['slack_user_id']}> → `{ur['role']}`"},
+        })
+    if not role_rows:
+        role_rows.append({"type": "section", "text": {"type": "mrkdwn", "text": "_登録なし_"}})
+
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text", "text": "⚙️ NextAccount 設定"}},
+        {"type": "divider"},
+
+        # ── 会社設定 ──
+        {"type": "section", "text": {"type": "mrkdwn", "text": "*会社設定*"}},
+        {
+            "type": "input",
+            "block_id": "block_company_name",
+            "label": {"type": "plain_text", "text": "会社名"},
+            "optional": True,
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "input_company_name",
+                "initial_value": company,
+                "placeholder": {"type": "plain_text", "text": "例: 株式会社サンプル"},
+            },
+        },
+        {
+            "type": "input",
+            "block_id": "block_fy_start",
+            "label": {"type": "plain_text", "text": "会計年度開始月"},
+            "element": {
+                "type": "static_select",
+                "action_id": "select_fy_start",
+                "options": month_options,
+                "initial_option": {
+                    "text": {"type": "plain_text", "text": f"{fy_start}月"},
+                    "value": str(fy_start),
+                },
+            },
+        },
+        {
+            "type": "input",
+            "block_id": "block_drive_folder",
+            "label": {"type": "plain_text", "text": "Google Drive フォルダID"},
+            "optional": True,
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "input_drive_folder",
+                "initial_value": folder,
+                "placeholder": {"type": "plain_text", "text": "Drive共有フォルダのID"},
+            },
+        },
+        {
+            "type": "actions",
+            "elements": [{
+                "type": "button",
+                "text": {"type": "plain_text", "text": "💾 会社設定を保存"},
+                "style": "primary",
+                "action_id": "home_save_company",
+            }],
+        },
+        {"type": "divider"},
+
+        # ── 共有メール管理 ──
+        {"type": "section", "text": {"type": "mrkdwn", "text": "*Sheets共有メール管理*\n税理士・財務担当のGoogleアカウントを登録します。"}},
+        *email_rows,
+        {
+            "type": "input",
+            "block_id": "block_new_email",
+            "label": {"type": "plain_text", "text": "メールアドレスを追加"},
+            "optional": True,
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "input_new_email",
+                "placeholder": {"type": "plain_text", "text": "example@gmail.com"},
+            },
+        },
+        {
+            "type": "input",
+            "block_id": "block_email_role",
+            "label": {"type": "plain_text", "text": "Sheets権限"},
+            "element": {
+                "type": "static_select",
+                "action_id": "select_email_role",
+                "options": [
+                    {"text": {"type": "plain_text", "text": "writer（編集可）"}, "value": "writer"},
+                    {"text": {"type": "plain_text", "text": "reader（閲覧のみ）"}, "value": "reader"},
+                ],
+                "initial_option": {"text": {"type": "plain_text", "text": "writer（編集可）"}, "value": "writer"},
+            },
+        },
+        {
+            "type": "actions",
+            "elements": [{
+                "type": "button",
+                "text": {"type": "plain_text", "text": "➕ メールを追加"},
+                "action_id": "home_add_email",
+            }],
+        },
+        {"type": "divider"},
+
+        # ── ユーザーロール管理 ──
+        {"type": "section", "text": {"type": "mrkdwn", "text": "*ユーザーロール管理*"}},
+        *role_rows,
+        {
+            "type": "input",
+            "block_id": "block_role_user",
+            "label": {"type": "plain_text", "text": "ユーザーを選択"},
+            "element": {
+                "type": "users_select",
+                "action_id": "select_role_user",
+                "placeholder": {"type": "plain_text", "text": "ユーザーを選択"},
+            },
+        },
+        {
+            "type": "input",
+            "block_id": "block_role_value",
+            "label": {"type": "plain_text", "text": "ロールを選択"},
+            "element": {
+                "type": "static_select",
+                "action_id": "select_role_value",
+                "options": role_options,
+                "initial_option": {"text": {"type": "plain_text", "text": "employee（一般）"}, "value": "employee"},
+            },
+        },
+        {
+            "type": "actions",
+            "elements": [{
+                "type": "button",
+                "text": {"type": "plain_text", "text": "✅ ロールを設定"},
+                "style": "primary",
+                "action_id": "home_set_role",
+            }],
+        },
+    ]
+
+    return {"type": "home", "blocks": blocks}
+
+
+def _refresh_home(client, user_id: str, tenant: dict) -> None:
+    """App Home を再描画する。"""
+    from core.database import list_user_roles, get_admin_emails
+    tenant_id   = tenant["id"]
+    user_roles  = list_user_roles(tenant_id)
+    admin_emails = get_admin_emails(tenant_id)
+    view = _build_home_view(tenant, user_roles, admin_emails)
+    try:
+        client.views_publish(user_id=user_id, view=view)
+    except Exception as e:
+        logger.warning(f"App Home 更新失敗: {e}")
+
+
+@app.event("app_home_opened")
+def handle_app_home_opened(event, client, logger):
+    user_id = event["user"]
+    team_id = event.get("view", {}).get("team_id", "") or ""
+    # team_id が view にない場合は別途取得しない（Socket ModeはAuthorizations経由）
+    # フォールバック: body["authorizations"][0]["team_id"] は event ハンドラで取れないため
+    # app.client の team_id を使う
+    try:
+        if not team_id:
+            auth = client.auth_test()
+            team_id = auth["team_id"]
+    except Exception:
+        pass
+
+    tenant = _get_tenant(team_id) if team_id else None
+    if not tenant:
+        client.views_publish(
+            user_id=user_id,
+            view={
+                "type": "home",
+                "blocks": [{
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": "⚠️ テナント未登録です。管理者にお問い合わせください。"},
+                }],
+            },
+        )
+        return
+
+    if not _check_role(user_id, tenant["id"], "admin"):
+        client.views_publish(
+            user_id=user_id,
+            view={
+                "type": "home",
+                "blocks": [{
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": "🔒 設定画面はadminのみ使用できます。"},
+                }],
+            },
+        )
+        return
+
+    _refresh_home(client, user_id, tenant)
+
+
+# ── ホーム: 会社設定保存 ──
+@app.action("home_save_company")
+def handle_home_save_company(ack, body, client, logger):
+    ack()
+    user_id = body["user"]["id"]
+    team_id = body.get("team", {}).get("id", "") or body.get("view", {}).get("team_id", "")
+    tenant  = _get_tenant(team_id)
+    if not tenant or not _check_role(user_id, tenant["id"], "admin"):
+        return
+
+    from core.database import update_tenant_settings
+    values = body.get("view", {}).get("state", {}).get("values", {})
+    company = (values.get("block_company_name", {})
+               .get("input_company_name", {}).get("value") or "").strip()
+    fy_raw  = (values.get("block_fy_start", {})
+               .get("select_fy_start", {}).get("selected_option") or {}).get("value")
+    folder  = (values.get("block_drive_folder", {})
+               .get("input_drive_folder", {}).get("value") or "").strip()
+
+    kwargs = {}
+    if company:
+        kwargs["company_name"] = company
+    if fy_raw:
+        kwargs["fy_start_month"] = int(fy_raw)
+    if folder is not None:
+        kwargs["drive_folder_id"] = folder
+
+    if kwargs:
+        update_tenant_settings(tenant["id"], **kwargs)
+        tenant.update(kwargs)
+        logger.info(f"テナント設定保存: {kwargs}")
+
+    _refresh_home(client, user_id, tenant)
+
+
+# ── ホーム: メール追加 ──
+@app.action("home_add_email")
+def handle_home_add_email(ack, body, client, logger):
+    ack()
+    user_id = body["user"]["id"]
+    team_id = body.get("team", {}).get("id", "") or body.get("view", {}).get("team_id", "")
+    tenant  = _get_tenant(team_id)
+    if not tenant or not _check_role(user_id, tenant["id"], "admin"):
+        return
+
+    from core.database import upsert_admin_email, update_tenant_settings
+    values  = body.get("view", {}).get("state", {}).get("values", {})
+    email   = (values.get("block_new_email", {})
+               .get("input_new_email", {}).get("value") or "").strip()
+    role_raw = (values.get("block_email_role", {})
+                .get("select_email_role", {}).get("selected_option") or {}).get("value", "writer")
+    if not email or "@" not in email:
+        return
+
+    upsert_admin_email(tenant["id"], email, role=role_raw)
+    logger.info(f"メール追加: {email} ({role_raw})")
+
+    # 会社設定も同時保存
+    company = (values.get("block_company_name", {})
+               .get("input_company_name", {}).get("value") or "").strip()
+    fy_raw  = (values.get("block_fy_start", {})
+               .get("select_fy_start", {}).get("selected_option") or {}).get("value")
+    folder  = (values.get("block_drive_folder", {})
+               .get("input_drive_folder", {}).get("value") or "").strip()
+    kwargs  = {}
+    if company:
+        kwargs["company_name"] = company
+    if fy_raw:
+        kwargs["fy_start_month"] = int(fy_raw)
+    if folder is not None:
+        kwargs["drive_folder_id"] = folder
+    if kwargs:
+        update_tenant_settings(tenant["id"], **kwargs)
+        tenant.update(kwargs)
+
+    _refresh_home(client, user_id, tenant)
+
+
+# ── ホーム: メール削除 ──
+@app.action("home_delete_email")
+def handle_home_delete_email(ack, body, client, logger):
+    ack()
+    user_id = body["user"]["id"]
+    team_id = body.get("team", {}).get("id", "") or body.get("view", {}).get("team_id", "")
+    tenant  = _get_tenant(team_id)
+    if not tenant or not _check_role(user_id, tenant["id"], "admin"):
+        return
+
+    from core.database import delete_admin_email
+    email = body["actions"][0]["value"]
+    delete_admin_email(tenant["id"], email)
+    logger.info(f"メール削除: {email}")
+    _refresh_home(client, user_id, tenant)
+
+
+# ── ホーム: ロール設定 ──
+@app.action("home_set_role")
+def handle_home_set_role(ack, body, client, logger):
+    ack()
+    user_id = body["user"]["id"]
+    team_id = body.get("team", {}).get("id", "") or body.get("view", {}).get("team_id", "")
+    tenant  = _get_tenant(team_id)
+    if not tenant or not _check_role(user_id, tenant["id"], "admin"):
+        return
+
+    from core.database import set_user_role
+    values    = body.get("view", {}).get("state", {}).get("values", {})
+    target_id = (values.get("block_role_user", {})
+                 .get("select_role_user", {}).get("selected_user") or "")
+    role_val  = (values.get("block_role_value", {})
+                 .get("select_role_value", {}).get("selected_option") or {}).get("value", "employee")
+    if not target_id:
+        return
+
+    set_user_role(target_id, role_val, tenant["id"])
+    logger.info(f"ロール設定: {target_id} → {role_val}")
+    _refresh_home(client, user_id, tenant)

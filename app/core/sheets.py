@@ -658,3 +658,72 @@ class SheetsManager:
         except Exception as e:
             logger.error(f"シート再構築エラー: {e}", exc_info=True)
             return False
+
+    def write_journal_entry_employee(self, entry) -> bool:
+        """
+        社員専用ファイル用: '{MM}月' タブのみに書き込む。
+        会計年度ファイル（samssai_FY2025 など）の各月タブを管理する。
+        """
+        try:
+            event_date = entry.event_date
+            year, month = int(event_date[:4]), int(event_date[5:7])
+            sheet_name = f"{month:02d}月"
+
+            self._ensure_sheet(sheet_name)
+            row_index = self._find_row_by_event_id(sheet_name, entry.event_id)
+            if row_index:
+                col_end = chr(ord("A") + len(entry.to_sheet_row()) - 1)
+                self._execute(
+                    self.service.spreadsheets().values().update(
+                        spreadsheetId=self.spreadsheet_id,
+                        range=f"'{sheet_name}'!A{row_index}:{col_end}{row_index}",
+                        valueInputOption="USER_ENTERED",
+                        body={"values": [entry.to_sheet_row()]},
+                    )
+                )
+            else:
+                self._append_row(sheet_name, entry.to_sheet_row())
+
+            self._sort_by_date(sheet_name)
+            self._update_monthly_total(sheet_name, year, month)
+            logger.info(f"社員シート書込: {sheet_name} ({entry.event_id})")
+            return True
+
+        except Exception as e:
+            logger.error(f"社員シート書込エラー: {e}", exc_info=True)
+            return False
+
+    def write_journal_entry_summary(self, entry) -> bool:
+        """
+        会社集計ファイル用: '年間集計' タブのみに書き込む。
+        会社集計ファイル（会社集計_FY2025 など）の年間集計タブを管理する。
+        """
+        try:
+            event_date = entry.event_date
+            year, month = int(event_date[:4]), int(event_date[5:7])
+
+            self._ensure_sheet(FINANCE_SUMMARY_SHEET_NAME)
+            row_index = self._find_row_by_event_id(FINANCE_SUMMARY_SHEET_NAME, entry.event_id)
+            if row_index:
+                col_end = chr(ord("A") + len(entry.to_sheet_row()) - 1)
+                self._execute(
+                    self.service.spreadsheets().values().update(
+                        spreadsheetId=self.spreadsheet_id,
+                        range=f"'{FINANCE_SUMMARY_SHEET_NAME}'!A{row_index}:{col_end}{row_index}",
+                        valueInputOption="USER_ENTERED",
+                        body={"values": [entry.to_sheet_row()]},
+                    )
+                )
+            else:
+                self._append_row(FINANCE_SUMMARY_SHEET_NAME, entry.to_sheet_row())
+
+            self._sort_by_date(FINANCE_SUMMARY_SHEET_NAME)
+            self._update_monthly_total(FINANCE_SUMMARY_SHEET_NAME, year, month)
+            self._update_annual_total(FINANCE_SUMMARY_SHEET_NAME)
+            logger.info(f"会社集計シート書込: {entry.event_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"会社集計シート書込エラー: {e}", exc_info=True)
+            return False
+
