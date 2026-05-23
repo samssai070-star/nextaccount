@@ -272,6 +272,21 @@ def handle_file_shared(event, client, logger):
             f.write(file_bytes)
         logger.info(f"ダウンロード完了: {len(file_bytes):,} bytes")
 
+        # Claude Vision用に画像を圧縮（5MB制限対応）
+        if len(file_bytes) > 4 * 1024 * 1024:  # 4MB以上なら圧縮
+            try:
+                from PIL import Image
+                import io
+                img = Image.open(io.BytesIO(file_bytes))
+                # 品質を下げて再圧縮
+                output = io.BytesIO()
+                img.save(output, format='JPEG', quality=75)
+                compressed = output.getvalue()
+                logger.info(f"画像圧縮: {len(file_bytes):,} → {len(compressed):,} bytes")
+                file_bytes = compressed
+            except Exception as e:
+                logger.warning(f"画像圧縮失敗（元データを使用）: {e}")
+
         # Claude Multimodal で画像から全項目を直接抽出
         from core.ai_classifier import extract_all_by_claude_vision, classify
 
