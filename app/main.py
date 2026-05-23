@@ -20,6 +20,21 @@ flask_app = Flask(__name__)
 _start_time = datetime.now()
 _bot_healthy = threading.Event()
 
+# Register API blueprints
+try:
+    from api.auth import auth_bp
+    from api.setup import setup_bp
+    from api.slack_oauth import slack_bp
+    from api.dashboard import dashboard_bp
+
+    flask_app.register_blueprint(auth_bp)
+    flask_app.register_blueprint(setup_bp)
+    flask_app.register_blueprint(slack_bp)
+    flask_app.register_blueprint(dashboard_bp)
+    logger.info("API blueprints registered successfully")
+except ImportError as e:
+    logger.warning(f"Failed to import API blueprints: {e}")
+
 @flask_app.route("/health", methods=["GET"])
 def health():
     uptime = int((datetime.now() - _start_time).total_seconds())
