@@ -231,6 +231,7 @@ def build_generic_csv(events: list[dict]) -> bytes:
     列: 日付,借方科目,借方補助,借方金額,借方消費税,貸方科目,貸方補助,
         貸方金額,貸方消費税,摘要,T番号,控除区分,管理番号
     エンコード: UTF-8 BOM付き
+    8%+10%混在は同一管理番号で2行出力
     """
     output = io.StringIO()
     writer = csv.writer(output, lineterminator="\r\n")
@@ -241,6 +242,9 @@ def build_generic_csv(events: list[dict]) -> bytes:
         "貸方金額(税込)", "貸方消費税額", "摘要",
         "T番号", "控除区分", "管理番号", "仕訳メモ"
     ])
+
+    def _has_10(evt): return int(evt.get("tax_10_amount", 0) or 0) > 0
+    def _has_8(evt): return int(evt.get("tax_8_amount", 0) or 0) > 0
 
     for evt in events:
         try:
@@ -260,40 +264,59 @@ def build_generic_csv(events: list[dict]) -> bytes:
             has_invoice   = bool(evt.get("has_invoice", False))
             expense_date  = str(evt.get("event_date", ""))
 
-            tax_total  = tax_10 + tax_8
-            deduction  = calc_deductible_tax(tax_total, has_invoice, expense_date)
-            deductible = deduction["deductible_tax"]
-            non_ded    = deduction["non_deductible_tax"]
-            label      = deduction["deduction_label"]
-
             summary = counterparty
             if employee: summary += f" / {employee}"
 
-            # 8%軽減税率専用 or 10% or 対象外
-            if tax_8 > 0 and tax_10 == 0:
-                taxable_amount = taxable_8
-                tax_amount     = tax_8
-            else:
-                taxable_amount = taxable_10
-                tax_amount     = tax_10
+            both = _has_10(evt) and _has_8(evt)
 
-            # メイン行
-            writer.writerow([
-                event_date, debit_account, "", taxable_amount, deductible,
-                credit_base, employee, total_amount, 0,
-                summary, invoice_no, label, event_id,
-                "適格請求書（全額控除）" if has_invoice else label
-            ])
-
-            # 控除不可分（雑損失）
-            if non_ded > 0:
+            if both:
+                # 10% 行
+                ded_10 = calc_deductible_tax(tax_10, has_invoice, expense_date)
                 writer.writerow([
-                    event_date, "雑損失", "", non_ded, 0,
-                    credit_base, employee, non_ded, 0,
-                    summary + "（控除不可分）", invoice_no,
-                    label, event_id,
-                    f"経過措置控除不可分: {non_ded}円"
+                    event_date, debit_account, "", taxable_10, ded_10["deductible_tax"],
+                    credit_base, employee, taxable_10 + tax_10, 0,
+                    summary, invoice_no, ded_10["deduction_label"], event_id,
+                    "適格請求書10%" if has_invoice else ded_10["deduction_label"]
                 ])
+                # 8% 行
+                ded_8 = calc_deductible_tax(tax_8, has_invoice, expense_date)
+                writer.writerow([
+                    event_date, debit_account, "", taxable_8, ded_8["deductible_tax"],
+                    credit_base, employee, taxable_8 + tax_8, 0,
+                    summary, invoice_no, ded_8["deduction_label"], event_id,
+                    "適格請求書8%" if has_invoice else ded_8["deduction_label"]
+                ])
+            else:
+                # 単一税率
+                tax_total  = tax_10 + tax_8
+                deduction  = calc_deductible_tax(tax_total, has_invoice, expense_date)
+                deductible = deduction["deductible_tax"]
+                non_ded    = deduction["non_deductible_tax"]
+                label      = deduction["deduction_label"]
+
+                # 8%専用 or 10% or 対象外
+                if tax_8 > 0 and tax_10 == 0:
+                    taxable_amount = taxable_8
+                else:
+                    taxable_amount = taxable_10
+
+                # メイン行
+                writer.writerow([
+                    event_date, debit_account, "", taxable_amount, deductible,
+                    credit_base, employee, total_amount, 0,
+                    summary, invoice_no, label, event_id,
+                    "適格請求書（全額控除）" if has_invoice else label
+                ])
+
+                # 控除不可分（雑損失）
+                if non_ded > 0:
+                    writer.writerow([
+                        event_date, "雑損失", "", non_ded, 0,
+                        credit_base, employee, non_ded, 0,
+                        summary + "（控除不可分）", invoice_no,
+                        label, event_id,
+                        f"経過措置控除不可分: {non_ded}円"
+                    ])
 
         except Exception as e:
             logger.error(f"汎用CSV変換エラー ({evt.get('event_id')}): {e}")

@@ -77,6 +77,7 @@ def build_pca_csv(events: list[dict]) -> bytes:
     列: 年月日,借方勘定科目,借方補助,借方金額,借方消費税,
         貸方勘定科目,貸方補助,貸方金額,貸方消費税,摘要,参考
     エンコード: Shift_JIS (PCAの標準エンコーディング)
+    8%+10%混在は同一管理番号で2行出力
     """
     output = io.StringIO()
     writer = csv.writer(output, lineterminator="\r\n")
@@ -88,6 +89,9 @@ def build_pca_csv(events: list[dict]) -> bytes:
         "摘要", "参考"
     ])
 
+    def _has_10(evt): return int(evt.get("tax_10_amount", 0) or 0) > 0
+    def _has_8(evt): return int(evt.get("tax_8_amount", 0) or 0) > 0
+
     for evt in events:
         try:
             event_date     = str(evt.get("event_date", "")).replace("-", "")  # YYYYMMDD
@@ -98,6 +102,7 @@ def build_pca_csv(events: list[dict]) -> bytes:
             tax_10         = int(evt.get("tax_10_amount", 0))
             tax_8          = int(evt.get("tax_8_amount", 0))
             taxable_10     = int(evt.get("taxable_10_amount", 0))
+            taxable_8      = int(evt.get("taxable_8_amount", 0))
             counterparty   = evt.get("counterparty", "")
             employee       = evt.get("employee_name", "")
             event_id       = evt.get("event_id", "")
@@ -107,11 +112,28 @@ def build_pca_csv(events: list[dict]) -> bytes:
             if employee:
                 summary += f"/{employee}"
 
-            writer.writerow([
-                event_date, debit_account, "", taxable_10, tax_10 + tax_8,
-                credit_base, employee, total_amount, 0,
-                summary, invoice_no
-            ])
+            both = _has_10(evt) and _has_8(evt)
+
+            if both:
+                # 10% 行
+                writer.writerow([
+                    event_date, debit_account, "", taxable_10, tax_10,
+                    credit_base, employee, taxable_10 + tax_10, 0,
+                    summary, invoice_no
+                ])
+                # 8% 行
+                writer.writerow([
+                    event_date, debit_account, "", taxable_8, tax_8,
+                    credit_base, employee, taxable_8 + tax_8, 0,
+                    summary, invoice_no
+                ])
+            else:
+                # 単一税率
+                writer.writerow([
+                    event_date, debit_account, "", taxable_10 or taxable_8, tax_10 + tax_8,
+                    credit_base, employee, total_amount, 0,
+                    summary, invoice_no
+                ])
 
         except Exception as e:
             logger.error(f"CSV conversion error for event: {e}")
