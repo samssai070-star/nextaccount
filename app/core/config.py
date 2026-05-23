@@ -31,6 +31,11 @@ def get_logger(name: str) -> logging.Logger:
 # ============================================================
 SLACK_BOT_TOKEN: str = os.environ.get("SLACK_BOT_TOKEN", "")
 SLACK_APP_TOKEN: str = os.environ.get("SLACK_APP_TOKEN", "")
+# ブートストラップ用管理者SlackユーザーID（カンマ区切り）
+# DBにロール未設定でもこのIDは常にadmin扱い
+ADMIN_SLACK_IDS: list[str] = [
+    s.strip() for s in os.environ.get("ADMIN_SLACK_IDS", "").split(",") if s.strip()
+]
 
 # ============================================================
 # Google
@@ -68,7 +73,9 @@ DEBIT_ACCOUNTS = [
     "社会保険料",
     "外注費",
     "福利厚生費",
+    "預り金",
     "諸雑費",
+    "雑損失",
 ]
 
 # 貸方は常に「未払費用（社員名）」
@@ -205,7 +212,7 @@ DEBIT_KEYWORDS: dict[str, list[str]] = {
 }
 
 # ============================================================
-# Google Sheets 列定義（16列）
+# Google Sheets 列定義（17列）
 # ============================================================
 SHEET_COLUMNS = [
     "管理ID",          # A
@@ -224,13 +231,14 @@ SHEET_COLUMNS = [
     "ステータス",      # N
     "証憑",            # O
     "用途",            # P
+    "部門コード",      # Q
 ]
 
 # 社員別シート名フォーマット: "{employee_name}_{YYYYMM}"
 EMPLOYEE_SHEET_NAME_FORMAT = "{employee}_{ym}"
 
 # 会社財務集計シート名
-FINANCE_SUMMARY_SHEET_NAME = "財務部門_集計"
+FINANCE_SUMMARY_SHEET_NAME = "年間集計"
 
 # ============================================================
 # 2026-04-05 追加ルール

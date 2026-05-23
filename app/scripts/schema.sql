@@ -119,3 +119,50 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(100)
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stripe_price_id VARCHAR(100);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS billing_status VARCHAR(50) DEFAULT 'trial';
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP;
+
+-- ============================================================
+-- 会計年度・Drive・権限管理（Phase 2追加）
+-- ============================================================
+
+-- tenants: 会計年度・Drive設定
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS fy_start_month INTEGER DEFAULT 4;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS drive_folder_id VARCHAR(100);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS company_name VARCHAR(200);
+
+-- user_roles: Slack権限管理
+-- role: admin / finance / manager / employee
+CREATE TABLE IF NOT EXISTS user_roles (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id     UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    slack_user_id VARCHAR(50)  NOT NULL,
+    role          VARCHAR(20)  NOT NULL DEFAULT 'employee',
+    created_at    TIMESTAMP    DEFAULT NOW(),
+    updated_at    TIMESTAMP    DEFAULT NOW(),
+    UNIQUE(tenant_id, slack_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_roles_tenant ON user_roles(tenant_id, slack_user_id);
+
+-- sheet_registry: 社員×会計年度のスプレッドシートID管理
+-- employee_name が NULL の場合は会社集計ファイル
+CREATE TABLE IF NOT EXISTS sheet_registry (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id      UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    employee_name  VARCHAR(100),
+    fiscal_year    INTEGER NOT NULL,
+    spreadsheet_id VARCHAR(100) NOT NULL,
+    created_at     TIMESTAMP DEFAULT NOW(),
+    UNIQUE(tenant_id, employee_name, fiscal_year)
+);
+CREATE INDEX IF NOT EXISTS idx_sheet_registry_tenant ON sheet_registry(tenant_id, fiscal_year);
+
+-- admin_emails: Sheets共有先メール管理
+-- role: finance / accountant
+CREATE TABLE IF NOT EXISTS admin_emails (
+    id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    email     VARCHAR(200) NOT NULL,
+    role      VARCHAR(20)  DEFAULT 'finance',
+    created_at TIMESTAMP   DEFAULT NOW(),
+    UNIQUE(tenant_id, email)
+);
+CREATE INDEX IF NOT EXISTS idx_admin_emails_tenant ON admin_emails(tenant_id);

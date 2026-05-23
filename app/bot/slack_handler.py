@@ -22,7 +22,8 @@ from datetime import datetime
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-from core.config import SLACK_BOT_TOKEN, SLACK_APP_TOKEN, GOOGLE_SHEET_ID
+from core.config import SLACK_BOT_TOKEN, SLACK_APP_TOKEN, GOOGLE_SHEET_ID, ADMIN_SLACK_IDS
+from core.database import get_user_role, ROLE_LEVEL
 import os
 APPROVAL_CHANNEL_ID = os.environ.get("APPROVAL_CHANNEL_ID", "")
 from core.ocr import parse_receipt, OcrResult
@@ -46,6 +47,26 @@ from core.database import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ============================================================
+# ファイルID重複処理防止（Slackイベント再送対策）
+# ============================================================
+import time as _time
+_processed_file_ids: dict[str, float] = {}
+_FILE_ID_TTL = 180  # 3分間は同一file_idを無視
+
+
+def _is_duplicate_file_event(file_id: str) -> bool:
+    """同一file_idのイベントが3分以内に処理済みならTrueを返す（Slackリプレイ対策）"""
+    now = _time.time()
+    for fid in list(_processed_file_ids.keys()):
+        if now - _processed_file_ids[fid] > _FILE_ID_TTL:
+            del _processed_file_ids[fid]
+    if file_id in _processed_file_ids:
+        return True
+    _processed_file_ids[file_id] = now
+    return False
+
 
 # ============================================================
 # テナント解決ヘルパー
@@ -72,10 +93,117 @@ if GOOGLE_SHEET_ID:
 else:
     logger.warning("GOOGLE_SHEET_ID 未設定 — Sheets 同期は無効")
 
+# /csv インタラクティブメッセージの日付状態（ユーザーID → {start, end}）
+_csv_date_state: dict = {}
+
 
 # ============================================================
 # ユーティリティ
 # ============================================================
+
+def _get_or_create_employee_sheets(employee_name: str, event_date: str, tenant: dict):
+    """
+    社員×会計年度のSheetsManagerを返す。
+    sheet_registryにIDがなければDriveでファイルを新規作成して登録する。
+    drive_folder_idが未設定の場合はNoneを返す（レガシーシングルファイルへフォールバック）。
+    """
+    from core.database import (
+        get_fiscal_year, get_tenant_fy_start,
+        get_sheet_registry, upsert_sheet_registry, get_admin_emails,
+    )
+    tenant_id       = tenant["id"]
+    drive_folder_id = tenant.get("drive_folder_id") or ""
+    if not drive_folder_id:
+        return None
+
+    fy_start    = tenant.get("fy_start_month") or get_tenant_fy_start(tenant_id)
+    fiscal_year = get_fiscal_year(event_date, fy_start)
+    sid         = get_sheet_registry(tenant_id, employee_name, fiscal_year)
+
+    if not sid:
+        from core.drive import DriveManager
+        emails = [e["email"] for e in get_admin_emails(tenant_id)]
+        title  = f"{employee_name}_FY{fiscal_year}"
+        sid    = DriveManager(drive_folder_id).create_spreadsheet(title, emails)
+        upsert_sheet_registry(tenant_id, employee_name, fiscal_year, sid)
+        logger.info(f"社員ファイル新規作成: {title}")
+
+    return SheetsManager(sid)
+
+
+def _get_or_create_company_sheets(event_date: str, tenant: dict):
+    """
+    会社集計用SheetsManagerを返す（会計年度単位）。
+    drive_folder_idが未設定の場合はNoneを返す。
+    """
+    from core.database import (
+        get_fiscal_year, get_tenant_fy_start,
+        get_sheet_registry, upsert_sheet_registry, get_admin_emails,
+    )
+    tenant_id       = tenant["id"]
+    drive_folder_id = tenant.get("drive_folder_id") or ""
+    if not drive_folder_id:
+        return None
+
+    fy_start    = tenant.get("fy_start_month") or get_tenant_fy_start(tenant_id)
+    fiscal_year = get_fiscal_year(event_date, fy_start)
+    sid         = get_sheet_registry(tenant_id, None, fiscal_year)
+
+    if not sid:
+        from core.drive import DriveManager
+        emails = [e["email"] for e in get_admin_emails(tenant_id)]
+        title  = f"会社集計_FY{fiscal_year}"
+        sid    = DriveManager(drive_folder_id).create_spreadsheet(title, emails)
+        upsert_sheet_registry(tenant_id, None, fiscal_year, sid)
+        logger.info(f"会社集計ファイル新規作成: {title}")
+
+    return SheetsManager(sid)
+
+
+def _upload_receipt_to_drive(event_id: str, evidence_url: str, employee_name: str, tenant: dict) -> str:
+    """
+    Slack画像をGoogle Driveにアップロードし、Drive URLを返す。
+    Drive未設定またはエラー時は元のURLをそのまま返す。
+    """
+    drive_folder_id = tenant.get("drive_folder_id") or ""
+    if not drive_folder_id or not evidence_url:
+        return evidence_url
+    try:
+        from core.drive import DriveManager
+        from core.config import SLACK_BOT_TOKEN as _BOT_TOKEN
+        ext      = "jpg"
+        if "png" in evidence_url.lower():
+            ext = "png"
+        elif "pdf" in evidence_url.lower():
+            ext = "pdf"
+        filename = f"{event_id}.{ext}"
+        drive_url = DriveManager(drive_folder_id).upload_receipt_image(
+            evidence_url, filename, _BOT_TOKEN, subfolder_name=employee_name
+        )
+        return drive_url or evidence_url
+    except Exception as e:
+        logger.warning(f"Drive画像アップロード失敗（元URLを使用）: {e}")
+        return evidence_url
+
+
+def _check_role(user_id: str, tenant_id: str, min_role: str) -> bool:
+    """
+    ユーザーの権限が min_role 以上かチェックする。
+    ADMIN_SLACK_IDS に含まれるユーザーは常に admin 扱い。
+    DBにロール未設定の場合は employee として扱う。
+    """
+    if user_id in ADMIN_SLACK_IDS:
+        return True
+    role = get_user_role(user_id, tenant_id) if tenant_id else "employee"
+    return ROLE_LEVEL.get(role, 1) >= ROLE_LEVEL.get(min_role, 1)
+
+def _role_denied(client, channel_id: str, min_role: str) -> None:
+    """権限不足メッセージを送信する。"""
+    label = {"manager": "主管以上", "finance": "財務担当以上", "admin": "管理者"}.get(min_role, min_role)
+    client.chat_postMessage(
+        channel=channel_id,
+        text=f"🚫 この操作には *{label}* の権限が必要です。管理者にお問い合わせください。"
+    )
 
 def _get_employee_name(client, user_id: str) -> str:
     """Slack ユーザーIDから表示名を取得する"""
@@ -110,7 +238,7 @@ _SUBSIDIARY_TO_MAIN = {
 _VALID_MAIN_ACCOUNTS = {
     "旅費交通費", "通信費", "水道光熱費", "接待交際費", "会議費",
     "消耗品費", "広告宣伝費", "地代家賃", "租税公課", "社会保険料",
-    "外注費", "福利厚生費", "修繕費", "諸雑費",
+    "外注費", "福利厚生費", "修繕費", "預り金", "諸雑費", "雑損失",
 }
 
 _SUBSIDIARY_DEFAULT = {
@@ -126,7 +254,9 @@ _SUBSIDIARY_DEFAULT = {
     "社会保険料": "社会保険料",
     "外注費": "業務委託費",
     "修繕費": "設備修繕費",
+    "預り金": "源泉所得税預り金",
     "諸雑費": "諸雑費",
+    "雑損失": "雑損失",
 }
 
 # 取引先名から補助科目を推定するキーワードマッピング
@@ -139,7 +269,24 @@ _COUNTERPARTY_SUBSIDIARY = [
     (re.compile(r"NTT|ドコモ|au|ソフトバンク|楽天モバイル|KDDI", re.I), "電話代"),
     (re.compile(r"電力|東電|関電|中電|九電|東北電|北電|四電|沖電", re.I), "電気代"),
     (re.compile(r"ガス|東京ガス|大阪ガス|東邦ガス", re.I), "ガス代"),
+    (re.compile(r"apollostation|アポロ|ENEOS|エネオス|出光|昭和シェル|コスモ石油|JA-SS|ガソリン|給油|SS$| SS ", re.I), "ガソリン代"),
 ]
+
+# 取引先名から主科目を強制補正するマッピング（AIの誤分類を防ぐ）
+_COUNTERPARTY_ACCOUNT_OVERRIDE = [
+    (re.compile(r"apollostation|アポロ|ENEOS|エネオス|出光|昭和シェル|コスモ石油|JA-SS|ガソリンスタンド|給油所|SS$| SS ", re.I),
+     "旅費交通費", "ガソリン代"),
+]
+
+
+def _correct_account_by_counterparty(counterparty: str, debit_account: str, debit_subsidiary: str):
+    """取引先名からAIの科目誤分類を強制補正する"""
+    for pattern, correct_account, correct_subsidiary in _COUNTERPARTY_ACCOUNT_OVERRIDE:
+        if pattern.search(counterparty):
+            if debit_account != correct_account:
+                logger.info(f"取引先補正: {counterparty} → {correct_account}/{correct_subsidiary} (元: {debit_account})")
+            return correct_account, correct_subsidiary
+    return debit_account, debit_subsidiary
 
 
 def _default_subsidiary(debit_account: str, counterparty: str = "") -> str:
@@ -195,6 +342,11 @@ def handle_file_shared(event, client, logger):
         logger.info(f"チャンネル投稿を無視: {channel_id}")
         return
 
+    # 同一ファイルの重複イベントをスキップ（Slackリプレイ・二重送信対策）
+    if _is_duplicate_file_event(file_id):
+        logger.warning(f"重複ファイルイベントをスキップ: {file_id}")
+        return
+
     # 処理中メッセージ（申請者のDMに返信）
     post = client.chat_postMessage(channel=channel_id, text="📷 領収書を解析中…")
     msg_ts = post["ts"]
@@ -235,18 +387,59 @@ def handle_file_shared(event, client, logger):
 
         if ai_result:
             # Claude Vision成功 → OcrResultに変換
+            logger.info(f"Claude Vision生結果: counterparty={ai_result.get('counterparty')} "
+                        f"event_date={ai_result.get('event_date')} "
+                        f"total={ai_result.get('total_amount')} "
+                        f"tax10={ai_result.get('tax_10_amount')} "
+                        f"invoice={ai_result.get('invoice_number')} "
+                        f"reason={ai_result.get('reason')}")
             ocr_result = OcrResult(used_real_ocr=True)
-            ocr_result.counterparty      = ai_result.get("counterparty") or "不明"
-            ocr_result.event_date        = ai_result.get("event_date")
-            ocr_result.total_amount      = int(ai_result.get("total_amount") or 0)
-            ocr_result.taxable_10_amount = int(ai_result.get("taxable_10_amount") or 0)
-            ocr_result.tax_10_amount     = int(ai_result.get("tax_10_amount") or 0)
-            ocr_result.taxable_8_amount  = int(ai_result.get("taxable_8_amount") or 0)
-            ocr_result.tax_8_amount      = int(ai_result.get("tax_8_amount") or 0)
+            counterparty = ai_result.get("counterparty") or "不明"
+            ocr_result.counterparty = counterparty
+            raw_date = ai_result.get("event_date") or ""
+            # YY-MM-DD → 2025年と誤って和暦変換された場合を補正（例: 2013→2025）
+            date_m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", str(raw_date))
+            if date_m:
+                y = int(date_m.group(1))
+                if y < 2000:  # 和暦換算ミスの可能性（昭和/平成）
+                    # 末2桁を20XX年に強制補正
+                    corrected_y = 2000 + (y % 100)
+                    raw_date = f"{corrected_y}-{date_m.group(2)}-{date_m.group(3)}"
+                    logger.warning(f"日付年補正: {y} → {corrected_y} ({raw_date})")
+            ocr_result.event_date        = raw_date or None
+            total      = int(ai_result.get("total_amount") or 0)
+            tax_10     = int(ai_result.get("tax_10_amount") or 0)
+            taxable_10 = int(ai_result.get("taxable_10_amount") or 0)
+            tax_8      = int(ai_result.get("tax_8_amount") or 0)
+            taxable_8  = int(ai_result.get("taxable_8_amount") or 0)
+            # 非課税金額がある場合: total = 課税計 + 非課税計
+            non_taxable = int(ai_result.get("non_taxable_amount") or 0)
+            if non_taxable > 0:
+                taxable_total = taxable_10 + tax_10 + taxable_8 + tax_8
+                if total <= taxable_total + 1:  # totalが課税分しか含まれていない場合
+                    corrected = taxable_total + non_taxable
+                    logger.warning(f"非課税補正: total={total} → {corrected} (non_taxable={non_taxable})")
+                    total = corrected
+            # 税額から合計を逆算して整合性チェック（郵便払込票等の誤読検出）
+            tax_total = taxable_10 + tax_10 + taxable_8 + tax_8
+            if tax_10 > 0 and tax_total > 0 and total > 0 and non_taxable == 0:
+                implied = taxable_10 + tax_10 + taxable_8 + tax_8
+                if implied > 0 and abs(total - implied) > implied * 0.05:
+                    logger.warning(f"金額整合性NG: total={total} tax_implied={implied} → 補正")
+                    total = implied
+            ocr_result.total_amount      = total
+            ocr_result.taxable_10_amount = taxable_10
+            ocr_result.tax_10_amount     = tax_10
+            ocr_result.taxable_8_amount  = taxable_8
+            ocr_result.tax_8_amount      = tax_8
             inv = ai_result.get("invoice_number")
-            if inv and inv != "null":
-                ocr_result.invoice_number = str(inv)
-                ocr_result.has_invoice    = True
+            if inv and str(inv).strip().lower() != "null":
+                inv_clean = re.sub(r"[-ー－]", "", str(inv).strip())  # ハイフン除去
+                if re.match(r"^T\d{13}$", inv_clean):
+                    ocr_result.invoice_number = inv_clean
+                    ocr_result.has_invoice    = True
+                else:
+                    logger.warning(f"T番号フォーマット不正（ハイフン除去後）: {inv_clean}")
         else:
             # フォールバック: Google Vision OCR → Claude テキスト分類
             logger.warning("Claude Vision失敗 → Google Vision OCRにフォールバック")
@@ -284,9 +477,13 @@ def handle_file_shared(event, client, logger):
             pass
 
         # 仕訳生成
-        event_date = ocr_result.event_date or datetime.now().strftime("%Y-%m-%d")
-        seq        = get_next_sequence(event_date, tenant_id)
-        event_id   = generate_event_id(event_date, seq)
+        event_date  = ocr_result.event_date or datetime.now().strftime("%Y-%m-%d")
+        upload_date = datetime.now().strftime("%Y-%m-%d")
+        year_month  = datetime.now().strftime("%Y-%m")
+        from core.database import get_or_assign_employee_code, get_next_employee_sequence, reset_employee_sequence
+        emp_code = get_or_assign_employee_code(user_id, tenant_id, year_month)
+        seq      = get_next_employee_sequence(upload_date, emp_code, tenant_id)
+        event_id = generate_event_id(upload_date, seq, employee_code=emp_code)
 
         entry = build_journal_entry(
             ocr_result       = ocr_result,
@@ -310,7 +507,30 @@ def handle_file_shared(event, client, logger):
             entry.debit_subsidiary = ai_subsidiary
         elif entry.debit_account:
             entry.debit_subsidiary = _default_subsidiary(entry.debit_account, entry.counterparty)
+
+        # 取引先名による科目強制補正（ガソリンスタンド等AIが誤分類しやすいケース）
+        entry.debit_account, entry.debit_subsidiary = _correct_account_by_counterparty(
+            entry.counterparty, entry.debit_account, entry.debit_subsidiary
+        )
         entry.credit_account = build_credit_account(employee_name)
+
+        # 不課税科目の補正（租税公課・預り金・社会保険料は消費税対象外）
+        _NON_TAXABLE_ACCOUNTS = {"租税公課", "預り金", "社会保険料"}
+        if entry.debit_account in _NON_TAXABLE_ACCOUNTS:
+            if entry.taxable_10_amount or entry.taxable_8_amount:
+                logger.info(
+                    f"不課税補正: {entry.debit_account} → taxable_10={entry.taxable_10_amount}"
+                    f", tax_10={entry.tax_10_amount}, taxable_8={entry.taxable_8_amount} を0にリセット"
+                )
+            entry.taxable_10_amount = 0
+            entry.tax_10_amount = 0
+            entry.taxable_8_amount = 0
+            entry.tax_8_amount = 0
+
+        # AIが返した管理番号等の固有識別子をpurposeに設定（重複判定に使用）
+        ai_purpose = (ai_result.get("purpose") or "").strip()
+        if ai_purpose and not entry.purpose:
+            entry.purpose = ai_purpose
 
         # DB保存（重複チェック後）
         db_dict = entry.to_db_dict()
@@ -318,13 +538,49 @@ def handle_file_shared(event, client, logger):
         db_dict["evidence_url"] = file_info.get("url_private", "")
         db_dict["source_type"]  = "expense"
 
-        dup = check_duplicate(entry.invoice_number, entry.total_amount, entry.event_date, tenant_id)
+        # 入湯税が含まれる場合: 主エントリから入湯税を分割し2仕訳を生成
+        nyutou_amount = int(ai_result.get("nyutou_tax_amount") or 0)
+        nyutou_entry  = None
+        if nyutou_amount > 0 and nyutou_amount < entry.total_amount:
+            entry.total_amount -= nyutou_amount
+            seq2 = get_next_employee_sequence(upload_date, emp_code, tenant_id)  # カウンターを正しく進める
+            from core.accounting import JournalEntry
+            nyutou_entry = JournalEntry(
+                event_id          = generate_event_id(upload_date, seq2, employee_code=emp_code),
+                event_date        = entry.event_date,
+                counterparty      = entry.counterparty,
+                total_amount      = nyutou_amount,
+                taxable_10_amount = 0,
+                tax_10_amount     = 0,
+                taxable_8_amount  = 0,
+                tax_8_amount      = 0,
+                invoice_number    = None,
+                has_invoice       = False,
+                debit_account     = "租税公課",
+                debit_subsidiary  = "入湯税",
+                credit_account    = build_credit_account(employee_name),
+                employee_name     = employee_name,
+                status            = "申請中",
+                evidence_url      = db_dict.get("evidence_url", ""),
+                purpose           = f"入湯税（{entry.event_id}から分割）",
+            )
+            logger.info(f"入湯税分割: 主={entry.event_id} ¥{entry.total_amount} / 租税公課={nyutou_entry.event_id} ¥{nyutou_amount}")
+
+        dup = check_duplicate(entry.invoice_number, entry.total_amount, entry.event_date, tenant_id, purpose=entry.purpose)
         if dup:
             _send_duplicate_warning(client, channel_id, msg_ts, dup, ocr_result)
             logger.warning(f"重複検出 → スキップ: {dup['event_id']}")
+            # 採番済み seq を返却してカウンターの穴を防ぐ
+            reset_employee_sequence(upload_date, emp_code, tenant_id)
             return
 
         insert_event(db_dict, tenant_id)
+        if nyutou_entry:
+            nyutou_db = nyutou_entry.to_db_dict()
+            nyutou_db["employee_slack_id"] = user_id
+            nyutou_db["evidence_url"]      = db_dict.get("evidence_url", "")
+            nyutou_db["source_type"]       = "expense"
+            insert_event(nyutou_db, tenant_id)
 
         # Google Drive に証憑を保存（電子帳簿保存法対応）
         try:
@@ -364,16 +620,14 @@ def handle_file_shared(event, client, logger):
         except Exception as ts_err:
             logger.warning(f"タイムスタンプ付与スキップ: {ts_err}")
 
-        # 申請者DMに登録済通知（用途入力ボタン付き）
-        # 飲食系レシートには会議費/接待交際費の切り替えボタンを追加
+        # 申請者DMに登録済通知（承認者と同じリッチ表示 + 修正ボタン）
         dm_action_elements = [
             {
                 "type": "button",
-                "text": {"type": "plain_text", "text": "📝 用途・補助科目を入力"},
-                "action_id": "input_purpose_btn",
+                "text": {"type": "plain_text", "text": "✏️ 内容を修正"},
+                "action_id": "quick_edit_btn",
                 "value": f"{entry.event_id}|{tenant_id}",
-                "style": "primary",
-            }
+            },
         ]
         if entry.debit_account in ("接待交際費", "会議費"):
             dm_action_elements += [
@@ -391,37 +645,60 @@ def handle_file_shared(event, client, logger):
                 },
             ]
 
+        dm_blocks = _build_entry_blocks(entry, ocr_result.used_real_ocr) + [
+            {"type": "actions", "elements": dm_action_elements},
+        ]
         client.chat_update(
             channel=channel_id, ts=msg_ts,
-            text=f"📋 登録済 {entry.counterparty} {_fmt_yen(entry.total_amount)}",
-            blocks=[
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": (
-                            f"📋 *登録済*\n\n"
-                            f"管理ID: `{entry.event_id}`\n"
-                            f"取引先: {entry.counterparty}\n"
-                            f"金額: {_fmt_yen(entry.total_amount)}\n"
-                            f"日付: {entry.event_date}\n"
-                            f"借方科目: {entry.debit_account}\n"
-                            f"借方補助科目: *{entry.debit_subsidiary or '（未設定）'}*\n\n"
-                            "財務担当者の承認をお待ちください。"
-                        ),
-                    },
-                },
-                {"type": "divider"},
-                {"type": "actions", "elements": dm_action_elements},
-            ],
+            text=f"🧾 登録済 {entry.counterparty} {_fmt_yen(entry.total_amount)}",
+            blocks=dm_blocks,
         )
+        from core.database import save_uploader_dm_info
+        save_uploader_dm_info(entry.event_id, tenant_id, channel_id, msg_ts)
+
+        # 飲料代が含まれる場合は振り分け選択を促す
+        beverage_amount = int(ai_result.get("beverage_amount") or 0)
+        if beverage_amount > 0 and entry.debit_account == "旅費交通費":
+            client.chat_postMessage(
+                channel=channel_id,
+                blocks=[
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": (
+                                f"🍺 *飲料代 ¥{beverage_amount:,} を検出*\n"
+                                f"ビール・日本酒・ウイスキー等が含まれています。\n"
+                                f"用途に応じて `/edit {entry.event_id}` で科目を変更してください:\n"
+                                f"• 接待目的 → *接待交際費 / 接待飲食費*\n"
+                                f"• 社内慰安旅行 → *福利厚生費 / レクリエーション費*"
+                            ),
+                        },
+                    }
+                ],
+                text=f"🍺 飲料代 ¥{beverage_amount:,} を検出",
+            )
+
+        # 入湯税分割仕訳の完了通知
+        if nyutou_entry:
+            client.chat_postMessage(
+                channel=channel_id,
+                text=(
+                    f"🏨 *入湯税を自動分割しました*\n\n"
+                    f"• `{entry.event_id}` 旅費交通費 / 宿泊費: *¥{entry.total_amount:,}* （承認待ち）\n"
+                    f"• `{nyutou_entry.event_id}` 租税公課 / 入湯税: *¥{nyutou_amount:,}* （承認待ち・宿泊費承認時に同時登録）"
+                ),
+            )
 
         # 承認カードを財務承認チャンネルに送信（申請者のSlack IDをvalueに含める）
-        approval_msg = _send_approval_card(
+        approval_ts = _send_approval_card(
             client, approval_channel, None,
             entry, ocr_result.used_real_ocr,
             applicant_slack_id=user_id,
         )
+        if approval_ts:
+            from core.database import save_approval_card_info
+            save_approval_card_info(entry.event_id, tenant_id, approval_channel, approval_ts)
         # 承認カードに領収書画像を添付
         try:
             client.files_upload_v2(
@@ -450,17 +727,15 @@ def handle_file_shared(event, client, logger):
 # 承認カード
 # ============================================================
 
-def _send_approval_card(client, channel_id, msg_ts, entry, used_real_ocr: bool, applicant_slack_id: str = ""):
-    # msg_tsがNoneの場合は新規投稿、あれば既存メッセージを更新
-    from core.accounting import JournalEntry
+def _build_entry_blocks(entry, used_real_ocr: bool) -> list:
+    """承認者・申請者共通の経費情報ブロックを生成する（アクションボタンは含まない）"""
+    from core.accounting import JournalEntry, get_invoice_deduction_rate
+    from core.timestamp import get_timestamp_badge
     e: JournalEntry = entry
 
     ocr_badge = "🤖 Claude Vision" if used_real_ocr else "🎭 シミュレーション"
-    from core.timestamp import get_timestamp_badge
-    evt_dict = e.to_db_dict()
-    ts_badge = get_timestamp_badge(evt_dict)
-    from core.accounting import get_invoice_deduction_rate
-    from datetime import date
+    ts_badge  = get_timestamp_badge(e.to_db_dict())
+
     if e.invoice_number:
         inv_badge = f"✅ T番号照合済 → 消費税控除対象\n{e.invoice_number}"
     else:
@@ -468,7 +743,7 @@ def _send_approval_card(client, channel_id, msg_ts, entry, used_real_ocr: bool, 
         pct = int(rate * 100)
         inv_badge = f"⚠️ T番号なし → 経費計上可・消費税控除不可\n現在の控除率: {pct}%（{label}）"
 
-    blocks = [
+    return [
         {"type": "header", "text": {"type": "plain_text", "text": "🧾 経費申請"}},
         {
             "type": "section",
@@ -523,6 +798,15 @@ def _send_approval_card(client, channel_id, msg_ts, entry, used_real_ocr: bool, 
         {"type": "section", "text": {"type": "mrkdwn", "text": f"*T番号*: {inv_badge}"}},
         {"type": "section", "text": {"type": "mrkdwn", "text": f"*電帳法*: {ts_badge}"}},
         {"type": "divider"},
+    ]
+
+
+def _send_approval_card(client, channel_id, msg_ts, entry, used_real_ocr: bool, applicant_slack_id: str = ""):
+    """承認チャンネルに経費申請カード（承認・却下ボタン付き）を送信する"""
+    from core.accounting import JournalEntry
+    e: JournalEntry = entry
+
+    blocks = _build_entry_blocks(e, used_real_ocr) + [
         {
             "type": "actions",
             "block_id": f"actions_{e.event_id}",
@@ -550,11 +834,131 @@ def _send_approval_card(client, channel_id, msg_ts, entry, used_real_ocr: bool, 
             channel=channel_id, ts=msg_ts,
             text="🧾 経費申請", blocks=blocks,
         )
+        return msg_ts
     else:
-        client.chat_postMessage(
+        resp = client.chat_postMessage(
             channel=channel_id,
             text="🧾 経費申請", blocks=blocks,
         )
+        return resp.get("ts")
+
+
+def _refresh_uploader_dm(client, event_id: str, tenant_id: str):
+    """編集後にアップロード者DMを最新情報で更新する"""
+    from core.database import get_uploader_dm_info
+    info = get_uploader_dm_info(event_id, tenant_id)
+    if not info:
+        return
+    channel, ts = info
+    evt = get_event_by_id(event_id, tenant_id)
+    if not evt:
+        return
+    from core.accounting import JournalEntry
+    entry = JournalEntry(
+        event_id          = evt["event_id"],
+        event_date        = str(evt["event_date"]),
+        counterparty      = evt["counterparty"],
+        total_amount      = evt["amount"],
+        taxable_10_amount = evt.get("taxable_10_amount", 0),
+        tax_10_amount     = evt.get("tax_10_amount", 0),
+        taxable_8_amount  = evt.get("taxable_8_amount", 0),
+        tax_8_amount      = evt.get("tax_8_amount", 0),
+        debit_account     = evt["debit_account"],
+        debit_subsidiary  = evt.get("debit_subsidiary", ""),
+        credit_account    = evt["credit_account"],
+        invoice_number    = evt.get("invoice_number"),
+        has_invoice       = bool(evt.get("has_invoice")),
+        employee_name     = evt.get("employee_name", ""),
+        status            = evt.get("status", ""),
+        evidence_url      = evt.get("evidence_url", ""),
+        purpose           = evt.get("purpose", ""),
+    )
+    dm_action_elements = [
+        {"type": "button", "text": {"type": "plain_text", "text": "✏️ 内容を修正"},
+         "action_id": "quick_edit_btn", "value": f"{entry.event_id}|{tenant_id}"},
+    ]
+    if entry.debit_account in ("接待交際費", "会議費"):
+        dm_action_elements += [
+            {"type": "button", "text": {"type": "plain_text", "text": "🍽️ 会議費"},
+             "action_id": "switch_to_kaigi_btn", "value": f"{entry.event_id}|{tenant_id}"},
+            {"type": "button", "text": {"type": "plain_text", "text": "🤝 接待交際費"},
+             "action_id": "switch_to_settai_btn", "value": f"{entry.event_id}|{tenant_id}"},
+        ]
+    blocks = _build_entry_blocks(entry, used_real_ocr=True) + [
+        {"type": "actions", "elements": dm_action_elements},
+    ]
+    try:
+        client.chat_update(
+            channel=channel, ts=ts,
+            text=f"🧾 登録済（更新）{entry.counterparty} {_fmt_yen(entry.total_amount)}",
+            blocks=blocks,
+        )
+        logger.info(f"アップロード者DM更新: {event_id}")
+    except Exception as e:
+        logger.warning(f"アップロード者DM更新失敗: {e}")
+
+
+def _refresh_approval_card(client, event_id: str, tenant_id: str):
+    """編集後に承認チャンネルのカードを最新情報で更新する"""
+    from core.database import get_approval_card_info
+    card = get_approval_card_info(event_id, tenant_id)
+    if not card:
+        return
+    channel, ts = card
+    evt = get_event_by_id(event_id, tenant_id)
+    if not evt or evt.get("status") == "業務承認済":
+        return  # 承認済は変更不可なので更新不要
+    from core.accounting import JournalEntry
+    entry = JournalEntry(
+        event_id          = evt["event_id"],
+        event_date        = str(evt["event_date"]),
+        counterparty      = evt["counterparty"],
+        total_amount      = evt["amount"],
+        taxable_10_amount = evt.get("taxable_10_amount", 0),
+        tax_10_amount     = evt.get("tax_10_amount", 0),
+        taxable_8_amount  = evt.get("taxable_8_amount", 0),
+        tax_8_amount      = evt.get("tax_8_amount", 0),
+        debit_account     = evt["debit_account"],
+        debit_subsidiary  = evt.get("debit_subsidiary", ""),
+        credit_account    = evt["credit_account"],
+        invoice_number    = evt.get("invoice_number"),
+        has_invoice       = bool(evt.get("has_invoice")),
+        employee_name     = evt.get("employee_name", ""),
+        status            = evt.get("status", ""),
+        evidence_url      = evt.get("evidence_url", ""),
+        purpose           = evt.get("purpose", ""),
+    )
+    applicant_slack_id = evt.get("employee_slack_id", "")
+    blocks = _build_entry_blocks(entry, used_real_ocr=True) + [
+        {
+            "type": "actions",
+            "block_id": f"actions_{entry.event_id}",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "✅ 承認"},
+                    "style": "primary",
+                    "action_id": "approve_expense",
+                    "value": f"{entry.event_id}|{applicant_slack_id}",
+                },
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "❌ 却下"},
+                    "style": "danger",
+                    "action_id": "reject_expense",
+                    "value": f"{entry.event_id}|{applicant_slack_id}",
+                },
+            ],
+        },
+    ]
+    try:
+        client.chat_update(
+            channel=channel, ts=ts,
+            text="🧾 経費申請（更新済）", blocks=blocks,
+        )
+        logger.info(f"承認カード更新: {event_id}")
+    except Exception as e:
+        logger.warning(f"承認カード更新失敗: {e}")
 
 
 def _send_duplicate_warning(client, channel_id, msg_ts, dup: dict, ocr_result):
@@ -587,43 +991,124 @@ def handle_approve(ack, body, client, logger):
     channel_id = body["channel"]["id"]
     msg_ts     = body["message"]["ts"]
 
+    tenant    = _get_tenant(body.get("team", {}).get("id", ""))
+    tenant_id = tenant["id"] if tenant else None
+    if not _check_role(approver, tenant_id, "manager"):
+        _role_denied(client, channel_id, "manager")
+        return
+
     logger.info(f"承認: {event_id} by {approver}")
 
     try:
-        # DB更新
-        tenant = _get_tenant(body.get("team", {}).get("id", ""))
-        tenant_id = tenant["id"] if tenant else None
-        update_status(event_id, "業務承認済", tenant_id, approved_by=approver)
+        # DB更新（申請中の場合のみ成功 — 二重承認防止）
+        updated = update_status(event_id, "業務承認済", tenant_id, approved_by=approver)
+        if not updated:
+            client.chat_update(
+                channel=channel_id, ts=msg_ts,
+                text=f"⚠️ `{event_id}` は既に承認・却下済みです（二重承認をスキップ）",
+                blocks=[{"type": "section", "text": {"type": "mrkdwn",
+                    "text": f"⚠️ *二重承認防止*\n`{event_id}` は既に処理済みのため、今回の承認はスキップしました。"}}],
+            )
+            return
 
-        # Google Sheets 同期
-        if sheets:
-            evt = get_event_by_id(event_id, tenant_id)
-            if evt:
-                from core.accounting import JournalEntry
-                entry = JournalEntry(
-                    event_id          = evt["event_id"],
-                    event_date        = str(evt["event_date"]),
-                    counterparty      = evt["counterparty"],
-                    total_amount      = evt["amount"],
-                    taxable_10_amount = evt.get("taxable_10_amount", 0),
-                    tax_10_amount     = evt.get("tax_10_amount", 0),
-                    taxable_8_amount  = evt.get("taxable_8_amount", 0),
-                    tax_8_amount      = evt.get("tax_8_amount", 0),
-                    debit_account     = evt["debit_account"],
-                    debit_subsidiary  = evt.get("debit_subsidiary", ""),
-                    credit_account    = evt["credit_account"],
-                    invoice_number    = evt.get("invoice_number"),
-                    has_invoice       = bool(evt.get("has_invoice")),
-                    employee_name     = evt.get("employee_name", ""),
-                    status            = "業務承認済",
-                    evidence_url      = evt.get("evidence_url", ""),
-                    purpose           = evt.get("purpose", ""),
+        # Google Sheets 同期（Drive統合）
+        sheets_sync_failed = False
+        evt = get_event_by_id(event_id, tenant_id)
+        entry = None
+        if evt:
+            from core.accounting import JournalEntry
+
+            # Drive設定済みなら領収書をDriveにアップロードしてURLを差し替え
+            evidence_url = evt.get("evidence_url", "")
+            if tenant and tenant.get("drive_folder_id"):
+                evidence_url = _upload_receipt_to_drive(
+                    event_id, evidence_url, evt.get("employee_name", ""), tenant
                 )
+
+            entry = JournalEntry(
+                event_id          = evt["event_id"],
+                event_date        = str(evt["event_date"]),
+                counterparty      = evt["counterparty"],
+                total_amount      = evt["amount"],
+                taxable_10_amount = evt.get("taxable_10_amount", 0),
+                tax_10_amount     = evt.get("tax_10_amount", 0),
+                taxable_8_amount  = evt.get("taxable_8_amount", 0),
+                tax_8_amount      = evt.get("tax_8_amount", 0),
+                debit_account     = evt["debit_account"],
+                debit_subsidiary  = evt.get("debit_subsidiary", ""),
+                credit_account    = evt["credit_account"],
+                invoice_number    = evt.get("invoice_number"),
+                has_invoice       = bool(evt.get("has_invoice")),
+                employee_name     = evt.get("employee_name", ""),
+                status            = "業務承認済",
+                evidence_url      = evidence_url,
+                purpose           = evt.get("purpose", ""),
+                dept_code         = (tenant.get("dept_code") or "") if tenant else "",
+            )
+
+            # Drive設定済み → 社員ファイルと会社集計ファイルに書き込む
+            if tenant and tenant.get("drive_folder_id"):
+                emp_sheets = _get_or_create_employee_sheets(
+                    evt.get("employee_name", ""), str(evt["event_date"]), tenant
+                )
+                cmp_sheets = _get_or_create_company_sheets(str(evt["event_date"]), tenant)
+                ok_emp = emp_sheets.write_journal_entry_employee(entry) if emp_sheets else True
+                ok_cmp = cmp_sheets.write_journal_entry_summary(entry) if cmp_sheets else True
+                ok = ok_emp and ok_cmp
+            elif sheets:
                 ok = sheets.write_journal_entry(entry)
-                if ok:
-                    logger.info(f"Sheets 同期完了: {event_id}")
-                else:
-                    logger.warning(f"Sheets 同期失敗: {event_id}")
+            else:
+                ok = True
+
+            if ok:
+                logger.info(f"Sheets 同期完了: {event_id}")
+            else:
+                logger.warning(f"Sheets 同期失敗: {event_id}")
+                sheets_sync_failed = True
+
+        # 入湯税リンクエントリも同時承認
+        from core.database import get_linked_nyutou_entry
+        nyutou_evt = get_linked_nyutou_entry(event_id, tenant_id)
+        if nyutou_evt:
+            update_status(nyutou_evt["event_id"], "業務承認済", tenant_id, approved_by=approver)
+            from core.accounting import JournalEntry as JE
+            nyutou_evidence = nyutou_evt.get("evidence_url", "")
+            if tenant and tenant.get("drive_folder_id"):
+                nyutou_evidence = _upload_receipt_to_drive(
+                    nyutou_evt["event_id"], nyutou_evidence,
+                    nyutou_evt.get("employee_name", ""), tenant
+                )
+            nyutou_je = JE(
+                event_id          = nyutou_evt["event_id"],
+                event_date        = str(nyutou_evt["event_date"]),
+                counterparty      = nyutou_evt["counterparty"],
+                total_amount      = nyutou_evt["amount"],
+                taxable_10_amount = nyutou_evt.get("taxable_10_amount", 0),
+                tax_10_amount     = nyutou_evt.get("tax_10_amount", 0),
+                taxable_8_amount  = nyutou_evt.get("taxable_8_amount", 0),
+                tax_8_amount      = nyutou_evt.get("tax_8_amount", 0),
+                debit_account     = nyutou_evt["debit_account"],
+                debit_subsidiary  = nyutou_evt.get("debit_subsidiary", ""),
+                credit_account    = nyutou_evt["credit_account"],
+                invoice_number    = nyutou_evt.get("invoice_number"),
+                has_invoice       = bool(nyutou_evt.get("has_invoice")),
+                employee_name     = nyutou_evt.get("employee_name", ""),
+                status            = "業務承認済",
+                evidence_url      = nyutou_evidence,
+                purpose           = nyutou_evt.get("purpose", ""),
+            )
+            if tenant and tenant.get("drive_folder_id"):
+                n_emp = _get_or_create_employee_sheets(
+                    nyutou_evt.get("employee_name", ""), str(nyutou_evt["event_date"]), tenant
+                )
+                n_cmp = _get_or_create_company_sheets(str(nyutou_evt["event_date"]), tenant)
+                if n_emp:
+                    n_emp.write_journal_entry_employee(nyutou_je)
+                if n_cmp:
+                    n_cmp.write_journal_entry_summary(nyutou_je)
+            elif sheets:
+                sheets.write_journal_entry(nyutou_je)
+            logger.info(f"入湯税連動承認: {nyutou_evt['event_id']}")
 
         # Phase 2: 会計ソフトへ自動計上
         accounting_msg = ""
@@ -641,6 +1126,10 @@ def handle_approve(ack, body, client, logger):
         approver_name = _get_employee_name(client, approver)
 
         # #経費承認チャンネルの承認カードを更新
+        sheets_error_msg = (
+            f"\n\n⚠️ *Sheets同期エラー*\n"
+            f"`/edit {event_id}` を実行し「保存」で再同期できます。"
+        ) if sheets_sync_failed else ""
         client.chat_update(
             channel=channel_id, ts=msg_ts,
             text=f"✅ 承認済: {event_id}",
@@ -654,6 +1143,7 @@ def handle_approve(ack, body, client, logger):
                         f"承認者: {approver_name}\n"
                         f"日時: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
                         f"{accounting_msg}"
+                        f"{sheets_error_msg}"
                     ),
                 },
             }],
@@ -692,13 +1182,47 @@ def handle_reject(ack, body, client, logger):
     channel_id = body["channel"]["id"]
     msg_ts     = body["message"]["ts"]
 
+    tenant    = _get_tenant(body.get("team", {}).get("id", ""))
+    tenant_id = tenant["id"] if tenant else None
+    if not _check_role(rejector, tenant_id, "manager"):
+        _role_denied(client, channel_id, "manager")
+        return
+
     logger.info(f"却下: {event_id} by {rejector} applicant={applicant_slack_id} raw={raw_value}")
 
     try:
-        tenant = _get_tenant(body.get("team", {}).get("id", ""))
-        tenant_id = tenant["id"] if tenant else None
         update_status(event_id, "却下", tenant_id, approved_by=rejector)
         rejector_name = _get_employee_name(client, rejector)
+
+        # Sheets同期: 社員シート + 財務集計シートのステータスを「却下」に更新
+        if sheets:
+            try:
+                evt_data = get_event_by_id(event_id, tenant_id)
+                if evt_data:
+                    from core.accounting import JournalEntry
+                    _rej_entry = JournalEntry(
+                        event_id          = evt_data["event_id"],
+                        event_date        = str(evt_data["event_date"]),
+                        counterparty      = evt_data["counterparty"],
+                        total_amount      = evt_data["amount"],
+                        taxable_10_amount = evt_data.get("taxable_10_amount", 0),
+                        tax_10_amount     = evt_data.get("tax_10_amount", 0),
+                        taxable_8_amount  = evt_data.get("taxable_8_amount", 0),
+                        tax_8_amount      = evt_data.get("tax_8_amount", 0),
+                        debit_account     = evt_data["debit_account"],
+                        debit_subsidiary  = evt_data.get("debit_subsidiary", ""),
+                        credit_account    = evt_data["credit_account"],
+                        invoice_number    = evt_data.get("invoice_number"),
+                        has_invoice       = bool(evt_data.get("has_invoice")),
+                        employee_name     = evt_data.get("employee_name", ""),
+                        status            = "却下",
+                        evidence_url      = evt_data.get("evidence_url", ""),
+                        purpose           = evt_data.get("purpose", ""),
+                    )
+                    sheets.update_journal_entry(_rej_entry)
+                    logger.info(f"Sheets却下同期完了: {event_id}")
+            except Exception as _se:
+                logger.warning(f"Sheets却下同期失敗（処理続行）: {_se}")
 
         # #経費承認チャンネルの承認カードを更新
         client.chat_update(
@@ -773,7 +1297,7 @@ def handle_export(ack, body, client, logger):
         except ValueError:
             client.chat_postMessage(
                 channel=channel_id,
-                text="❌ 形式が正しくありません。例: `/export 2026-03`"
+                text="❌ 形式が正しくありません。例: `/csv 2026-03`"
             )
             return
     else:
@@ -831,10 +1355,224 @@ def handle_export(ack, body, client, logger):
             f"📊 *{ym_label} 承認済み仕訳 — {fmt_label}形式*\n"
             f"件数: {len(events)} 件\n"
             f"{fmt_note}\n"
-            f"使い方: `/export YYYY-MM yayoi` / `freee` / `mf` / `csv`"
+            f"使い方: `/csv YYYY-MM yayoi` / `freee` / `mf` / `csv`"
         ),
     )
     logger.info(f"弥生CSV出力: {filename} ({len(events)}件)")
+
+
+def _build_csv_menu_blocks(start: str, end: str) -> list:
+    """インタラクティブ /csv メニューのブロックを生成する"""
+    return [
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*📊 CSV出力*\n日付範囲と会計ソフト形式を選択してください。"},
+        },
+        {
+            "type": "actions",
+            "block_id": "csv_date_pickers",
+            "elements": [
+                {
+                    "type": "datepicker",
+                    "action_id": "csv_start_date",
+                    "initial_date": start,
+                    "placeholder": {"type": "plain_text", "text": "開始日付"},
+                },
+                {
+                    "type": "datepicker",
+                    "action_id": "csv_end_date",
+                    "initial_date": end,
+                    "placeholder": {"type": "plain_text", "text": "終了日付"},
+                },
+            ],
+        },
+        {"type": "divider"},
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*形式*"},
+        },
+        {
+            "type": "actions",
+            "block_id": "csv_format_standard",
+            "elements": [
+                {"type": "button", "text": {"type": "plain_text", "text": "📋 弥生"},
+                 "action_id": "csv_dl_yayoi", "style": "primary"},
+                {"type": "button", "text": {"type": "plain_text", "text": "📱 freee"},
+                 "action_id": "csv_dl_freee"},
+                {"type": "button", "text": {"type": "plain_text", "text": "💰 マネーフォワード"},
+                 "action_id": "csv_dl_mf"},
+                {"type": "button", "text": {"type": "plain_text", "text": "📄 汎用"},
+                 "action_id": "csv_dl_generic"},
+            ],
+        },
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*エンタープライズ向け*"},
+        },
+        {
+            "type": "actions",
+            "block_id": "csv_format_enterprise",
+            "elements": [
+                {"type": "button", "text": {"type": "plain_text", "text": "🏢 勘定奉行"},
+                 "action_id": "csv_dl_obc"},
+                {"type": "button", "text": {"type": "plain_text", "text": "🏛️ PCA会計"},
+                 "action_id": "csv_dl_pca"},
+                {"type": "button", "text": {"type": "plain_text", "text": "📋 TKC"},
+                 "action_id": "csv_dl_tkc"},
+            ],
+        },
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*会計事務所向け*"},
+        },
+        {
+            "type": "actions",
+            "block_id": "csv_format_firm",
+            "elements": [
+                {"type": "button", "text": {"type": "plain_text", "text": "🔵 JDL"},
+                 "action_id": "csv_dl_jdl"},
+                {"type": "button", "text": {"type": "plain_text", "text": "⚡ MJS"},
+                 "action_id": "csv_dl_mjs"},
+            ],
+        },
+    ]
+
+
+@app.command("/csv")
+def handle_csv(ack, body, client, logger):
+    """/csv → インタラクティブメッセージで日付・形式を選択"""
+    ack()
+    user_id   = body["user_id"]
+    tenant    = _get_tenant(body.get("team_id", ""))
+    tenant_id = tenant["id"] if tenant else None
+    if not _check_role(user_id, tenant_id, "finance"):
+        _role_denied(client, body["channel_id"], "finance")
+        return
+    import calendar
+    from datetime import datetime
+    now = datetime.now()
+    start = now.replace(day=1).strftime("%Y-%m-%d")
+    last_day = calendar.monthrange(now.year, now.month)[1]
+    end = now.replace(day=last_day).strftime("%Y-%m-%d")
+    user_id    = body["user_id"]
+    channel_id = body["channel_id"]
+    _csv_date_state[user_id] = {"start": start, "end": end}
+    client.chat_postMessage(
+        channel=channel_id,
+        blocks=_build_csv_menu_blocks(start, end),
+    )
+
+
+@app.action("csv_start_date")
+def handle_csv_start_date(ack, body, action, logger):
+    """開始日付ピッカーの選択"""
+    ack()
+    user_id = body["user"]["id"]
+    selected = action.get("selected_date", "")
+    if selected:
+        _csv_date_state.setdefault(user_id, {})["start"] = selected
+        logger.info(f"CSV開始日付変更: {user_id} → {selected}")
+
+
+@app.action("csv_end_date")
+def handle_csv_end_date(ack, body, action, logger):
+    """終了日付ピッカーの選択"""
+    ack()
+    user_id = body["user"]["id"]
+    selected = action.get("selected_date", "")
+    if selected:
+        _csv_date_state.setdefault(user_id, {})["end"] = selected
+        logger.info(f"CSV終了日付変更: {user_id} → {selected}")
+
+
+@app.action(re.compile(r"^csv_dl_"))
+def handle_csv_download_action(ack, body, action, client, logger):
+    """CSVダウンロードボタン押下 → 該当形式のCSVをアップロード"""
+    ack()
+    user_id    = body["user"]["id"]
+    channel_id = body["container"]["channel_id"]
+    team_id    = body.get("team", {}).get("id", "")
+    fmt        = action["action_id"].replace("csv_dl_", "")  # yayoi / freee / mf / generic / obc / pca / tkc / jdl / mjs
+
+    state      = _csv_date_state.get(user_id, {})
+    from datetime import datetime, date
+    today = date.today()
+    import calendar as _cal
+    default_start = today.replace(day=1).strftime("%Y-%m-%d")
+    default_end   = today.replace(day=_cal.monthrange(today.year, today.month)[1]).strftime("%Y-%m-%d")
+    start_date = state.get("start", default_start)
+    end_date   = state.get("end",   default_end)
+
+    from core.database import list_events_by_date_range
+    tenant    = _get_tenant(team_id)
+    tenant_id = tenant["id"] if tenant else None
+    dept_code = (tenant.get("dept_code") or "") if tenant else ""
+    events    = [e for e in list_events_by_date_range(start_date, end_date, tenant_id)
+                 if e.get("status") == "業務承認済"]
+
+    date_label = f"{start_date} 〜 {end_date}"
+    if not events:
+        client.chat_postMessage(
+            channel=channel_id,
+            text=f"📭 {date_label} の承認済み仕訳が見つかりません。"
+        )
+        return
+
+    fmt_map = {
+        "yayoi":   ("弥生会計",        "yayoi",   "shift_jis", "弥生会計 → データ読み込み → インポート"),
+        "freee":   ("freee",           "freee",   "utf-8-bom", "freee会計 → 会計帳簿 → 仕訳帳 → インポート"),
+        "mf":      ("マネーフォワード", "mf",      "utf-8-bom", "MFクラウド会計 → 仕訳帳 → インポート"),
+        "generic": ("汎用CSV",         "journal", "utf-8-bom", "勘定奉行・PCA・TKC・MJS・JDL等"),
+        "obc":     ("勘定奉行",        "kanjo",   "utf-8-bom", "勘定奉行 → 仕訳入力 → インポート"),
+        "pca":     ("PCA会計",         "pca",     "shift_jis", "PCA会計 → データインポート"),
+        "tkc":     ("TKC",             "tkc",     "utf-8-bom", "TKC → 仕訳インポート"),
+        "jdl":     ("JDL",             "jdl",     "shift_jis", "JDL → 仕訳データインポート"),
+        "mjs":     ("MJS",             "mjs",     "utf-8-bom", "MJS → 仕訳帳インポート"),
+    }
+    fmt_label, prefix, _enc, fmt_note = fmt_map.get(fmt, ("汎用CSV", "journal", "utf-8-bom", ""))
+
+    date_tag = start_date[:7].replace("-", "") if start_date[:7] == end_date[:7] else f"{start_date.replace('-','')}_{end_date.replace('-','')}"
+    filename = f"{prefix}_{date_tag}.csv"
+
+    if fmt == "yayoi":
+        from core.yayoi_export import build_yayoi_csv
+        csv_bytes = build_yayoi_csv(events)
+    elif fmt == "freee":
+        from core.csv_export import build_freee_csv
+        csv_bytes = build_freee_csv(events)
+    elif fmt == "mf":
+        from core.csv_export import build_mf_csv
+        csv_bytes = build_mf_csv(events)
+    elif fmt == "obc":
+        from core.multi_software_export import build_kanjo_ahra_csv
+        csv_bytes = build_kanjo_ahra_csv(events, dept_code=dept_code)
+    elif fmt == "pca":
+        from core.multi_software_export import build_pca_csv
+        csv_bytes = build_pca_csv(events, dept_code=dept_code)
+    elif fmt == "tkc":
+        from core.multi_software_export import build_tkc_csv
+        csv_bytes = build_tkc_csv(events, dept_code=dept_code)
+    elif fmt == "jdl":
+        from core.multi_software_export import build_jdl_csv
+        csv_bytes = build_jdl_csv(events, dept_code=dept_code)
+    elif fmt == "mjs":
+        from core.multi_software_export import build_mjs_csv
+        csv_bytes = build_mjs_csv(events, dept_code=dept_code)
+    else:
+        from core.csv_export import build_generic_csv
+        csv_bytes = build_generic_csv(events)
+
+    client.files_upload_v2(
+        channel=channel_id,
+        content=csv_bytes,
+        filename=filename,
+        title=f"{fmt_label}インポート用仕訳CSV {date_label}（{len(events)}件）",
+        initial_comment=(
+            f"📊 *{date_label} 承認済み仕訳 — {fmt_label}形式*\n"
+            f"件数: {len(events)} 件 | {fmt_note}"
+        ),
+    )
+    logger.info(f"CSV出力（インタラクティブ）: {filename} ({len(events)}件)")
 
 
 @app.event("app_mention")
@@ -882,11 +1620,16 @@ def start():
 def handle_delete(ack, body, client, logger):
     """
     /delete [event_id] コマンド:
-    指定した管理IDのレコードをDBから削除する（管理者専用）
+    指定した管理IDのレコードをDBから削除する（finance以上専用）
     """
     ack()
     user_id    = body["user_id"]
     channel_id = body["channel_id"]
+    tenant    = _get_tenant(body.get("team_id", ""))
+    tenant_id = tenant["id"] if tenant else None
+    if not _check_role(user_id, tenant_id, "finance"):
+        _role_denied(client, channel_id, "finance")
+        return
     event_id   = body.get("text", "").strip().split()[0] if body.get("text", "").strip() else ""
 
     if not event_id:
@@ -895,10 +1638,6 @@ def handle_delete(ack, body, client, logger):
             text="❌ 管理IDを指定してください。例: `/delete T20260406-00014`"
         )
         return
-
-    # テナント解決
-    tenant = _get_tenant(body.get("team_id", ""))
-    tenant_id = tenant["id"] if tenant else None
 
     # レコード存在確認
     evt = get_event_by_id(event_id, tenant_id)
@@ -919,6 +1658,19 @@ def handle_delete(ack, body, client, logger):
                     (event_id, tenant_id)
                 )
         logger.info(f"削除: {event_id} by {user_id}")
+
+        # Sheets同期: 社員シート + 財務集計シートから行を削除
+        if sheets:
+            try:
+                event_date    = str(evt.get("event_date", ""))
+                _year         = int(event_date[:4])
+                _month        = int(event_date[5:7])
+                _emp          = evt.get("employee_name", "")
+                sheets.remove_event(event_id, _emp, _year, _month)
+                logger.info(f"Sheets行削除完了: {event_id}")
+            except Exception as _se:
+                logger.warning(f"Sheets行削除失敗（処理続行）: {_se}")
+
         client.chat_postMessage(
             channel=channel_id,
             text=(
@@ -951,6 +1703,12 @@ def handle_list(ack, body, client, logger):
     """
     ack()
     channel_id = body["channel_id"]
+    user_id    = body["user_id"]
+    tenant     = _get_tenant(body.get("team_id", ""))
+    tenant_id  = tenant["id"] if tenant else None
+    if not _check_role(user_id, tenant_id, "finance"):
+        _role_denied(client, channel_id, "finance")
+        return
     text       = body.get("text", "").strip().split()
 
     STATUS_ALIAS = {
@@ -1033,8 +1791,12 @@ def handle_edit(ack, body, client, logger):
     event_id   = body.get("text", "").strip().split()[0] if body.get("text", "").strip() else ""
     channel_id = body["channel_id"]
     trigger_id = body["trigger_id"]
+    user_id    = body["user_id"]
     tenant     = _get_tenant(body.get("team_id", ""))
     tenant_id  = tenant["id"] if tenant else None
+    if not _check_role(user_id, tenant_id, "finance"):
+        _role_denied(client, channel_id, "finance")
+        return
 
     if not event_id:
         client.chat_postMessage(channel=channel_id,
@@ -1095,6 +1857,46 @@ def handle_edit(ack, body, client, logger):
                         "type": "plain_text_input", "action_id": "value",
                         "initial_value": str(evt.get("amount", 0)),
                         "placeholder": {"type": "plain_text", "text": "例：1650"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "taxable_10_amount",
+                    "label": {"type": "plain_text", "text": "税率10%対象額（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("taxable_10_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "不課税の場合は0"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "tax_10_amount",
+                    "label": {"type": "plain_text", "text": "消費税(10%)（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("tax_10_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "不課税の場合は0"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "taxable_8_amount",
+                    "label": {"type": "plain_text", "text": "税率8%対象額（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("taxable_8_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "軽減税率品がなければ0"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "tax_8_amount",
+                    "label": {"type": "plain_text", "text": "消費税(8%)（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("tax_8_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "軽減税率品がなければ0"}
                     }
                 },
                 {
@@ -1173,10 +1975,17 @@ def handle_edit_submit(ack, body, client, logger):
     invoice_number   = _val("invoice_number").strip() or None
     purpose          = _val("purpose")
 
-    try:
-        amount = int(amount_str.replace(",", "").replace("¥", "").strip())
-    except (ValueError, AttributeError):
-        amount = None
+    def _parse_int(s):
+        try:
+            return int(str(s).replace(",", "").replace("¥", "").strip())
+        except (ValueError, AttributeError):
+            return None
+
+    amount         = _parse_int(amount_str)
+    taxable_10     = _parse_int(_val("taxable_10_amount"))
+    tax_10         = _parse_int(_val("tax_10_amount"))
+    taxable_8      = _parse_int(_val("taxable_8_amount"))
+    tax_8          = _parse_int(_val("tax_8_amount"))
 
     # 承認済みの場合は金額変更を禁止
     evt_pre = get_event_by_id(event_id, tenant_id)
@@ -1189,10 +1998,14 @@ def handle_edit_submit(ack, body, client, logger):
 
     from core.database import update_event
     fields = {}
-    if counterparty:        fields["counterparty"]      = counterparty
-    if event_date:          fields["event_date"]         = event_date
-    if amount is not None:  fields["amount"]             = amount
-    if debit_account:       fields["debit_account"]      = debit_account
+    if counterparty:           fields["counterparty"]        = counterparty
+    if event_date:             fields["event_date"]          = event_date
+    if amount is not None:     fields["amount"]              = amount
+    if debit_account:          fields["debit_account"]       = debit_account
+    if taxable_10 is not None: fields["taxable_10_amount"]   = taxable_10
+    if tax_10     is not None: fields["tax_10_amount"]       = tax_10
+    if taxable_8  is not None: fields["taxable_8_amount"]    = taxable_8
+    if tax_8      is not None: fields["tax_8_amount"]        = tax_8
     fields["debit_subsidiary"] = debit_subsidiary or ""
     fields["invoice_number"]   = invoice_number
     fields["has_invoice"]      = bool(invoice_number)
@@ -1247,6 +2060,8 @@ def handle_edit_submit(ack, body, client, logger):
     except Exception as dm_err:
         logger.warning(f"修正通知DM失敗: {dm_err}")
 
+    _refresh_approval_card(client, event_id, tenant_id)
+    _refresh_uploader_dm(client, event_id, tenant_id)
     logger.info(f"仕訳修正完了: {event_id} by {user_id}")
 
 
@@ -1398,6 +2213,8 @@ def handle_switch_to_kaigi(ack, body, client, logger):
     tenant_id = tenant["id"] if tenant else (parts[1] if len(parts) > 1 else None)
 
     update_event(event_id, tenant_id, {"debit_account": "会議費", "debit_subsidiary": "会議飲食費"})
+    _refresh_approval_card(client, event_id, tenant_id)
+    _refresh_uploader_dm(client, event_id, tenant_id)
     client.chat_postMessage(
         channel=body["user"]["id"],
         text=f"✅ 借方科目を *会議費 / 会議飲食費* に変更しました。\n管理ID: `{event_id}`",
@@ -1416,11 +2233,168 @@ def handle_switch_to_settai(ack, body, client, logger):
     tenant_id = tenant["id"] if tenant else (parts[1] if len(parts) > 1 else None)
 
     update_event(event_id, tenant_id, {"debit_account": "接待交際費", "debit_subsidiary": "接待飲食費"})
+    _refresh_approval_card(client, event_id, tenant_id)
+    _refresh_uploader_dm(client, event_id, tenant_id)
     client.chat_postMessage(
         channel=body["user"]["id"],
         text=f"✅ 借方科目を *接待交際費 / 接待飲食費* に変更しました。\n管理ID: `{event_id}`",
     )
     logger.info(f"科目変更 → 接待交際費: {event_id}")
+
+
+@app.action("quick_edit_btn")
+def handle_quick_edit_btn(ack, body, client, logger):
+    """申請者DMの「内容を修正」ボタン → /edit と同じモーダルを開く"""
+    ack()
+    value     = body["actions"][0]["value"]
+    event_id, tenant_id_str = value.split("|", 1)
+    tenant_id = tenant_id_str or None
+    trigger_id = body["trigger_id"]
+
+    evt = get_event_by_id(event_id, tenant_id)
+    if not evt:
+        client.chat_postMessage(
+            channel=body["user"]["id"],
+            text=f"❌ 管理ID `{event_id}` が見つかりません。",
+        )
+        return
+
+    from core.config import DEBIT_ACCOUNTS
+    debit_options = [
+        {"text": {"type": "plain_text", "text": acc}, "value": acc}
+        for acc in DEBIT_ACCOUNTS
+    ]
+    current_account = evt.get("debit_account", "消耗品費")
+    if current_account not in DEBIT_ACCOUNTS:
+        current_account = "消耗品費"
+
+    client.views_open(
+        trigger_id=trigger_id,
+        view={
+            "type": "modal",
+            "callback_id": "edit_event_modal",
+            "private_metadata": f"{event_id}|{tenant_id or ''}",
+            "title": {"type": "plain_text", "text": "仕訳を修正"},
+            "submit": {"type": "plain_text", "text": "保存"},
+            "close":  {"type": "plain_text", "text": "キャンセル"},
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"*管理ID*: `{event_id}`　*ステータス*: {evt.get('status', '')}"}
+                },
+                {"type": "divider"},
+                {
+                    "type": "input", "block_id": "counterparty",
+                    "label": {"type": "plain_text", "text": "取引先"},
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": evt.get("counterparty", ""),
+                        "placeholder": {"type": "plain_text", "text": "例：スターバックスコーヒー"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "event_date",
+                    "label": {"type": "plain_text", "text": "発生日"},
+                    "element": {
+                        "type": "datepicker", "action_id": "value",
+                        "initial_date": str(evt.get("event_date", ""))[:10]
+                    }
+                },
+                {
+                    "type": "input", "block_id": "amount",
+                    "label": {"type": "plain_text", "text": "税込金額（円）"},
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("amount", 0)),
+                        "placeholder": {"type": "plain_text", "text": "例：1650"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "taxable_10_amount",
+                    "label": {"type": "plain_text", "text": "税率10%対象額（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("taxable_10_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "不課税の場合は0"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "tax_10_amount",
+                    "label": {"type": "plain_text", "text": "消費税(10%)（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("tax_10_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "不課税の場合は0"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "taxable_8_amount",
+                    "label": {"type": "plain_text", "text": "税率8%対象額（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("taxable_8_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "軽減税率品がなければ0"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "tax_8_amount",
+                    "label": {"type": "plain_text", "text": "消費税(8%)（円）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": str(evt.get("tax_8_amount") or 0),
+                        "placeholder": {"type": "plain_text", "text": "軽減税率品がなければ0"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "debit_account",
+                    "label": {"type": "plain_text", "text": "借方科目"},
+                    "element": {
+                        "type": "static_select", "action_id": "value",
+                        "options": debit_options,
+                        "initial_option": {
+                            "text": {"type": "plain_text", "text": current_account},
+                            "value": current_account
+                        }
+                    }
+                },
+                {
+                    "type": "input", "block_id": "debit_subsidiary",
+                    "label": {"type": "plain_text", "text": "借方補助科目（任意）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": evt.get("debit_subsidiary", "") or "",
+                        "placeholder": {"type": "plain_text", "text": "例：タクシー代"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "invoice_number",
+                    "label": {"type": "plain_text", "text": "T番号（任意）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": evt.get("invoice_number", "") or "",
+                        "placeholder": {"type": "plain_text", "text": "例：T1234567890123"}
+                    }
+                },
+                {
+                    "type": "input", "block_id": "purpose",
+                    "label": {"type": "plain_text", "text": "用途・メモ（任意）"},
+                    "optional": True,
+                    "element": {
+                        "type": "plain_text_input", "action_id": "value",
+                        "initial_value": evt.get("purpose", "") or evt.get("memo", "") or "",
+                        "placeholder": {"type": "plain_text", "text": "例：取引先との打合せ"},
+                        "multiline": True
+                    }
+                },
+            ],
+        }
+    )
 
 
 @app.action("input_purpose_btn")
@@ -1542,6 +2516,9 @@ def handle_purpose_modal(ack, body, client, logger):
             logger.info(f"Sheets 再同期完了 (purpose更新): {event_id}")
     except Exception as e:
         logger.warning(f"Sheets 再同期スキップ: {e}")
+
+    _refresh_approval_card(client, event_id, tenant_id)
+    _refresh_uploader_dm(client, event_id, tenant_id)
 
     # 申請者に保存完了を通知
     user_id = body["user"]["id"]
@@ -1685,3 +2662,386 @@ def _create_transportation_entry(entry_dict):
         employee_name=entry_dict["employee_name"],
         status="申請中",
     )
+
+
+# ============================================================
+# Phase 4: App Home — 設定UI
+# ============================================================
+
+def _build_home_view(tenant: dict, user_roles: list[dict], admin_emails: list[dict]) -> dict:
+    """App Home の設定画面 Block Kit を構築する。"""
+    fy_start  = tenant.get("fy_start_month") or 4
+    company   = tenant.get("company_name") or ""
+    folder    = tenant.get("drive_folder_id") or ""
+    dept_code = tenant.get("dept_code") or ""
+
+    month_options = [
+        {"text": {"type": "plain_text", "text": f"{m}月"}, "value": str(m)}
+        for m in range(1, 13)
+    ]
+
+    role_options = [
+        {"text": {"type": "plain_text", "text": "admin（全機能）"},     "value": "admin"},
+        {"text": {"type": "plain_text", "text": "finance（財務）"},     "value": "finance"},
+        {"text": {"type": "plain_text", "text": "manager（承認のみ）"}, "value": "manager"},
+        {"text": {"type": "plain_text", "text": "employee（一般）"},    "value": "employee"},
+    ]
+
+    # 管理メールリスト
+    email_rows = []
+    for ae in admin_emails:
+        email_rows.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"• `{ae['email']}` ({ae.get('role','finance')})"},
+            "accessory": {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "削除"},
+                "style": "danger",
+                "action_id": "home_delete_email",
+                "value": ae["email"],
+                "confirm": {
+                    "title": {"type": "plain_text", "text": "削除確認"},
+                    "text": {"type": "mrkdwn", "text": f"`{ae['email']}` を共有リストから削除しますか？"},
+                    "confirm": {"type": "plain_text", "text": "削除"},
+                    "deny": {"type": "plain_text", "text": "キャンセル"},
+                },
+            },
+        })
+    if not email_rows:
+        email_rows.append({"type": "section", "text": {"type": "mrkdwn", "text": "_登録なし_"}})
+
+    # ユーザーロールリスト
+    role_rows = []
+    for ur in user_roles[:20]:
+        role_rows.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"• <@{ur['slack_user_id']}> → `{ur['role']}`"},
+        })
+    if not role_rows:
+        role_rows.append({"type": "section", "text": {"type": "mrkdwn", "text": "_登録なし_"}})
+
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text", "text": "⚙️ NextAccount 設定"}},
+        {"type": "divider"},
+
+        # ── 会社設定 ──
+        {"type": "section", "text": {"type": "mrkdwn", "text": "*会社設定*"}},
+        {
+            "type": "input",
+            "block_id": "block_company_name",
+            "label": {"type": "plain_text", "text": "会社名"},
+            "optional": True,
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "input_company_name",
+                "initial_value": company,
+                "placeholder": {"type": "plain_text", "text": "例: 株式会社サンプル"},
+            },
+        },
+        {
+            "type": "input",
+            "block_id": "block_fy_start",
+            "label": {"type": "plain_text", "text": "会計年度開始月"},
+            "element": {
+                "type": "static_select",
+                "action_id": "select_fy_start",
+                "options": month_options,
+                "initial_option": {
+                    "text": {"type": "plain_text", "text": f"{fy_start}月"},
+                    "value": str(fy_start),
+                },
+            },
+        },
+        {
+            "type": "input",
+            "block_id": "block_drive_folder",
+            "label": {"type": "plain_text", "text": "Google Drive フォルダID"},
+            "optional": True,
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "input_drive_folder",
+                "initial_value": folder,
+                "placeholder": {"type": "plain_text", "text": "Drive共有フォルダのID"},
+            },
+        },
+        {
+            "type": "input",
+            "block_id": "block_dept_code",
+            "label": {"type": "plain_text", "text": "部門コード（勘定奉行用・全社共通）"},
+            "optional": True,
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "input_dept_code",
+                "initial_value": dept_code,
+                "placeholder": {"type": "plain_text", "text": "例: 001"},
+            },
+        },
+        {
+            "type": "actions",
+            "elements": [{
+                "type": "button",
+                "text": {"type": "plain_text", "text": "💾 会社設定を保存"},
+                "style": "primary",
+                "action_id": "home_save_company",
+            }],
+        },
+        {"type": "divider"},
+
+        # ── 共有メール管理 ──
+        {"type": "section", "text": {"type": "mrkdwn", "text": "*Sheets共有メール管理*\n税理士・財務担当のGoogleアカウントを登録します。"}},
+        *email_rows,
+        {
+            "type": "input",
+            "block_id": "block_new_email",
+            "label": {"type": "plain_text", "text": "メールアドレスを追加"},
+            "optional": True,
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "input_new_email",
+                "placeholder": {"type": "plain_text", "text": "example@gmail.com"},
+            },
+        },
+        {
+            "type": "input",
+            "block_id": "block_email_role",
+            "label": {"type": "plain_text", "text": "Sheets権限"},
+            "element": {
+                "type": "static_select",
+                "action_id": "select_email_role",
+                "options": [
+                    {"text": {"type": "plain_text", "text": "writer（編集可）"}, "value": "writer"},
+                    {"text": {"type": "plain_text", "text": "reader（閲覧のみ）"}, "value": "reader"},
+                ],
+                "initial_option": {"text": {"type": "plain_text", "text": "writer（編集可）"}, "value": "writer"},
+            },
+        },
+        {
+            "type": "actions",
+            "elements": [{
+                "type": "button",
+                "text": {"type": "plain_text", "text": "➕ メールを追加"},
+                "action_id": "home_add_email",
+            }],
+        },
+        {"type": "divider"},
+
+        # ── ユーザーロール管理 ──
+        {"type": "section", "text": {"type": "mrkdwn", "text": "*ユーザーロール管理*"}},
+        *role_rows,
+        {
+            "type": "input",
+            "block_id": "block_role_user",
+            "label": {"type": "plain_text", "text": "ユーザーを選択"},
+            "element": {
+                "type": "users_select",
+                "action_id": "select_role_user",
+                "placeholder": {"type": "plain_text", "text": "ユーザーを選択"},
+            },
+        },
+        {
+            "type": "input",
+            "block_id": "block_role_value",
+            "label": {"type": "plain_text", "text": "ロールを選択"},
+            "element": {
+                "type": "static_select",
+                "action_id": "select_role_value",
+                "options": role_options,
+                "initial_option": {"text": {"type": "plain_text", "text": "employee（一般）"}, "value": "employee"},
+            },
+        },
+        {
+            "type": "actions",
+            "elements": [{
+                "type": "button",
+                "text": {"type": "plain_text", "text": "✅ ロールを設定"},
+                "style": "primary",
+                "action_id": "home_set_role",
+            }],
+        },
+    ]
+
+    return {"type": "home", "blocks": blocks}
+
+
+def _refresh_home(client, user_id: str, tenant: dict) -> None:
+    """App Home を再描画する。"""
+    from core.database import list_user_roles, get_admin_emails
+    tenant_id   = tenant["id"]
+    user_roles  = list_user_roles(tenant_id)
+    admin_emails = get_admin_emails(tenant_id)
+    view = _build_home_view(tenant, user_roles, admin_emails)
+    try:
+        client.views_publish(user_id=user_id, view=view)
+    except Exception as e:
+        logger.warning(f"App Home 更新失敗: {e}")
+
+
+@app.event("app_home_opened")
+def handle_app_home_opened(event, client, logger):
+    user_id = event["user"]
+    team_id = event.get("view", {}).get("team_id", "") or ""
+    # team_id が view にない場合は別途取得しない（Socket ModeはAuthorizations経由）
+    # フォールバック: body["authorizations"][0]["team_id"] は event ハンドラで取れないため
+    # app.client の team_id を使う
+    try:
+        if not team_id:
+            auth = client.auth_test()
+            team_id = auth["team_id"]
+    except Exception:
+        pass
+
+    tenant = _get_tenant(team_id) if team_id else None
+    if not tenant:
+        client.views_publish(
+            user_id=user_id,
+            view={
+                "type": "home",
+                "blocks": [{
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": "⚠️ テナント未登録です。管理者にお問い合わせください。"},
+                }],
+            },
+        )
+        return
+
+    if not _check_role(user_id, tenant["id"], "admin"):
+        client.views_publish(
+            user_id=user_id,
+            view={
+                "type": "home",
+                "blocks": [{
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": "🔒 設定画面はadminのみ使用できます。"},
+                }],
+            },
+        )
+        return
+
+    _refresh_home(client, user_id, tenant)
+
+
+# ── ホーム: 会社設定保存 ──
+@app.action("home_save_company")
+def handle_home_save_company(ack, body, client, logger):
+    ack()
+    user_id = body["user"]["id"]
+    team_id = body.get("team", {}).get("id", "") or body.get("view", {}).get("team_id", "")
+    tenant  = _get_tenant(team_id)
+    if not tenant or not _check_role(user_id, tenant["id"], "admin"):
+        return
+
+    from core.database import update_tenant_settings
+    values = body.get("view", {}).get("state", {}).get("values", {})
+    company   = (values.get("block_company_name", {})
+                 .get("input_company_name", {}).get("value") or "").strip()
+    fy_raw    = (values.get("block_fy_start", {})
+                 .get("select_fy_start", {}).get("selected_option") or {}).get("value")
+    folder    = (values.get("block_drive_folder", {})
+                 .get("input_drive_folder", {}).get("value") or "").strip()
+    dept_code = (values.get("block_dept_code", {})
+                 .get("input_dept_code", {}).get("value") or "").strip()
+
+    kwargs = {}
+    if company:
+        kwargs["company_name"] = company
+    if fy_raw:
+        kwargs["fy_start_month"] = int(fy_raw)
+    if folder is not None:
+        kwargs["drive_folder_id"] = folder
+    if dept_code is not None:
+        kwargs["dept_code"] = dept_code
+
+    if kwargs:
+        update_tenant_settings(tenant["id"], **kwargs)
+        tenant.update(kwargs)
+        logger.info(f"テナント設定保存: {kwargs}")
+
+    _refresh_home(client, user_id, tenant)
+
+
+# ── ホーム: メール追加 ──
+@app.action("home_add_email")
+def handle_home_add_email(ack, body, client, logger):
+    ack()
+    user_id = body["user"]["id"]
+    team_id = body.get("team", {}).get("id", "") or body.get("view", {}).get("team_id", "")
+    tenant  = _get_tenant(team_id)
+    if not tenant or not _check_role(user_id, tenant["id"], "admin"):
+        return
+
+    from core.database import upsert_admin_email, update_tenant_settings
+    values  = body.get("view", {}).get("state", {}).get("values", {})
+    email   = (values.get("block_new_email", {})
+               .get("input_new_email", {}).get("value") or "").strip()
+    role_raw = (values.get("block_email_role", {})
+                .get("select_email_role", {}).get("selected_option") or {}).get("value", "writer")
+    if not email or "@" not in email:
+        return
+
+    upsert_admin_email(tenant["id"], email, role=role_raw)
+    logger.info(f"メール追加: {email} ({role_raw})")
+
+    # 会社設定も同時保存
+    company   = (values.get("block_company_name", {})
+                 .get("input_company_name", {}).get("value") or "").strip()
+    fy_raw    = (values.get("block_fy_start", {})
+                 .get("select_fy_start", {}).get("selected_option") or {}).get("value")
+    folder    = (values.get("block_drive_folder", {})
+                 .get("input_drive_folder", {}).get("value") or "").strip()
+    dept_code = (values.get("block_dept_code", {})
+                 .get("input_dept_code", {}).get("value") or "").strip()
+    kwargs  = {}
+    if company:
+        kwargs["company_name"] = company
+    if fy_raw:
+        kwargs["fy_start_month"] = int(fy_raw)
+    if folder is not None:
+        kwargs["drive_folder_id"] = folder
+    if dept_code is not None:
+        kwargs["dept_code"] = dept_code
+    if kwargs:
+        update_tenant_settings(tenant["id"], **kwargs)
+        tenant.update(kwargs)
+
+    _refresh_home(client, user_id, tenant)
+
+
+# ── ホーム: メール削除 ──
+@app.action("home_delete_email")
+def handle_home_delete_email(ack, body, client, logger):
+    ack()
+    user_id = body["user"]["id"]
+    team_id = body.get("team", {}).get("id", "") or body.get("view", {}).get("team_id", "")
+    tenant  = _get_tenant(team_id)
+    if not tenant or not _check_role(user_id, tenant["id"], "admin"):
+        return
+
+    from core.database import delete_admin_email
+    email = body["actions"][0]["value"]
+    delete_admin_email(tenant["id"], email)
+    logger.info(f"メール削除: {email}")
+    _refresh_home(client, user_id, tenant)
+
+
+# ── ホーム: ロール設定 ──
+@app.action("home_set_role")
+def handle_home_set_role(ack, body, client, logger):
+    ack()
+    user_id = body["user"]["id"]
+    team_id = body.get("team", {}).get("id", "") or body.get("view", {}).get("team_id", "")
+    tenant  = _get_tenant(team_id)
+    if not tenant or not _check_role(user_id, tenant["id"], "admin"):
+        return
+
+    from core.database import set_user_role
+    values    = body.get("view", {}).get("state", {}).get("values", {})
+    target_id = (values.get("block_role_user", {})
+                 .get("select_role_user", {}).get("selected_user") or "")
+    role_val  = (values.get("block_role_value", {})
+                 .get("select_role_value", {}).get("selected_option") or {}).get("value", "employee")
+    if not target_id:
+        return
+
+    set_user_role(target_id, role_val, tenant["id"])
+    logger.info(f"ロール設定: {target_id} → {role_val}")
+    _refresh_home(client, user_id, tenant)
