@@ -207,6 +207,7 @@ def extract_all_by_claude_vision(image_bytes: bytes, mime_type: str = "image/jpe
             logger.info(f"プロンプトキャッシュ: created={usage.cache_creation_input_tokens}tok")
 
         text = re.sub(r"```json|```", "", text).strip()
+        logger.debug(f"Claude Vision応答テキスト: {text[:500]}")
         m = re.search(r"\{.*\}", text, re.DOTALL)
         if m:
             data = json.loads(m.group(0))
@@ -217,9 +218,11 @@ def extract_all_by_claude_vision(image_bytes: bytes, mime_type: str = "image/jpe
                 f"({data.get('reason')})"
             )
             return data
+        else:
+            logger.warning(f"Claude Vision JSON抽出失敗: {text[:300]}")
 
     except json.JSONDecodeError as e:
-        logger.error(f"Claude Vision JSON解析エラー: {e}")
+        logger.error(f"Claude Vision JSON解析エラー: {e}, text={text[:200]}")
     except Exception as e:
         logger.error(f"Claude Vision API エラー: {e}")
 
