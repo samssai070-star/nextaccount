@@ -25,6 +25,7 @@ def build_kanjo_ahra_csv(events: list[dict]) -> bytes:
     列: 仕訳日,借方勘定コード,借方部門コード,借方金額,
         貸方勘定コード,貸方部門コード,貸方金額,摘要,附箋,伝票番号
     エンコード: UTF-8 BOM付き
+    8%+10%混在は同一管理番号で2行出力
     """
     output = io.StringIO()
     writer = csv.writer(output, lineterminator="\r\n")
@@ -36,12 +37,19 @@ def build_kanjo_ahra_csv(events: list[dict]) -> bytes:
         "摘要", "附箋", "伝票番号"
     ])
 
+    def _has_10(evt): return int(evt.get("tax_10_amount", 0) or 0) > 0
+    def _has_8(evt): return int(evt.get("tax_8_amount", 0) or 0) > 0
+
     for evt in events:
         try:
             event_date     = str(evt.get("event_date", ""))
             debit_account  = evt.get("debit_account", "消耗品費")
             credit_account = evt.get("credit_account", "未払費用")
             total_amount   = int(evt.get("amount", 0))
+            tax_10         = int(evt.get("tax_10_amount", 0))
+            tax_8          = int(evt.get("tax_8_amount", 0))
+            taxable_10     = int(evt.get("taxable_10_amount", 0))
+            taxable_8      = int(evt.get("taxable_8_amount", 0))
             counterparty   = evt.get("counterparty", "")
             employee       = evt.get("employee_name", "")
             event_id       = evt.get("event_id", "")
@@ -52,11 +60,28 @@ def build_kanjo_ahra_csv(events: list[dict]) -> bytes:
             if employee:
                 summary += f"/{employee}"
 
-            writer.writerow([
-                event_date, debit_account, dept_code, total_amount,
-                credit_account, dept_code, total_amount,
-                summary, "", event_id
-            ])
+            both = _has_10(evt) and _has_8(evt)
+
+            if both:
+                # 10% 行
+                writer.writerow([
+                    event_date, debit_account, dept_code, taxable_10 + tax_10,
+                    credit_account, dept_code, taxable_10 + tax_10,
+                    summary, "", event_id
+                ])
+                # 8% 行
+                writer.writerow([
+                    event_date, debit_account, dept_code, taxable_8 + tax_8,
+                    credit_account, dept_code, taxable_8 + tax_8,
+                    summary, "", event_id
+                ])
+            else:
+                # 単一税率
+                writer.writerow([
+                    event_date, debit_account, dept_code, total_amount,
+                    credit_account, dept_code, total_amount,
+                    summary, "", event_id
+                ])
 
         except Exception as e:
             logger.error(f"CSV conversion error for event: {e}")
@@ -163,6 +188,9 @@ def build_tkc_csv(events: list[dict]) -> bytes:
         "消費税", "税区分", "摘要", "証拠番号"
     ])
 
+    def _has_10(evt): return int(evt.get("tax_10_amount", 0) or 0) > 0
+    def _has_8(evt): return int(evt.get("tax_8_amount", 0) or 0) > 0
+
     for evt in events:
         try:
             event_date     = str(evt.get("event_date", ""))
@@ -171,6 +199,8 @@ def build_tkc_csv(events: list[dict]) -> bytes:
             total_amount   = int(evt.get("amount", 0))
             tax_10         = int(evt.get("tax_10_amount", 0))
             tax_8          = int(evt.get("tax_8_amount", 0))
+            taxable_10     = int(evt.get("taxable_10_amount", 0))
+            taxable_8      = int(evt.get("taxable_8_amount", 0))
             counterparty   = evt.get("counterparty", "")
             employee       = evt.get("employee_name", "")
             event_id       = evt.get("event_id", "")
@@ -178,22 +208,35 @@ def build_tkc_csv(events: list[dict]) -> bytes:
             has_invoice    = bool(evt.get("has_invoice", False))
             expense_date   = str(evt.get("event_date", ""))
 
-            tax_total  = tax_10 + tax_8
-            deduction  = calc_deductible_tax(tax_total, has_invoice, expense_date)
-            label      = deduction["deduction_label"]
-
             summary = counterparty
             if invoice_no:
                 summary += f"({invoice_no})"
 
-            # 借方
-            tax_kubun = "仕入10" if has_invoice else "仕入"
-            writer.writerow([
-                event_date, debit_account, "", total_amount,
-                tax_10 + tax_8, tax_kubun, summary, event_id
-            ])
+            both = _has_10(evt) and _has_8(evt)
 
-            # 貸方
+            if both:
+                # 10% 借方
+                tax_kubun = "仕入10" if has_invoice else "仕入"
+                writer.writerow([
+                    event_date, debit_account, "", taxable_10 + tax_10,
+                    tax_10, tax_kubun, summary, event_id
+                ])
+                # 8% 借方
+                tax_kubun_8 = "仕入8" if has_invoice else "仕入"
+                writer.writerow([
+                    event_date, debit_account, "", taxable_8 + tax_8,
+                    tax_8, tax_kubun_8, summary, event_id
+                ])
+            else:
+                # 単一税率 借方
+                tax_total = tax_10 + tax_8
+                tax_kubun = "仕入10" if (has_invoice and tax_10 > 0) else "仕入"
+                writer.writerow([
+                    event_date, debit_account, "", total_amount,
+                    tax_total, tax_kubun, summary, event_id
+                ])
+
+            # 貸方（常に1行）
             writer.writerow([
                 event_date, credit_account, employee, total_amount,
                 0, "対象外", summary, event_id
@@ -228,6 +271,9 @@ def build_jdl_csv(events: list[dict]) -> bytes:
         "貸方科目", "貸方補助", "貸方金額", "貸方消費税", "伝票番号"
     ])
 
+    def _has_10(evt): return int(evt.get("tax_10_amount", 0) or 0) > 0
+    def _has_8(evt): return int(evt.get("tax_8_amount", 0) or 0) > 0
+
     for evt in events:
         try:
             event_date     = str(evt.get("event_date", "")).replace("-", "/")
@@ -237,6 +283,8 @@ def build_jdl_csv(events: list[dict]) -> bytes:
             total_amount   = int(evt.get("amount", 0))
             tax_10         = int(evt.get("tax_10_amount", 0))
             tax_8          = int(evt.get("tax_8_amount", 0))
+            taxable_10     = int(evt.get("taxable_10_amount", 0))
+            taxable_8      = int(evt.get("taxable_8_amount", 0))
             counterparty   = evt.get("counterparty", "")
             employee       = evt.get("employee_name", "")
             event_id       = evt.get("event_id", "")
@@ -246,10 +294,25 @@ def build_jdl_csv(events: list[dict]) -> bytes:
             if invoice_no:
                 summary += f" {invoice_no}"
 
-            writer.writerow([
-                event_date, summary, debit_account, "", total_amount, tax_10 + tax_8,
-                credit_base, employee, total_amount, 0, event_id
-            ])
+            both = _has_10(evt) and _has_8(evt)
+
+            if both:
+                # 10% 行
+                writer.writerow([
+                    event_date, summary, debit_account, "", taxable_10 + tax_10, tax_10,
+                    credit_base, employee, taxable_10 + tax_10, 0, event_id
+                ])
+                # 8% 行
+                writer.writerow([
+                    event_date, summary, debit_account, "", taxable_8 + tax_8, tax_8,
+                    credit_base, employee, taxable_8 + tax_8, 0, event_id
+                ])
+            else:
+                # 単一税率
+                writer.writerow([
+                    event_date, summary, debit_account, "", total_amount, tax_10 + tax_8,
+                    credit_base, employee, total_amount, 0, event_id
+                ])
 
         except Exception as e:
             logger.error(f"CSV conversion error for event: {e}")
@@ -281,6 +344,9 @@ def build_mjs_csv(events: list[dict]) -> bytes:
         "摘要", "税区分", "消費税額"
     ])
 
+    def _has_10(evt): return int(evt.get("tax_10_amount", 0) or 0) > 0
+    def _has_8(evt): return int(evt.get("tax_8_amount", 0) or 0) > 0
+
     for evt in events:
         try:
             event_date     = str(evt.get("event_date", ""))
@@ -290,6 +356,8 @@ def build_mjs_csv(events: list[dict]) -> bytes:
             total_amount   = int(evt.get("amount", 0))
             tax_10         = int(evt.get("tax_10_amount", 0))
             tax_8          = int(evt.get("tax_8_amount", 0))
+            taxable_10     = int(evt.get("taxable_10_amount", 0))
+            taxable_8      = int(evt.get("taxable_8_amount", 0))
             counterparty   = evt.get("counterparty", "")
             employee       = evt.get("employee_name", "")
             event_id       = evt.get("event_id", "")
@@ -299,14 +367,31 @@ def build_mjs_csv(events: list[dict]) -> bytes:
             if employee:
                 summary += f" {employee}"
 
-            # MJSの税区分
-            tax_kubun = "仕入（10%）" if has_invoice else "仕入"
+            both = _has_10(evt) and _has_8(evt)
 
-            writer.writerow([
-                event_date, debit_account, "", total_amount,
-                credit_base, employee, total_amount,
-                summary, tax_kubun, tax_10 + tax_8
-            ])
+            if both:
+                # 10% 行
+                tax_kubun = "仕入（10%）" if has_invoice else "仕入"
+                writer.writerow([
+                    event_date, debit_account, "", taxable_10 + tax_10,
+                    credit_base, employee, taxable_10 + tax_10,
+                    summary, tax_kubun, tax_10
+                ])
+                # 8% 行
+                tax_kubun_8 = "仕入（8%）" if has_invoice else "仕入"
+                writer.writerow([
+                    event_date, debit_account, "", taxable_8 + tax_8,
+                    credit_base, employee, taxable_8 + tax_8,
+                    summary, tax_kubun_8, tax_8
+                ])
+            else:
+                # 単一税率
+                tax_kubun = "仕入（10%）" if (has_invoice and tax_10 > 0) else "仕入"
+                writer.writerow([
+                    event_date, debit_account, "", total_amount,
+                    credit_base, employee, total_amount,
+                    summary, tax_kubun, tax_10 + tax_8
+                ])
 
         except Exception as e:
             logger.error(f"CSV conversion error for event: {e}")
