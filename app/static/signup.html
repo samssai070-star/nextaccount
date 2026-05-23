@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>アカウント登録 - NextAccount</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 420px;
+            padding: 40px;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        .logo h1 .next { color: #0052cc; }
+        .logo h1 .account { color: #333; }
+        .logo p {
+            color: #666;
+            font-size: 14px;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .required::after {
+            content: " *";
+            color: #e74c3c;
+        }
+        input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #0052cc;
+            box-shadow: 0 0 0 3px rgba(0,82,204,0.1);
+        }
+        input::placeholder {
+            color: #999;
+        }
+        .checkbox-group {
+            margin-bottom: 20px;
+        }
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0;
+            font-weight: 400;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+        }
+        .checkbox-group a {
+            color: #0052cc;
+            text-decoration: none;
+        }
+        .checkbox-group a:hover {
+            text-decoration: underline;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: #0052cc;
+            color: white;
+            margin-bottom: 15px;
+        }
+        .btn-primary:hover {
+            background: #0041a1;
+        }
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .link-text {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+        .link-text a {
+            color: #0052cc;
+            text-decoration: none;
+        }
+        .link-text a:hover {
+            text-decoration: underline;
+        }
+        .error-message {
+            color: #e74c3c;
+            font-size: 14px;
+            margin-top: 5px;
+            display: none;
+        }
+        .success-message {
+            color: #27ae60;
+            font-size: 14px;
+            margin-top: 5px;
+            display: none;
+        }
+        .alert {
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .alert.error {
+            background: #fadbd8;
+            color: #c0392b;
+            border: 1px solid #e74c3c;
+        }
+        .alert.success {
+            background: #d5f4e6;
+            color: #27ae60;
+            border: 1px solid #27ae60;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0052cc;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1><span class="next">Next</span><span class="account">Account</span></h1>
+            <p>経費精算管理システム</p>
+        </div>
+
+        <h2 style="text-align: center; margin-bottom: 30px; font-size: 20px; color: #333;">
+            アカウント登録
+        </h2>
+
+        <div class="alert error" id="errorAlert"></div>
+        <div class="alert success" id="successAlert"></div>
+
+        <form id="signupForm">
+            <div class="form-group">
+                <label for="orgName" class="required">企業名（または部門名）</label>
+                <input type="text" id="orgName" name="organization_name" placeholder="例: 株式会社○○" required>
+                <div class="error-message" id="orgNameError"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="userName" class="required">ご担当者の名前</label>
+                <input type="text" id="userName" name="user_name" placeholder="例: 山田太郎" required>
+                <div class="error-message" id="userNameError"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="email" class="required">メールアドレス</label>
+                <input type="email" id="email" name="email" placeholder="例: admin@company.jp" required>
+                <div class="error-message" id="emailError"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="password" class="required">パスワード (8文字以上)</label>
+                <input type="password" id="password" name="password" placeholder="••••••••" required>
+                <div class="error-message" id="passwordError"></div>
+            </div>
+
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" name="terms" required>
+                    <a href="/docs/privacy_policy.html" target="_blank">利用規約</a>と
+                    <a href="/docs/specified_commercial_transaction.html" target="_blank">プライバシーポリシー</a>に同意する
+                </label>
+                <div class="error-message" id="termsError"></div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="submitBtn">
+                アカウント作成して進む
+            </button>
+        </form>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>登録中...</p>
+        </div>
+
+        <div class="link-text">
+            すでにアカウントをお持ちですか？
+            <a href="/login.html">ログイン →</a>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('signupForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const errorAlert = document.getElementById('errorAlert');
+        const successAlert = document.getElementById('successAlert');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Clear previous messages
+            errorAlert.style.display = 'none';
+            successAlert.style.display = 'none';
+
+            const data = {
+                organization_name: document.getElementById('orgName').value,
+                user_name: document.getElementById('userName').value,
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value
+            };
+
+            // Validation
+            if (!data.organization_name) {
+                showError('企業名を入力してください');
+                return;
+            }
+            if (!data.user_name) {
+                showError('名前を入力してください');
+                return;
+            }
+            if (!data.email || !isValidEmail(data.email)) {
+                showError('有効なメールアドレスを入力してください');
+                return;
+            }
+            if (!data.password || data.password.length < 8) {
+                showError('パスワードは8文字以上である必要があります');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || '登録に失敗しました');
+                }
+
+                // Success
+                const token = result.data.token;
+                localStorage.setItem('authToken', token);
+                localStorage.setItem('userId', result.data.user_id);
+                localStorage.setItem('organizationId', result.data.organization_id);
+
+                showSuccess('アカウント作成完了！初期化セットアップへ進みます...');
+
+                // Redirect to setup after 2 seconds
+                setTimeout(() => {
+                    window.location.href = '/setup.html';
+                }, 2000);
+
+            } catch (error) {
+                showError(error.message);
+                submitBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+
+        function showError(message) {
+            errorAlert.textContent = message;
+            errorAlert.style.display = 'block';
+        }
+
+        function showSuccess(message) {
+            successAlert.textContent = message;
+            successAlert.style.display = 'block';
+        }
+
+        function isValidEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+
+        // Check if already logged in
+        if (localStorage.getItem('authToken')) {
+            window.location.href = '/dashboard.html';
+        }
+    </script>
+</body>
+</html>

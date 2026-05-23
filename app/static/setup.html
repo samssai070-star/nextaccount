@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>初期化セットアップ - NextAccount</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        header .progress-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #666;
+            font-size: 14px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        .progress-bar .fill {
+            height: 100%;
+            background: #0052cc;
+            transition: width 0.3s ease;
+        }
+        .main {
+            background: white;
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .step {
+            display: none;
+        }
+        .step.active {
+            display: block;
+        }
+        .step-title {
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .step-description {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .required::after {
+            content: " *";
+            color: #e74c3c;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #0052cc;
+            box-shadow: 0 0 0 3px rgba(0,82,204,0.1);
+        }
+        .month-selector {
+            display: flex;
+            gap: 10px;
+        }
+        .month-selector select {
+            flex: 1;
+        }
+        .month-selector .label-text {
+            align-self: center;
+            color: #666;
+            font-size: 14px;
+        }
+        .radio-group {
+            margin-bottom: 15px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .radio-group:hover {
+            border-color: #0052cc;
+            background: #f8faff;
+        }
+        .radio-group input[type="radio"] {
+            width: auto;
+            margin-right: 8px;
+        }
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0;
+            cursor: pointer;
+        }
+        .department-item, .employee-item {
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f9f9f9;
+        }
+        .department-item .name, .employee-item .name {
+            font-weight: 500;
+            color: #333;
+        }
+        .department-item .actions, .employee-item .actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-small.edit {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .btn-small.edit:hover {
+            background: #e0e0e0;
+        }
+        .btn-small.delete {
+            background: #fadbd8;
+            color: #c0392b;
+        }
+        .btn-small.delete:hover {
+            background: #f5b7b1;
+        }
+        .add-btn {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 10px 15px;
+            background: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .add-btn:hover {
+            background: #e0e0e0;
+        }
+        .add-btn::before {
+            content: "+ ";
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .form-row.full {
+            grid-template-columns: 1fr;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+            margin-top: 40px;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: #0052cc;
+            color: white;
+            flex: 1;
+        }
+        .btn-primary:hover {
+            background: #0041a1;
+        }
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        .alert {
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .alert.error {
+            background: #fadbd8;
+            color: #c0392b;
+            border: 1px solid #e74c3c;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0052cc;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .slack-connect-section {
+            padding: 20px;
+            background: #f8faff;
+            border: 2px dashed #0052cc;
+            border-radius: 4px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .slack-connect-section .btn-slack {
+            background: #36C5F0;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        .slack-connect-section .btn-slack:hover {
+            background: #2fb5d0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>NextAccount セットアップ</h1>
+            <div class="progress-info">
+                <span id="stepInfo">STEP 1 / 4</span>
+                <span id="progressPercent">25%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="fill" id="progressFill" style="width: 25%"></div>
+            </div>
+        </header>
+
+        <div class="main">
+            <div class="alert error" id="errorAlert"></div>
+
+            <!-- STEP 1: 会計年度 -->
+            <div class="step active" id="step1">
+                <div class="step-title">会計年度の設定</div>
+                <div class="step-description">ご企業の会計年度を設定してください</div>
+
+                <form id="step1Form">
+                    <div class="form-group">
+                        <label class="required">開始月を選択</label>
+                        <select id="startMonth" required>
+                            <option value="">選択してください</option>
+                            <option value="1">1月</option>
+                            <option value="2">2月</option>
+                            <option value="3">3月</option>
+                            <option value="4">4月</option>
+                            <option value="5">5月</option>
+                            <option value="6">6月</option>
+                            <option value="7">7月</option>
+                            <option value="8">8月</option>
+                            <option value="9">9月</option>
+                            <option value="10">10月</option>
+                            <option value="11">11月</option>
+                            <option value="12">12月</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label style="margin-bottom: 15px;">一般的な会計年度:</label>
+                        <div class="radio-group" onclick="selectMonth(1)">
+                            <label>
+                                <input type="radio" name="preset" value="1">
+                                <span>1月～12月（暦年度）</span>
+                            </label>
+                        </div>
+                        <div class="radio-group" onclick="selectMonth(4)">
+                            <label>
+                                <input type="radio" name="preset" value="4">
+                                <span>4月～3月（日本標準）</span>
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- STEP 2: 部門 -->
+            <div class="step" id="step2">
+                <div class="step-title">部門の管理</div>
+                <div class="step-description">ご組織の部門を登録してください</div>
+
+                <form id="step2Form">
+                    <div class="form-group">
+                        <label for="deptName" class="required">部門名を入力</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="deptName" placeholder="例: 営業部">
+                            <button type="button" class="add-btn" style="margin: 0;" onclick="addDepartment()">追加</button>
+                        </div>
+                    </div>
+
+                    <div id="deptList" style="margin-top: 20px;">
+                        <p style="color: #999; font-size: 14px;">部門をまず追加してください</p>
+                    </div>
+                </form>
+            </div>
+
+            <!-- STEP 3: 従業員 -->
+            <div class="step" id="step3">
+                <div class="step-title">従業員の管理</div>
+                <div class="step-description">従業員を登録してください</div>
+
+                <form id="step3Form">
+                    <div class="form-group">
+                        <label for="empName" class="required">氏名</label>
+                        <input type="text" id="empName" placeholder="山田太郎">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="empEmail" class="required">メールアドレス</label>
+                            <input type="email" id="empEmail" placeholder="yamada@company.jp">
+                        </div>
+                        <div class="form-group">
+                            <label for="empSlack" class="required">Slack ユーザー ID</label>
+                            <input type="text" id="empSlack" placeholder="U0123456">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="empDept" class="required">部門</label>
+                        <select id="empDept" required>
+                            <option value="">選択してください</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="margin-bottom: 10px;">権限</label>
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                            <label>
+                                <input type="checkbox" name="perm" value="upload_receipt" checked>
+                                領収書アップロード
+                            </label>
+                            <label>
+                                <input type="checkbox" name="perm" value="approve_journal">
+                                仕訳確認
+                            </label>
+                            <label>
+                                <input type="checkbox" name="perm" value="export_csv">
+                                CSV エクスポート
+                            </label>
+                            <label>
+                                <input type="checkbox" name="perm" value="manage_employees">
+                                管理者
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="button" class="add-btn" onclick="addEmployee()">従業員を追加</button>
+
+                    <div id="empList" style="margin-top: 20px;">
+                        <p style="color: #999; font-size: 14px;">従業員をまず追加してください</p>
+                    </div>
+                </form>
+            </div>
+
+            <!-- STEP 4: Slack -->
+            <div class="step" id="step4">
+                <div class="step-title">Slack ワークスペース連携</div>
+                <div class="step-description">Slack ワークスペースを接続してください</div>
+
+                <div class="slack-connect-section">
+                    <p style="margin-bottom: 10px;">Slack でこのアプリを承認</p>
+                    <button type="button" class="btn-slack" onclick="startSlackOAuth()">
+                        Slack でこのアプリを承認
+                    </button>
+                    <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                        クリックするとSlackの認可画面が開きます
+                    </p>
+                </div>
+
+                <form id="step4Form">
+                    <div id="slackInfo" style="display: none; padding: 15px; background: #d5f4e6; border-radius: 4px; margin-bottom: 20px;">
+                        <p style="color: #27ae60; margin-bottom: 5px;">✓ Slack ワークスペースが接続されました</p>
+                        <p style="color: #666; font-size: 14px;">
+                            ワークスペース: <strong id="slackWorkspaceName"></strong>
+                        </p>
+                    </div>
+                </form>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>処理中...</p>
+            </div>
+
+            <div class="buttons">
+                <button type="button" class="btn btn-secondary" onclick="previousStep()" id="prevBtn" style="display: none;">戻る</button>
+                <button type="button" class="btn btn-primary" onclick="nextStep()" id="nextBtn">次へ</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        const departments = [];
+        const employees = [];
+        let slackConnected = false;
+
+        function updateUI() {
+            // Update step visibility
+            document.querySelectorAll('.step').forEach((step, idx) => {
+                step.classList.remove('active');
+                if (idx === currentStep - 1) {
+                    step.classList.add('active');
+                }
+            });
+
+            // Update progress
+            const progress = (currentStep / 4) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('stepInfo').textContent = `STEP ${currentStep} / 4`;
+            document.getElementById('progressPercent').textContent = Math.round(progress) + '%';
+
+            // Update buttons
+            document.getElementById('prevBtn').style.display = currentStep === 1 ? 'none' : 'block';
+            const nextBtn = document.getElementById('nextBtn');
+            if (currentStep === 4) {
+                nextBtn.textContent = 'セットアップ完了！';
+            } else {
+                nextBtn.textContent = '次へ';
+            }
+        }
+
+        function selectMonth(month) {
+            document.getElementById('startMonth').value = month;
+        }
+
+        function addDepartment() {
+            const name = document.getElementById('deptName').value.trim();
+            if (!name) {
+                showError('部門名を入力してください');
+                return;
+            }
+
+            departments.push({ name, id: Date.now() });
+            document.getElementById('deptName').value = '';
+            renderDepartments();
+            updateEmployeeSelectOptions();
+        }
+
+        function renderDepartments() {
+            const list = document.getElementById('deptList');
+            if (departments.length === 0) {
+                list.innerHTML = '<p style="color: #999; font-size: 14px;">部門をまず追加してください</p>';
+                return;
+            }
+
+            list.innerHTML = departments.map(d => `
+                <div class="department-item">
+                    <div class="name">${d.name}</div>
+                    <div class="actions">
+                        <button type="button" class="btn-small delete" onclick="removeDepartment(${d.id})">削除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function removeDepartment(id) {
+            const idx = departments.findIndex(d => d.id === id);
+            if (idx !== -1) {
+                departments.splice(idx, 1);
+            }
+            renderDepartments();
+            updateEmployeeSelectOptions();
+        }
+
+        function updateEmployeeSelectOptions() {
+            const select = document.getElementById('empDept');
+            select.innerHTML = '<option value="">選択してください</option>' +
+                departments.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+        }
+
+        function addEmployee() {
+            const name = document.getElementById('empName').value.trim();
+            const email = document.getElementById('empEmail').value.trim();
+            const slack = document.getElementById('empSlack').value.trim();
+            const dept = document.getElementById('empDept').value;
+
+            if (!name || !email || !slack || !dept) {
+                showError('すべての項目を入力してください');
+                return;
+            }
+
+            const deptName = departments.find(d => d.id == dept)?.name || '';
+            employees.push({
+                id: Date.now(),
+                name, email, slack, dept: parseInt(dept), deptName
+            });
+
+            document.getElementById('empName').value = '';
+            document.getElementById('empEmail').value = '';
+            document.getElementById('empSlack').value = '';
+            document.getElementById('empDept').value = '';
+            renderEmployees();
+        }
+
+        function renderEmployees() {
+            const list = document.getElementById('empList');
+            if (employees.length === 0) {
+                list.innerHTML = '<p style="color: #999; font-size: 14px;">従業員をまず追加してください</p>';
+                return;
+            }
+
+            list.innerHTML = employees.map(e => `
+                <div class="employee-item">
+                    <div>
+                        <div class="name">${e.name}</div>
+                        <div style="font-size: 12px; color: #666;">${e.email} • ${e.deptName}</div>
+                    </div>
+                    <div class="actions">
+                        <button type="button" class="btn-small delete" onclick="removeEmployee(${e.id})">削除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function removeEmployee(id) {
+            const idx = employees.findIndex(e => e.id === id);
+            if (idx !== -1) {
+                employees.splice(idx, 1);
+            }
+            renderEmployees();
+        }
+
+        function startSlackOAuth() {
+            const token = localStorage.getItem('authToken');
+            const orgId = localStorage.getItem('organizationId');
+
+            fetch('/api/slack/oauth/start', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    window.location.href = result.data.oauth_url;
+                } else {
+                    showError('Slack OAuth が構成されていません');
+                }
+            })
+            .catch(e => showError(e.message));
+        }
+
+        function previousStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateUI();
+            }
+        }
+
+        async function nextStep() {
+            const token = localStorage.getItem('authToken');
+            const orgId = localStorage.getItem('organizationId');
+
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'block';
+
+            try {
+                if (currentStep === 1) {
+                    const month = document.getElementById('startMonth').value;
+                    if (!month) {
+                        showError('開始月を選択してください');
+                        return;
+                    }
+
+                    const response = await fetch('/api/setup/step1', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ start_month: parseInt(month) })
+                    });
+
+                    if (!response.ok) throw new Error('STEP 1 に失敗しました');
+
+                } else if (currentStep === 2) {
+                    if (departments.length === 0) {
+                        showError('最低1つの部門を追加してください');
+                        return;
+                    }
+
+                    const response = await fetch('/api/setup/step2', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            departments: departments.map(d => ({ name: d.name }))
+                        })
+                    });
+
+                    if (!response.ok) throw new Error('STEP 2 に失敗しました');
+
+                } else if (currentStep === 3) {
+                    if (employees.length === 0) {
+                        showError('最低1人の従業員を追加してください');
+                        return;
+                    }
+
+                    const response = await fetch('/api/setup/step3', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            employees: employees.map(e => ({
+                                full_name: e.name,
+                                email: e.email,
+                                slack_user_id: e.slack,
+                                department_id: e.dept
+                            }))
+                        })
+                    });
+
+                    if (!response.ok) throw new Error('STEP 3 に失敗しました');
+
+                } else if (currentStep === 4) {
+                    if (!slackConnected) {
+                        showError('Slack を接続してください');
+                        return;
+                    }
+
+                    // セットアップ完了
+                    window.location.href = '/dashboard.html';
+                    return;
+                }
+
+                currentStep++;
+                updateUI();
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function showError(message) {
+            const alert = document.getElementById('errorAlert');
+            alert.textContent = message;
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+
+        // Check authentication
+        if (!localStorage.getItem('authToken')) {
+            window.location.href = '/login.html';
+        }
+
+        updateUI();
+    </script>
+</body>
+</html>

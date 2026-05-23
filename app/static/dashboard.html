@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ダッシュボード - NextAccount</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+        header {
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        header h1 {
+            font-size: 20px;
+            color: #333;
+        }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .user-info {
+            text-align: right;
+            font-size: 14px;
+        }
+        .user-info .name {
+            color: #333;
+            font-weight: 500;
+        }
+        .user-info .org {
+            color: #666;
+            font-size: 12px;
+        }
+        .btn-logout {
+            padding: 8px 16px;
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .btn-logout:hover {
+            background: #e0e0e0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .summary-card .label {
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+        .summary-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0052cc;
+        }
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .section h2 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .info-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        .info-label {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        .info-value {
+            color: #333;
+            font-weight: 500;
+        }
+        .list {
+            list-style: none;
+        }
+        .list li {
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .list li:last-child {
+            border-bottom: none;
+        }
+        .list-item-name {
+            color: #333;
+            font-weight: 500;
+        }
+        .list-item-meta {
+            color: #666;
+            font-size: 13px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .btn {
+            padding: 10px 16px;
+            background: #0052cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: inline-block;
+            text-decoration: none;
+        }
+        .btn:hover {
+            background: #0041a1;
+        }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0052cc;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .action-buttons .btn {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>NextAccount Dashboard</h1>
+        <div class="header-right">
+            <div class="user-info">
+                <div class="name" id="userName">ユーザー名</div>
+                <div class="org" id="orgName">組織名</div>
+            </div>
+            <button class="btn-logout" onclick="logout()">ログアウト</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>データを読み込み中...</p>
+        </div>
+
+        <div id="content" style="display: none;">
+            <!-- Summary Cards -->
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="label">従業員数</div>
+                    <div class="value" id="employeeCount">0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">部門数</div>
+                    <div class="value" id="departmentCount">0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">会計年度</div>
+                    <div class="value" style="font-size: 16px; color: #333;">
+                        <span id="fiscalYear">2026</span>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">Slack接続</div>
+                    <div class="value" style="font-size: 16px; color: #27ae60;">
+                        <span id="slackStatus">✓</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Organization Info -->
+            <div class="section">
+                <h2>組織情報</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">企業名</div>
+                        <div class="info-value" id="displayOrgName">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">会計年度</div>
+                        <div class="info-value">
+                            <span id="fiscalYearRange">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Departments -->
+            <div class="section">
+                <h2>部門一覧</h2>
+                <div id="departmentsList">
+                    <div class="empty-state">
+                        <div class="icon">📁</div>
+                        <p>部門情報を読み込み中...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Employees -->
+            <div class="section">
+                <h2>従業員一覧</h2>
+                <div id="employeesList">
+                    <div class="empty-state">
+                        <div class="icon">👥</div>
+                        <p>従業員情報を読み込み中...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Accounts -->
+            <div class="section">
+                <h2>ユーザーアカウント</h2>
+                <div id="usersList">
+                    <div class="empty-state">
+                        <div class="icon">🔐</div>
+                        <p>ユーザー情報を読み込み中...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="section">
+                <h2>クイックアクション</h2>
+                <div class="action-buttons">
+                    <a href="/settings.html" class="btn btn-secondary">⚙️ 設定</a>
+                    <button class="btn btn-secondary" onclick="downloadGuide()">📖 使用方法</button>
+                    <button class="btn btn-secondary" onclick="contactSupport()">💬 サポート</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('authToken');
+        const userId = localStorage.getItem('userId');
+        const orgId = localStorage.getItem('organizationId');
+
+        async function loadDashboard() {
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+
+            try {
+                // Load user info
+                const userRes = await fetch('/api/auth/me', { headers });
+                if (!userRes.ok) throw new Error('Failed to load user');
+                const userData = await userRes.json();
+                if (userData.success) {
+                    const user = userData.data;
+                    document.getElementById('userName').textContent = user.full_name;
+                    document.getElementById('orgName').textContent = user.organization_name;
+                    document.getElementById('displayOrgName').textContent = user.organization_name;
+                }
+
+                // Load summary
+                const summaryRes = await fetch('/api/dashboard/summary', { headers });
+                const summaryData = await summaryRes.json();
+                if (summaryData.success) {
+                    const summary = summaryData.data;
+                    document.getElementById('employeeCount').textContent = summary.employee_count || 0;
+                    document.getElementById('departmentCount').textContent = summary.department_count || 0;
+                    if (summary.fiscal_year_start) {
+                        const start = new Date(summary.fiscal_year_start);
+                        const end = new Date(summary.fiscal_year_end);
+                        document.getElementById('fiscalYear').textContent = start.getFullYear();
+                        document.getElementById('fiscalYearRange').textContent =
+                            `${start.getFullYear()}年${start.getMonth()+1}月～${end.getFullYear()}年${end.getMonth()+1}月`;
+                    }
+                }
+
+                // Load departments
+                const deptsRes = await fetch('/api/dashboard/departments', { headers });
+                const deptsData = await deptsRes.json();
+                if (deptsData.success && deptsData.data.length > 0) {
+                    const deptsList = document.getElementById('departmentsList');
+                    deptsList.innerHTML = '<ul class="list">' +
+                        deptsData.data.map(d => `
+                            <li>
+                                <div class="list-item-name">${d.name}</div>
+                                <div class="list-item-meta">${d.code || '-'}</div>
+                            </li>
+                        `).join('') +
+                        '</ul>';
+                }
+
+                // Load employees
+                const empsRes = await fetch('/api/dashboard/employees', { headers });
+                const empsData = await empsRes.json();
+                if (empsData.success && empsData.data.length > 0) {
+                    const empsList = document.getElementById('employeesList');
+                    empsList.innerHTML = '<ul class="list">' +
+                        empsData.data.map(e => `
+                            <li>
+                                <div>
+                                    <div class="list-item-name">${e.full_name}</div>
+                                    <div class="list-item-meta">${e.email} • ${e.department_name || '-'}</div>
+                                </div>
+                            </li>
+                        `).join('') +
+                        '</ul>';
+                }
+
+                // Load users
+                const usersRes = await fetch('/api/dashboard/users', { headers });
+                const usersData = await usersRes.json();
+                if (usersData.success && usersData.data.length > 0) {
+                    const usersList = document.getElementById('usersList');
+                    usersList.innerHTML = '<ul class="list">' +
+                        usersData.data.map(u => `
+                            <li>
+                                <div>
+                                    <div class="list-item-name">${u.full_name}</div>
+                                    <div class="list-item-meta">${u.email}${u.is_admin ? ' (管理者)' : ''}</div>
+                                </div>
+                            </li>
+                        `).join('') +
+                        '</ul>';
+                }
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                document.getElementById('loading').innerHTML =
+                    '<p style="color: #e74c3c;">データを読み込めませんでした。<br>' +
+                    '<a href="/login.html" style="color: #0052cc;">ログインに戻る</a></p>';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userId');
+            localStorage.removeItem('organizationId');
+            window.location.href = '/login.html';
+        }
+
+        function downloadGuide() {
+            alert('使用方法:\n\n1. Slack の #経費申請 チャンネルに領収書を送付\n2. システムが自動でOCR処理\n3. 仕訳が生成されます\n4. ここのダッシュボードで確認・CSV導出');
+        }
+
+        function contactSupport() {
+            window.location.href = 'mailto:support@nextaccount.jp';
+        }
+
+        loadDashboard();
+    </script>
+</body>
+</html>
