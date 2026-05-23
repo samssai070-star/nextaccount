@@ -1,7 +1,7 @@
 from __future__ import annotations
 import os, sys, signal, threading, logging
 from datetime import datetime
-from flask import Flask, jsonify, request, redirect
+from flask import Flask, jsonify, request, redirect, send_from_directory
 
 logging.basicConfig(
     level=getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO),
@@ -16,7 +16,10 @@ REQUIRED_VARS = ["SLACK_BOT_TOKEN","SLACK_APP_TOKEN","DATABASE_URL",
 def check_env():
     return [v for v in REQUIRED_VARS if not os.environ.get(v)]
 
-flask_app = Flask(__name__)
+# Setup Flask app with static files
+flask_app = Flask(__name__,
+    static_folder=os.path.join(os.path.dirname(__file__), 'static'),
+    static_url_path='/static')
 _start_time = datetime.now()
 _bot_healthy = threading.Event()
 
@@ -47,6 +50,15 @@ def health():
 @flask_app.route("/", methods=["GET"])
 def root():
     return jsonify({"service": "NextAccount v2", "version": "2.0.0"}), 200
+
+@flask_app.route("/<path:filename>", methods=["GET"])
+def serve_static(filename):
+    """Serve static HTML files"""
+    static_dir = flask_app.static_folder
+    file_path = os.path.join(static_dir, filename)
+    if os.path.isfile(file_path) and filename.endswith('.html'):
+        return send_from_directory(static_dir, filename)
+    return jsonify({"error": "Not found"}), 404
 
 @flask_app.route("/webhook/stripe", methods=["POST"])
 def stripe_webhook():
