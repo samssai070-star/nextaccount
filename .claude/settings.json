@@ -1,0 +1,12 @@
+{
+  "sandbox": {
+    "network": {
+      "allowedDomains": [
+        "nextaccount.jp",
+        "*.nextaccount.jp",
+        "https://nextaccount.jp",
+        "https://*.nextaccount.jp"
+      ]
+    }
+  }
+}
