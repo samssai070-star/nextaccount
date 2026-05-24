@@ -20,7 +20,11 @@ from .database import (
     upsert_user,
     update_commute_section,
 )
-from .sheets import SheetsManager
+try:
+    from .sheets import SheetsManager
+except ImportError as e:
+    get_logger().warning(f"Failed to import SheetsManager: {e}")
+    SheetsManager = None
 
 __all__ = [
     "get_logger",
