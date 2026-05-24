@@ -12,6 +12,7 @@ services:
     volumes:
       - ./secrets:/secrets
       - ./logs:/tmp/logs
+      - ./app/static:/app/static
     ports:
       - "127.0.0.1:8080:8080"
     healthcheck:
