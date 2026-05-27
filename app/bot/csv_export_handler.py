@@ -71,6 +71,13 @@ def setup_csv_commands(app, get_tenant_fn, logger_obj):
                     {"type": "button", "text": {"type": "plain_text", "text": "🔵 JDL"}, "action_id": "csv_jdl"},
                     {"type": "button", "text": {"type": "plain_text", "text": "⚡ MJS"}, "action_id": "csv_mjs"},
                 ]
+            },
+            {"type": "section", "text": {"type": "mrkdwn", "text": "*クラウド会計:*"}},
+            {
+                "type": "actions",
+                "elements": [
+                    {"type": "button", "text": {"type": "plain_text", "text": "🌐 クラウド円簿"}, "action_id": "csv_yenbo"},
+                ]
             }
         ]
         
@@ -99,7 +106,7 @@ def setup_csv_commands(app, get_tenant_fn, logger_obj):
     for fmt_code, fmt_name in [
         ("csv_yayoi", "yayoi"), ("csv_freee", "freee"), ("csv_mf", "mf"), ("csv_csv", "csv"),
         ("csv_kanjo", "kanjo_ahra"), ("csv_pca", "pca"), ("csv_tkc", "tkc"),
-        ("csv_jdl", "jdl"), ("csv_mjs", "mjs")
+        ("csv_jdl", "jdl"), ("csv_mjs", "mjs"), ("csv_yenbo", "yenbo")
     ]:
         def make_handler(fmt):
             def handler(ack, body, client):
@@ -108,7 +115,7 @@ def setup_csv_commands(app, get_tenant_fn, logger_obj):
         
         app.action(fmt_code)(make_handler(fmt_name))
 
-    log.info("✅ CSV export (9 formats + date range)")
+    log.info("✅ CSV export (10 formats + date range)")
 
 
 def _export(ack, body, client, log, fmt, get_tenant_fn):
@@ -158,6 +165,7 @@ def _export(ack, body, client, log, fmt, get_tenant_fn):
         
         fmt_funcs = {
             "yayoi": ("core.yayoi_export", "build_yayoi_csv", "yayoi", "弥生"),
+            "yenbo": ("core.yayoi_export", "build_yenbo_csv", "yenbo", "クラウド円簿"),
             "freee": ("core.csv_export", "build_freee_csv", "freee", "freee"),
             "mf": ("core.csv_export", "build_mf_csv", "mf", "MF"),
             "csv": ("core.csv_export", "build_generic_csv", "csv", "汎用"),

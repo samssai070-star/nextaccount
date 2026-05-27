@@ -2,6 +2,9 @@
 NextAccount v2 — core/yayoi_export.py
 T番号あり → 1行仕訳（全額控除）
 T番号なし → 2行仕訳（控除可能分 + 雑損失）
+
+build_yayoi_csv  : 弥生会計デスクトップ向け（26列 A-Z、Shift-JIS）
+build_yenbo_csv  : クラウド円簿(yenbo.jp)向け（25列 A-Y、Shift-JIS）
 """
 from __future__ import annotations
 import io, csv, logging
@@ -17,7 +20,18 @@ def _tax_kubun(tax_10: int, tax_8: int = 0) -> str:
 def _make_row(voucher_no, event_date, debit_account, debit_sub, tax_kubun,
               debit_amount, debit_tax, credit_account, credit_sub,
               credit_amount, summary, event_id, memo="") -> list:
-    # 26列固定（弥生会計仕訳日記帳インポート形式）
+    # 26列（弥生会計デスクトップ A-Z）
+    return [
+        2000, voucher_no, "", event_date, debit_account, debit_sub, "",
+        tax_kubun, debit_amount, debit_tax,
+        credit_account, credit_sub, "", "対象外", credit_amount, 0,
+        summary, event_id, "", "0", "", memo, "", "", "", "no"
+    ]
+
+def _make_row_yenbo(voucher_no, event_date, debit_account, debit_sub, tax_kubun,
+                    debit_amount, debit_tax, credit_account, credit_sub,
+                    credit_amount, summary, event_id, memo="") -> list:
+    # 25列（クラウド円簿 A-Y）
     return [
         2000, voucher_no, "", event_date, debit_account, debit_sub, "",
         tax_kubun, debit_amount, debit_tax,
@@ -25,7 +39,9 @@ def _make_row(voucher_no, event_date, debit_account, debit_sub, tax_kubun,
         summary, event_id, "", "0", "", memo, "", "", "no"
     ]
 
-def build_yayoi_csv(events: list[dict]) -> bytes:
+
+def _build_csv(events: list[dict], row_fn) -> str:
+    """共通の仕訳CSV生成ロジック。row_fn に _make_row または _make_row_yenbo を渡す。"""
     output = io.StringIO()
     writer = csv.writer(output, lineterminator="\r\n")
     voucher_no = 1
@@ -60,7 +76,7 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
             if both:
                 # 10%+8%混在: 2行に分割
                 ded_10 = calc_deductible_tax(tax_10, has_invoice, expense_date)
-                writer.writerow(_make_row(
+                writer.writerow(row_fn(
                     voucher_no, event_date, debit_account, "",
                     _tax_kubun(tax_10, 0),
                     taxable_10 + tax_10, ded_10["deductible_tax"],
@@ -69,7 +85,7 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
                     "適格請求書（10%）" if has_invoice else ded_10["deduction_label"]
                 ))
                 ded_8 = calc_deductible_tax(tax_8, has_invoice, expense_date)
-                writer.writerow(_make_row(
+                writer.writerow(row_fn(
                     voucher_no, event_date, debit_account, "",
                     _tax_kubun(0, tax_8),
                     taxable_8 + tax_8, ded_8["deductible_tax"],
@@ -97,7 +113,7 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
                 deduction_label    = deduction["deduction_label"]
 
                 if has_invoice or non_deductible_tax == 0:
-                    writer.writerow(_make_row(
+                    writer.writerow(row_fn(
                         voucher_no, event_date, debit_account, "",
                         _tax_kubun(tax_10, tax_8),
                         debit_amount, debit_tax,
@@ -106,14 +122,14 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
                     ))
                 else:
                     deductible_tax = deduction["deductible_tax"]
-                    writer.writerow(_make_row(
+                    writer.writerow(row_fn(
                         voucher_no, event_date, debit_account, "",
                         _tax_kubun(deductible_tax, 0),
                         debit_amount, deductible_tax,
                         credit_base, employee, total_amount,
                         summary, event_id, f"経過措置（{deduction_label}）控除可能分"
                     ))
-                    writer.writerow(_make_row(
+                    writer.writerow(row_fn(
                         voucher_no, event_date, "雑損失", "", "対象外",
                         non_deductible_tax, 0,
                         credit_base, employee, non_deductible_tax,
@@ -127,7 +143,21 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
             logger.error(f"CSV変換エラー ({evt.get('event_id')}): {e}")
             continue
 
-    csv_str = output.getvalue()
+    return output.getvalue()
+
+
+def build_yayoi_csv(events: list[dict]) -> bytes:
+    """弥生会計デスクトップ向け（26列 A-Z、Shift-JIS）"""
+    csv_str = _build_csv(events, _make_row)
+    try:
+        return csv_str.encode("shift_jis", errors="replace")
+    except Exception:
+        return csv_str.encode("utf-8")
+
+
+def build_yenbo_csv(events: list[dict]) -> bytes:
+    """クラウド円簿(yenbo.jp)向け（25列 A-Y、Shift-JIS）"""
+    csv_str = _build_csv(events, _make_row_yenbo)
     try:
         return csv_str.encode("shift_jis", errors="replace")
     except Exception:
