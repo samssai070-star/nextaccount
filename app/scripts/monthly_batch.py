@@ -29,9 +29,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 load_dotenv()
 
-from core.database import list_all_events_by_month, init_database
+from core.database import list_all_events_by_month, init_database, _get_conn
 from core.sheets import SheetsManager
 from core.config import GOOGLE_SHEET_ID, FINANCE_SUMMARY_SHEET_NAME
+
+
+def _get_all_active_tenants():
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, google_sheet_id FROM tenants WHERE is_active = TRUE")
+            return [{"id": str(r[0]), "google_sheet_id": r[1]} for r in cur.fetchall()]
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,45 +50,49 @@ logger = logging.getLogger(__name__)
 def run_batch(year: int, month: int) -> None:
     logger.info(f"月次バッチ開始: {year:04d}/{month:02d}")
 
-    # DB から全イベントを取得
-    events = list_all_events_by_month(year, month)
-    logger.info(f"対象件数: {len(events)} 件")
-
-    if not events:
-        logger.info("対象データなし — 終了")
+    tenants = _get_all_active_tenants()
+    if not tenants:
+        logger.error("アクティブなテナントが見つかりません")
         return
 
-    if not GOOGLE_SHEET_ID:
-        logger.error("GOOGLE_SHEET_ID が設定されていません")
-        return
+    for tenant in tenants:
+        tenant_id = tenant["id"]
+        sheet_id  = tenant.get("google_sheet_id") or GOOGLE_SHEET_ID
+        logger.info(f"テナント処理: {tenant_id}")
 
-    mgr = SheetsManager(GOOGLE_SHEET_ID)
+        if not sheet_id:
+            logger.error(f"GOOGLE_SHEET_ID が未設定 — テナント {tenant_id} をスキップ")
+            continue
 
-    # 社員ごとにグループ化
-    from collections import defaultdict
-    by_employee: dict[str, list] = defaultdict(list)
-    for evt in events:
-        emp = evt.get("employee_name", "不明")
-        by_employee[emp].append(evt)
+        events = list_all_events_by_month(year, month, tenant_id)
+        logger.info(f"  対象件数: {len(events)} 件")
 
-    # 社員別シートを再構築
-    for employee_name, emp_events in by_employee.items():
-        logger.info(f"  社員シート再構築: {employee_name} ({len(emp_events)} 件)")
-        ok = mgr.rebuild_employee_sheet(employee_name, year, month, emp_events)
+        if not events:
+            logger.info("  対象データなし — スキップ")
+            continue
+
+        mgr = SheetsManager(sheet_id)
+
+        from collections import defaultdict
+        by_employee: dict[str, list] = defaultdict(list)
+        for evt in events:
+            emp = evt.get("employee_name", "不明")
+            by_employee[emp].append(evt)
+
+        for employee_name, emp_events in by_employee.items():
+            logger.info(f"  社員シート再構築: {employee_name} ({len(emp_events)} 件)")
+            ok = mgr.rebuild_employee_sheet(employee_name, year, month, emp_events)
+            if ok:
+                logger.info(f"  ✅ {employee_name} 完了")
+            else:
+                logger.error(f"  ❌ {employee_name} 失敗")
+
+        logger.info(f"  財務集計シート再構築: {len(events)} 件")
+        ok = mgr.rebuild_employee_sheet(FINANCE_SUMMARY_SHEET_NAME, year, month, events)
         if ok:
-            logger.info(f"  ✅ {employee_name} 完了")
+            logger.info("  ✅ 財務集計シート完了")
         else:
-            logger.error(f"  ❌ {employee_name} 失敗")
-
-    # 財務集計シートを再構築
-    logger.info(f"財務集計シート再構築: {len(events)} 件")
-    ok = mgr.rebuild_employee_sheet(
-        FINANCE_SUMMARY_SHEET_NAME, year, month, events
-    )
-    if ok:
-        logger.info("✅ 財務集計シート完了")
-    else:
-        logger.error("❌ 財務集計シート失敗")
+            logger.error("  ❌ 財務集計シート失敗")
 
     logger.info("月次バッチ完了")
 
