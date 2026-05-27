@@ -18,7 +18,7 @@ def _make_row(voucher_no, event_date, debit_account, debit_sub, tax_kubun,
               debit_amount, debit_tax, credit_account, credit_sub,
               credit_amount, summary, event_id, memo="") -> list:
     return [
-        voucher_no, event_date, debit_account, debit_sub, "",
+        2000, voucher_no, "", event_date, debit_account, debit_sub, "",
         tax_kubun, debit_amount, debit_tax,
         credit_account, credit_sub, "", "対象外", credit_amount, 0,
         summary, event_id, "", "0", "", memo, "0", "", "", "", ""
@@ -62,7 +62,7 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
                 writer.writerow(_make_row(
                     voucher_no, event_date, debit_account, "",
                     _tax_kubun(tax_10, 0),
-                    taxable_10, ded_10["deductible_tax"], credit_base, employee, taxable_10 + tax_10,
+                    taxable_10 + tax_10, ded_10["deductible_tax"], credit_base, employee, taxable_10 + tax_10,
                     summary, event_id, ded_10["deduction_label"] if not has_invoice else "適格請求書（10%）"
                 ))
                 # 8% 行
@@ -70,7 +70,7 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
                 writer.writerow(_make_row(
                     voucher_no, event_date, debit_account, "",
                     _tax_kubun(0, tax_8),
-                    taxable_8, ded_8["deductible_tax"], credit_base, employee, taxable_8 + tax_8,
+                    taxable_8 + tax_8, ded_8["deductible_tax"], credit_base, employee, taxable_8 + tax_8,
                     summary, event_id, ded_8["deduction_label"] if not has_invoice else "適格請求書（8%）"
                 ))
             else:
@@ -97,14 +97,14 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
                     writer.writerow(_make_row(
                         voucher_no, event_date, debit_account, "",
                         _tax_kubun(tax_10, tax_8),
-                        taxable_amount, tax_amount, credit_base, employee, total_amount,
+                        taxable_amount + tax_amount, tax_amount, credit_base, employee, total_amount,
                         summary, event_id, "適格請求書（全額控除）"
                     ))
                 else:
                     writer.writerow(_make_row(
                         voucher_no, event_date, debit_account, "",
                         _tax_kubun(deductible_tax, 0),
-                        taxable_amount, deductible_tax, credit_base, employee, total_amount,
+                        taxable_amount + deductible_tax, deductible_tax, credit_base, employee, total_amount,
                         summary, event_id, f"経過措置（{deduction_label}）控除可能分"
                     ))
                     writer.writerow(_make_row(
