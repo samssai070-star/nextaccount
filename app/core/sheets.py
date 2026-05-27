@@ -208,6 +208,20 @@ class SheetsManager:
             )
         )
 
+    def _write_rows_batch(self, sheet_name: str, rows: list[list]) -> None:
+        """複数行を1回のAPIコールで書き込む（レート制限対策）"""
+        if not rows:
+            return
+        self._execute(
+            self.service.spreadsheets().values().append(
+                spreadsheetId=self.spreadsheet_id,
+                range=f"'{sheet_name}'!A2",
+                valueInputOption="USER_ENTERED",
+                insertDataOption="INSERT_ROWS",
+                body={"values": rows},
+            )
+        )
+
     def _get_all_values(self, sheet_name: str) -> list[list]:
         """シートの全データを取得する"""
         result = self._execute(
@@ -628,6 +642,7 @@ class SheetsManager:
                 )
 
             from .accounting import JournalEntry
+            all_rows = []
             for evt in events:
                 entry = JournalEntry(
                     event_id          = evt.get("event_id", ""),
@@ -648,7 +663,8 @@ class SheetsManager:
                     evidence_url      = evt.get("evidence_url", ""),
                     purpose           = evt.get("purpose", "") or evt.get("memo", ""),
                 )
-                self._append_row(sheet_name, entry.to_sheet_row())
+                all_rows.append(entry.to_sheet_row())
+            self._write_rows_batch(sheet_name, all_rows)
 
             self._sort_by_date(sheet_name)
             self._update_monthly_total(sheet_name, year, month)
