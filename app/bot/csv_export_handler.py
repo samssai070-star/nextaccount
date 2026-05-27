@@ -75,9 +75,11 @@ def setup_csv_commands(app, get_tenant_fn, logger_obj):
             }
         ]
         
+        enterprise_block = blocks[7]
+        log.info(f"CSV menu blocks={len(blocks)}, enterprise_elements={len(enterprise_block['elements'])}, last_action_id={enterprise_block['elements'][-1]['action_id']}")
         client.chat_postMessage(channel=channel_id, text="CSV エクスポート", blocks=blocks)
         user_date_selections[user_id] = {"start": start, "end": end}
-        log.info(f"CSV menu: {user_id}")
+        log.info(f"CSV menu sent: {user_id}")
 
     @app.action("csv_start_date")
     def handle_start(ack, body, client):
