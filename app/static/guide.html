@@ -16,9 +16,15 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);line-heigh
 .nav-logo .blue{color:var(--accent);}
 .nav-back{font-family:var(--mono);font-size:0.7rem;color:var(--muted);text-decoration:none;}
 .wrap{max-width:800px;margin:0 auto;padding:3rem 2rem;}
+.header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:3rem;gap:2rem;}
+.header-content{flex:1;}
 .doc-label{font-family:var(--mono);font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted2);margin-bottom:0.5rem;}
 .doc-title{font-size:1.8rem;font-weight:700;letter-spacing:-0.03em;margin-bottom:0.5rem;}
-.doc-desc{font-size:0.85rem;color:var(--muted);margin-bottom:3rem;line-height:1.8;}
+.doc-desc{font-size:0.85rem;color:var(--muted);line-height:1.8;}
+.lang-switcher{display:flex;gap:0.5rem;}
+.lang-btn{font-family:var(--mono);font-size:0.75rem;padding:0.5rem 0.8rem;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;border-radius:3px;transition:all 0.2s;}
+.lang-btn:hover{border-color:var(--accent);color:var(--accent);}
+.lang-btn.active{background:var(--accent);color:white;border-color:var(--accent);}
 h2{font-size:0.95rem;font-weight:700;margin:2.5rem 0 1rem;padding-left:0.8rem;border-left:2.5px solid var(--accent);}
 h3{font-size:0.88rem;font-weight:600;margin:1.5rem 0 0.8rem;color:var(--ink);}
 p{font-size:0.82rem;color:var(--muted);margin-bottom:0.8rem;line-height:1.9;}
@@ -36,6 +42,8 @@ a{color:var(--accent);text-decoration:none;}
 .toc-box h3{margin:0 0 1rem;color:var(--accent);}
 .toc-box ul{margin:0;padding-left:1.2rem;}
 .toc-box li{margin-bottom:0.4rem;}
+.toc-box a{color:var(--accent);}
+.toc-box a:hover{text-decoration:underline;}
 .tip-box{background:rgba(26,92,255,0.05);padding:1rem 1.2rem;border-left:2.5px solid var(--accent);margin:1rem 0;border-radius:4px;font-size:0.8rem;line-height:1.8;}
 .code-block{background:var(--ink);color:#e8e8e8;padding:1rem;margin:1rem 0;border-radius:4px;overflow-x:auto;font-family:var(--mono);font-size:0.75rem;line-height:1.6;}
 footer{padding:1.5rem 2rem;border-top:1px solid var(--border);text-align:center;}
@@ -50,197 +58,125 @@ footer a{color:var(--accent);}
     <a class="nav-back" href="/">← トップへ戻る</a>
   </div>
 </nav>
+
 <div class="wrap">
-  <div class="doc-label">// Guide</div>
-  <div class="doc-title">使い方ガイド</div>
-  <div class="doc-desc">NextAccount の基本的な使い方から応用機能まで、わかりやすく解説します。</div>
-
-  <div class="toc-box">
-    <h3>目次</h3>
-    <ul>
-      <li><a href="#setup">1. はじめに</a></li>
-      <li><a href="#dashboard">2. ダッシュボード</a></li>
-      <li><a href="#receipt">3. 領収書のアップロード</a></li>
-      <li><a href="#slack">4. Slack連携</a></li>
-      <li><a href="#settings">5. 組織設定</a></li>
-      <li><a href="#accounting">6. 会計ソフト連携</a></li>
-      <li><a href="#faq">7. よくあるご質問</a></li>
-    </ul>
+  <div class="header">
+    <div class="header-content">
+      <div class="doc-label" id="docLabel">// Guide</div>
+      <div class="doc-title" id="docTitle">使い方ガイド</div>
+      <div class="doc-desc" id="docDesc">NextAccount の基本的な使い方から応用機能まで、わかりやすく解説します。</div>
+    </div>
+    <div class="lang-switcher">
+      <button class="lang-btn active" data-lang="ja">日本語</button>
+      <button class="lang-btn" data-lang="en">English</button>
+      <button class="lang-btn" data-lang="zh">中文</button>
+    </div>
   </div>
 
-  <h2 id="setup">1. はじめに</h2>
-  <h3>初期セットアップについて</h3>
-  <p>NextAccount をご利用いただく際は、初期セットアップウィザードにしたがって各種設定を行っていただきます。所要時間は約10〜15分です。</p>
+  <div class="toc-box" id="tocContainer"></div>
 
-  <h3>セットアップの流れ</h3>
-  <p>以下の情報を順番に入力していただきます：</p>
-
-  <h3>基本情報の登録</h3>
-  <table>
-    <tr><th>項目</th><td>企業名および部門名</td></tr>
-    <tr><th>項目</th><td>ご担当者のお名前</td></tr>
-    <tr><th>項目</th><td>ログイン用メールアドレス</td></tr>
-    <tr><th>項目</th><td>パスワード（8文字以上）</td></tr>
-  </table>
-
-  <h3>会計設定</h3>
-  <p>貴社の会計年度を設定していただきます。日本国内の企業の場合、一般的には4月開始となります。決算月に合わせてカスタマイズすることも可能です。</p>
-
-  <h3>部門・従業員の登録</h3>
-  <p>組織内の部門および従業員を登録します。後から追加・変更できますので、ここでは主な部門のみの登録で問題ございません。</p>
-
-  <div class="tip-box">
-    部門コードは会計ソフト側の勘定科目コードと揃えておくと、自動仕訳の際に便利です。
-  </div>
-
-  <h2 id="dashboard">2. ダッシュボード</h2>
-  <p>ダッシュボードは NextAccount のメイン画面です。登録済みの部門数、従業員数、会計年度などの基本情報を確認できます。</p>
-
-  <h3>表示される情報</h3>
-  <table>
-    <tr><th>項目</th><td>組織名および基本情報、メンバー数</td></tr>
-    <tr><th>項目</th><td>登録済みの部門一覧</td></tr>
-    <tr><th>項目</th><td>従業員情報</td></tr>
-    <tr><th>項目</th><td>ユーザーアカウント一覧</td></tr>
-  </table>
-
-  <h3>各種設定への遷移</h3>
-  <p>ダッシュボードの「設定」ボタンより、以下の項目について後から変更・追加が可能です：</p>
-  <ul>
-    <li>部門の追加・編集・削除</li>
-    <li>従業員情報の管理</li>
-    <li>会計年度の変更</li>
-  </ul>
-
-  <h2 id="receipt">3. 領収書のアップロード</h2>
-  <p>NextAccount では、領収書をアップロードすると最新の OCR 技術を用いて自動的に金額・日付・内容などを認識し、会計処理を行います。</p>
-
-  <h3>アップロード方法</h3>
-  <p><strong>Slack 経由</strong></p>
-  <p>Slack の連携チャンネルにファイルを追加していただくと、自動的に処理が始まります。スマートフォンから外出先での報告も簡単です。</p>
-
-  <p><strong>ダッシュボード経由</strong></p>
-  <p>ダッシュボード上の専用フォームからファイルを選択、またはドラッグ&ドロップでアップロードします。</p>
-
-  <h3>処理の流れ</h3>
-  <ol>
-    <li><strong>OCR 認識</strong>：領収書から日付・金額・店舗名などを自動抽出</li>
-    <li><strong>AI 分類</strong>：経費科目を自動判定（交通費・食事代・消耗品など）</li>
-    <li><strong>仕訳生成</strong>：会計仕訳を自動生成</li>
-    <li><strong>承認</strong>：管理者の確認・承認を待機</li>
-  </ol>
-
-  <div class="tip-box">
-    明るく、正面からの領収書写真が認識精度を高めます。スマートフォンのカメラで問題ございません。
-  </div>
-
-  <h2 id="slack">4. Slack 連携</h2>
-  <p>Slack ワークスペースと連携することで、日常的なチームコミュニケーションの中で領収書の報告ができます。</p>
-
-  <h3>連携のメリット</h3>
-  <ul>
-    <li>スマートフォンから簡単に領収書をアップロード</li>
-    <li>承認結果がリアルタイムで通知される</li>
-    <li>Slack を離れることなく経費処理が完結</li>
-    <li>チーム全体の経費状況を一元管理</li>
-  </ul>
-
-  <h3>推奨チャンネル設定</h3>
-  <table>
-    <tr><th>チャンネル名</th><td>#経費申請（全従業員が領収書を送信）</td></tr>
-    <tr><th>チャンネル名</th><td>#経費承認（経理担当者が承認結果を確認）</td></tr>
-    <tr><th>チャンネル名</th><td>#経費レポート（月次集計を経営者と共有）</td></tr>
-  </table>
-
-  <h3>ボットコマンド</h3>
-  <div class="code-block">/nextaccount help     ヘルプを表示
-/nextaccount status   処理状況を確認
-/nextaccount export   データをエクスポート</div>
-
-  <h2 id="settings">5. 組織設定</h2>
-  <p>ダッシュボードの「設定」より、組織の構成を変更・追加していただけます。</p>
-
-  <h3>部門の管理</h3>
-  <p>以下の操作が可能です：</p>
-  <ul>
-    <li>新規部門の追加</li>
-    <li>既存部門の編集・削除</li>
-    <li>部門コードの設定（会計ソフト側と連動）</li>
-  </ul>
-
-  <h3>従業員の管理</h3>
-  <p>組織の人事異動に合わせて従業員情報を更新できます：</p>
-  <ul>
-    <li>新入社員の登録</li>
-    <li>配置転換時の所属部門変更</li>
-    <li>退職者のアカウント無効化</li>
-  </ul>
-
-  <h3>経費科目</h3>
-  <p>デフォルトでは以下の経費科目が用意されています：</p>
-  <ul>
-    <li>交通費・宿泊費</li>
-    <li>食事代・接待交際費</li>
-    <li>消耗品費</li>
-    <li>通信費</li>
-    <li>その他雑費</li>
-  </ul>
-
-  <h2 id="accounting">6. 会計ソフト連携</h2>
-  <p>NextAccount は主要な会計ソフトと連携し、抽出した情報を自動的に仕訳として計上できます。手作業での二重入力が不要になります。</p>
-
-  <h3>対応会計ソフト</h3>
-  <table>
-    <tr><th>ソフト</th><td>freee（クラウド会計の定番）</td></tr>
-    <tr><th>ソフト</th><td>MFクラウド会計（中堅企業向け）</td></tr>
-    <tr><th>ソフト</th><td>弥生会計クラウド</td></tr>
-  </table>
-
-  <h3>連携手順</h3>
-  <ol>
-    <li>ご利用の会計ソフトで API キーを取得</li>
-    <li>NextAccount の設定画面で API キーを入力</li>
-    <li>連携テストを実行して動作確認</li>
-    <li>以降、自動仕訳が開始されます</li>
-  </ol>
-
-  <div class="tip-box">
-    部門コードと勘定科目を事前に統一しておくと、より精度の高い自動仕訳ができます。
-  </div>
-
-  <h2 id="faq">7. よくあるご質問</h2>
-
-  <h3>OCR の認識精度について</h3>
-  <p>一般的な領収書で 95% 以上の精度で認識します。不鮮明な書類の場合は、確認画面で手動修正いただけます。</p>
-
-  <h3>複数の会計ソフトへの対応</h3>
-  <p>はい、複数の会計ソフトに同時出力できます。グループ企業で異なるソフトを利用されている場合に便利です。</p>
-
-  <h3>オフライン利用について</h3>
-  <p>NextAccount はクラウドサービスのため、基本的にはインターネット接続が必要です。Slack 経由では事前にファイルをダウンロードしておくことで、後からの報告が可能な場合もあります。</p>
-
-  <h3>セキュリティ対策</h3>
-  <p>以下の対策を実施しております：</p>
-  <ul>
-    <li>AWS 日本リージョンでのデータ保管</li>
-    <li>定期的なセキュリティ監査</li>
-    <li>ISO 27001 準拠</li>
-    <li>24 時間監視体制</li>
-  </ul>
-
-  <h3>ユーザー数に制限はあるか</h3>
-  <p>ユーザー数に上限はございません。組織の従業員数に応じた料金体系になっています。</p>
-
-  <h3>領収書の保存期間</h3>
-  <p>日本の法定要件に従い、7 年間保存されます。必要に応じて PDF でのエクスポートも可能です。</p>
-
-  <h3>サポート体制</h3>
-  <p>メール、チャット、電話でのサポートを提供しています。<a href="/contact.html">お問い合わせフォーム</a>からいつでもご連絡ください。</p>
+  <div id="contentContainer"></div>
 
   <div class="divider"></div>
 </div>
+
 <footer>
   <p><a href="/">NextAccount</a> · <a href="/docs/privacy_policy.html">プライバシーポリシー</a> · <a href="/docs/specified_commercial_transaction.html">利用規約</a> · © 2025 株式会社Ｋｉｒｅｉ</p>
 </footer>
+
+<script>
+let guideContent = null;
+let currentLang = localStorage.getItem('guideLang') || 'ja';
+
+// Load content
+fetch('/static/guide-content.json')
+  .then(res => res.json())
+  .then(data => {
+    guideContent = data;
+    initializeGuide();
+  })
+  .catch(err => console.error('Failed to load guide content:', err));
+
+function initializeGuide() {
+  renderHeader();
+  renderTOC();
+  renderContent();
+  setupLanguageSwitcher();
+}
+
+function renderHeader() {
+  const content = guideContent[currentLang];
+  document.getElementById('docLabel').textContent = `// ${content.label}`;
+  document.getElementById('docTitle').textContent = content.title;
+  document.getElementById('docDesc').textContent = content.description;
+}
+
+function renderTOC() {
+  const content = guideContent[currentLang];
+  const tocHtml = `
+    <h3>${currentLang === 'ja' ? '目次' : currentLang === 'en' ? 'Table of Contents' : '目录'}</h3>
+    <ul>
+      ${content.toc.map(item => `<li><a href="#${item.id}">${item.label}</a></li>`).join('')}
+    </ul>
+  `;
+  document.getElementById('tocContainer').innerHTML = tocHtml;
+}
+
+function renderContent() {
+  const content = guideContent[currentLang];
+  let html = '';
+
+  content.toc.forEach(section => {
+    const sectionData = content.sections[section.id];
+    html += `<h2 id="${section.id}">${sectionData.title}</h2>`;
+    html += renderElements(sectionData.content);
+  });
+
+  document.getElementById('contentContainer').innerHTML = html;
+}
+
+function renderElements(elements) {
+  return elements.map(el => {
+    switch(el.type) {
+      case 'h3':
+        return `<h3>${el.text}</h3>`;
+      case 'p':
+        return `<p>${el.text}</p>`;
+      case 'ul':
+        return `<ul>${el.items.map(item => `<li>${item}</li>`).join('')}</ul>`;
+      case 'ol':
+        return `<ol>${el.items.map(item => `<li>${item}</li>`).join('')}</ol>`;
+      case 'table':
+        return `<table>${el.rows.map((row, idx) => {
+          if (idx === 0) return `<tr><th>${row.th}</th><td>${row.td}</td></tr>`;
+          return `<tr><th>${row.th}</th><td>${row.td}</td></tr>`;
+        }).join('')}</table>`;
+      case 'code':
+        return `<div class="code-block">${el.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`;
+      case 'tip':
+        return `<div class="tip-box">${el.text}</div>`;
+      default:
+        return '';
+    }
+  }).join('');
+}
+
+function setupLanguageSwitcher() {
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === currentLang);
+    btn.addEventListener('click', () => changeLanguage(btn.dataset.lang));
+  });
+}
+
+function changeLanguage(lang) {
+  currentLang = lang;
+  localStorage.setItem('guideLang', lang);
+  renderHeader();
+  renderTOC();
+  renderContent();
+  setupLanguageSwitcher();
+  window.scrollTo(0, 0);
+}
+</script>
 </body>
 </html>
