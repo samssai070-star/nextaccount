@@ -161,6 +161,9 @@ def setup_step3():
         conn = get_db_connection()
         cur = get_db_cursor(conn)
 
+        # 既存従業員を削除
+        cur.execute("DELETE FROM employees WHERE organization_id=%s", (org_id,))
+
         created_count = 0
         for emp in employees:
             email = emp.get("email", "").strip().lower()
@@ -179,7 +182,7 @@ def setup_step3():
                 )
                 created_count += 1
             except Exception as e:
-                logger.warning(f"Failed to insert employee {email}: {e}")
+                logger.error(f"Failed to insert employee {full_name} ({email}): {e}", exc_info=True)
                 continue
 
         # 進行状況を更新
