@@ -22,7 +22,7 @@ def _make_row(voucher_no, event_date, debit_account, debit_sub, tax_kubun,
         2000, voucher_no, "", event_date, debit_account, debit_sub, "",
         tax_kubun, debit_amount, debit_tax,
         credit_account, credit_sub, "", "対象外", credit_amount, 0,
-        summary, event_id, "", "0", "", memo, "", "", "", "no"
+        summary, event_id, "", "0", "", memo, "", "", "no"
     ]
 
 def build_yayoi_csv(events: list[dict]) -> bytes:
