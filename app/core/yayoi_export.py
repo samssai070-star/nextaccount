@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def _tax_kubun(tax_10: int, tax_8: int = 0) -> str:
     if tax_8 > 0 and tax_10 == 0:
-        return "課税仕入8%"
+        return "課税仕入8%（軽）"
     return "課税仕入10%" if tax_10 > 0 else "対象外"
 
 def _make_row(voucher_no, event_date, debit_account, debit_sub, tax_kubun,
