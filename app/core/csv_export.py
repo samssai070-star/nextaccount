@@ -8,6 +8,26 @@ from .accounting import calc_deductible_tax
 
 logger = logging.getLogger(__name__)
 
+def _tax_kubun_freee(has_invoice: bool, tax_10: int, tax_8: int) -> str:
+    """freee向け税区分を返す。8%軽減税率を正しく識別する。"""
+    if tax_8 > 0 and tax_10 == 0:
+        return "課税仕入8%(軽減)" if has_invoice else "課税仕入(経過措置)8%"
+    if has_invoice:
+        return "課税仕入10%"
+    if tax_10 > 0:
+        return "課税仕入(経過措置)10%"
+    return "対象外"
+
+def _tax_kubun_mf(has_invoice: bool, tax_10: int, tax_8: int) -> str:
+    """MF向け税区分を返す。8%軽減税率を正しく識別する。"""
+    if tax_8 > 0 and tax_10 == 0:
+        return "課税仕入れ8%(軽減税率)" if has_invoice else "課税仕入れ8%(軽減税率・経過措置)"
+    if has_invoice:
+        return "課税仕入れ10%"
+    if tax_10 > 0:
+        return "課税仕入れ10%(経過措置)"
+    return "対象外"
+
 
 # ============================================================
 # freee形式
@@ -37,8 +57,8 @@ def build_freee_csv(events: list[dict]) -> bytes:
             credit_account = evt.get("credit_account", "未払費用")
             credit_base    = credit_account.split("（")[0].strip()
             total_amount   = int(evt.get("amount", 0))
-            tax_10         = int(evt.get("tax_10_amount", 0))
-            tax_8          = int(evt.get("tax_8_amount", 0))
+            tax_10         = int(evt.get("tax_10_amount", 0) or 0)
+            tax_8          = int(evt.get("tax_8_amount", 0) or 0)
             counterparty   = evt.get("counterparty", "")
             employee       = evt.get("employee_name", "")
             event_id       = evt.get("event_id", "")
@@ -55,14 +75,7 @@ def build_freee_csv(events: list[dict]) -> bytes:
             if employee:   summary += f" / {employee}"
             if invoice_no: summary += f" / {invoice_no}"
 
-            # freeeの税区分
-            if has_invoice:
-                tax_kubun = "課税仕入10%"
-            elif tax_10 > 0:
-                tax_kubun = "課税仕入(経過措置)10%"
-            else:
-                tax_kubun = "対象外"
-
+            tax_kubun = _tax_kubun_freee(has_invoice, tax_10, tax_8)
             memo = label if not has_invoice else "適格請求書（全額控除）"
 
             writer.writerow([
@@ -87,7 +100,7 @@ def build_freee_csv(events: list[dict]) -> bytes:
             continue
 
     csv_str = output.getvalue()
-    return "\ufeff".encode("utf-8") + csv_str.encode("utf-8")
+    return "﻿".encode("utf-8") + csv_str.encode("utf-8")
 
 
 # ============================================================
@@ -119,9 +132,10 @@ def build_mf_csv(events: list[dict]) -> bytes:
             credit_account = evt.get("credit_account", "未払費用")
             credit_base    = credit_account.split("（")[0].strip()
             total_amount   = int(evt.get("amount", 0))
-            tax_10         = int(evt.get("tax_10_amount", 0))
-            tax_8          = int(evt.get("tax_8_amount", 0))
-            taxable_10     = int(evt.get("taxable_10_amount", 0))
+            tax_10         = int(evt.get("tax_10_amount", 0) or 0)
+            tax_8          = int(evt.get("tax_8_amount", 0) or 0)
+            taxable_10     = int(evt.get("taxable_10_amount", 0) or 0)
+            taxable_8      = int(evt.get("taxable_8_amount", 0) or 0)
             counterparty   = evt.get("counterparty", "")
             employee       = evt.get("employee_name", "")
             event_id       = evt.get("event_id", "")
@@ -139,19 +153,20 @@ def build_mf_csv(events: list[dict]) -> bytes:
             if employee:   summary += f" / {employee}"
             if invoice_no: summary += f" / {invoice_no}"
 
-            # MFの税区分
-            if has_invoice:
-                tax_kubun = "課税仕入れ10%"
-            elif tax_10 > 0:
-                tax_kubun = "課税仕入れ10%(経過措置)"
+            # 8%軽減税率専用 or 10% or 対象外
+            if tax_8 > 0 and tax_10 == 0:
+                taxable_amount = taxable_8
+                tax_amount     = tax_8
             else:
-                tax_kubun = "対象外"
+                taxable_amount = taxable_10
+                tax_amount     = tax_10
 
+            tax_kubun = _tax_kubun_mf(has_invoice, tax_10, tax_8)
             memo = label if not has_invoice else "適格請求書（全額控除）"
 
             writer.writerow([
                 event_date,
-                debit_account, "", tax_kubun, taxable_10, deductible,
+                debit_account, "", tax_kubun, taxable_amount, deductible,
                 credit_base, employee, "対象外", total_amount, 0,
                 summary, memo
             ])
@@ -171,7 +186,7 @@ def build_mf_csv(events: list[dict]) -> bytes:
             continue
 
     csv_str = output.getvalue()
-    return "\ufeff".encode("utf-8") + csv_str.encode("utf-8")
+    return "﻿".encode("utf-8") + csv_str.encode("utf-8")
 
 
 # ============================================================
@@ -203,9 +218,10 @@ def build_generic_csv(events: list[dict]) -> bytes:
             credit_account= evt.get("credit_account", "未払費用")
             credit_base   = credit_account.split("（")[0].strip()
             total_amount  = int(evt.get("amount", 0))
-            tax_10        = int(evt.get("tax_10_amount", 0))
-            tax_8         = int(evt.get("tax_8_amount", 0))
-            taxable_10    = int(evt.get("taxable_10_amount", 0))
+            tax_10        = int(evt.get("tax_10_amount", 0) or 0)
+            tax_8         = int(evt.get("tax_8_amount", 0) or 0)
+            taxable_10    = int(evt.get("taxable_10_amount", 0) or 0)
+            taxable_8     = int(evt.get("taxable_8_amount", 0) or 0)
             counterparty  = evt.get("counterparty", "")
             employee      = evt.get("employee_name", "")
             event_id      = evt.get("event_id", "")
@@ -222,9 +238,17 @@ def build_generic_csv(events: list[dict]) -> bytes:
             summary = counterparty
             if employee: summary += f" / {employee}"
 
+            # 8%軽減税率専用 or 10% or 対象外
+            if tax_8 > 0 and tax_10 == 0:
+                taxable_amount = taxable_8
+                tax_amount     = tax_8
+            else:
+                taxable_amount = taxable_10
+                tax_amount     = tax_10
+
             # メイン行
             writer.writerow([
-                event_date, debit_account, "", taxable_10, deductible,
+                event_date, debit_account, "", taxable_amount, deductible,
                 credit_base, employee, total_amount, 0,
                 summary, invoice_no, label, event_id,
                 "適格請求書（全額控除）" if has_invoice else label
@@ -245,4 +269,4 @@ def build_generic_csv(events: list[dict]) -> bytes:
             continue
 
     csv_str = output.getvalue()
-    return "\ufeff".encode("utf-8") + csv_str.encode("utf-8")
+    return "﻿".encode("utf-8") + csv_str.encode("utf-8")

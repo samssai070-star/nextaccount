@@ -9,8 +9,10 @@ from .accounting import calc_deductible_tax
 
 logger = logging.getLogger(__name__)
 
-def _tax_kubun(tax_amount: int) -> str:
-    return "課税仕入10%" if tax_amount > 0 else "対象外"
+def _tax_kubun(tax_10: int, tax_8: int = 0) -> str:
+    if tax_8 > 0 and tax_10 == 0:
+        return "課税仕入8%"
+    return "課税仕入10%" if tax_10 > 0 else "対象外"
 
 def _make_row(voucher_no, event_date, debit_account, debit_sub, tax_kubun,
               debit_amount, debit_tax, credit_account, credit_sub,
@@ -34,9 +36,10 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
             credit_account= evt.get("credit_account", "未払費用")
             credit_base   = credit_account.split("（")[0].strip()
             total_amount  = int(evt.get("amount", 0))
-            tax_10        = int(evt.get("tax_10_amount", 0))
-            tax_8         = int(evt.get("tax_8_amount", 0))
-            taxable_10    = int(evt.get("taxable_10_amount", 0))
+            tax_10        = int(evt.get("tax_10_amount", 0) or 0)
+            tax_8         = int(evt.get("tax_8_amount", 0) or 0)
+            taxable_10    = int(evt.get("taxable_10_amount", 0) or 0)
+            taxable_8     = int(evt.get("taxable_8_amount", 0) or 0)
             counterparty  = evt.get("counterparty", "")
             employee      = evt.get("employee_name", "")
             event_id      = evt.get("event_id", "")
@@ -48,6 +51,14 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
             if employee:  summary += f" / {employee}"
             if invoice_no: summary += f" / {invoice_no}"
 
+            # 8%軽減税率専用 or 10% or 対象外
+            if tax_8 > 0 and tax_10 == 0:
+                taxable_amount = taxable_8
+                tax_amount     = tax_8
+            else:
+                taxable_amount = taxable_10
+                tax_amount     = tax_10
+
             tax_total  = tax_10 + tax_8
             deduction  = calc_deductible_tax(tax_total, has_invoice, expense_date)
             deductible_tax     = deduction["deductible_tax"]
@@ -56,14 +67,16 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
 
             if has_invoice or non_deductible_tax == 0:
                 writer.writerow(_make_row(
-                    voucher_no, event_date, debit_account, "", _tax_kubun(tax_10),
-                    taxable_10, tax_10, credit_base, employee, total_amount,
+                    voucher_no, event_date, debit_account, "",
+                    _tax_kubun(tax_10, tax_8),
+                    taxable_amount, tax_amount, credit_base, employee, total_amount,
                     summary, event_id, "適格請求書（全額控除）"
                 ))
             else:
                 writer.writerow(_make_row(
-                    voucher_no, event_date, debit_account, "", _tax_kubun(deductible_tax),
-                    taxable_10, deductible_tax, credit_base, employee, total_amount,
+                    voucher_no, event_date, debit_account, "",
+                    _tax_kubun(deductible_tax, 0),
+                    taxable_amount, deductible_tax, credit_base, employee, total_amount,
                     summary, event_id, f"経過措置（{deduction_label}）控除可能分"
                 ))
                 writer.writerow(_make_row(
