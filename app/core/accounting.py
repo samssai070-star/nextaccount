@@ -133,7 +133,7 @@ def classify_account(raw_text: str, merchant: str) -> str:
     # 3. デフォルト
     return "消耗品費"
 
-def generate_event_id(event_date: Optional[str], sequence: int) -> str:
+def generate_event_id(event_date: Optional[str], sequence: int, employee_code: int = 0) -> str:
     if event_date:
         try:
             d = datetime.strptime(event_date, "%Y-%m-%d")
@@ -142,6 +142,8 @@ def generate_event_id(event_date: Optional[str], sequence: int) -> str:
             date_str = datetime.now().strftime("%Y%m%d")
     else:
         date_str = datetime.now().strftime("%Y%m%d")
+    if employee_code:
+        return f"T{date_str}-{employee_code:02d}{sequence:03d}"
     return f"T{date_str}-{sequence:05d}"
 
 def build_credit_account(employee_name: str) -> str:

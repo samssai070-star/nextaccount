@@ -65,6 +65,16 @@ ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS timestamp_at TIMESTAMP;
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS timestamp_verified BOOLEAN DEFAULT FALSE;
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS approval_card_channel VARCHAR(50) DEFAULT '';
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS approval_card_ts VARCHAR(50) DEFAULT '';
+CREATE TABLE IF NOT EXISTS employee_monthly_codes (
+    id          SERIAL PRIMARY KEY,
+    tenant_id   UUID         REFERENCES tenants(id),
+    slack_user_id VARCHAR(50) NOT NULL,
+    year_month  VARCHAR(7)   NOT NULL,
+    employee_code INTEGER     NOT NULL CHECK (employee_code BETWEEN 1 AND 99),
+    UNIQUE(tenant_id, year_month, slack_user_id),
+    UNIQUE(tenant_id, year_month, employee_code)
+);
+CREATE INDEX IF NOT EXISTS idx_emp_codes_tenant ON employee_monthly_codes(tenant_id, year_month);
 CREATE INDEX IF NOT EXISTS idx_ae_invoice   ON accounting_events(invoice_number);
 CREATE INDEX IF NOT EXISTS idx_ae_date      ON accounting_events(event_date);
 CREATE INDEX IF NOT EXISTS idx_ae_status    ON accounting_events(status);
@@ -127,6 +137,44 @@ def update_tenant_billing(tenant_id: str, **kwargs) -> None:
                 fields
             )
     logger.info(f"テナント課金情報更新: {tenant_id} fields={list(fields.keys())}")
+
+def get_or_assign_employee_code(slack_user_id: str, tenant_id: str, year_month: str) -> int:
+    """当月の社員コード（01-99）を取得または新規割当する"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO employee_monthly_codes (tenant_id, slack_user_id, year_month, employee_code)
+                VALUES (%s, %s, %s, (
+                    SELECT COALESCE(MAX(employee_code), 0) + 1
+                    FROM employee_monthly_codes
+                    WHERE tenant_id = %s AND year_month = %s
+                ))
+                ON CONFLICT (tenant_id, year_month, slack_user_id) DO NOTHING
+                RETURNING employee_code
+            """, (tenant_id, slack_user_id, year_month, tenant_id, year_month))
+            row = cur.fetchone()
+            if row:
+                return row[0]
+            cur.execute(
+                "SELECT employee_code FROM employee_monthly_codes WHERE tenant_id=%s AND year_month=%s AND slack_user_id=%s",
+                (tenant_id, year_month, slack_user_id)
+            )
+            return cur.fetchone()[0]
+
+def get_next_employee_sequence(upload_date: str, employee_code: int, tenant_id: str) -> int:
+    """指定社員コードの当日連番（001〜999）を取得する"""
+    date_prefix = upload_date.replace("-", "")
+    like_pattern = f"T{date_prefix}-{employee_code:02d}%"
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT event_id FROM accounting_events WHERE event_id LIKE %s AND tenant_id=%s ORDER BY event_id DESC LIMIT 1",
+                (like_pattern, tenant_id)
+            )
+            row = cur.fetchone()
+    if row:
+        return int(row[0][-3:]) + 1
+    return 1
 
 def get_next_sequence(event_date, tenant_id):
     date_prefix = event_date.replace("-", "")
