@@ -191,7 +191,8 @@ def get_or_assign_employee_code(slack_user_id: str, tenant_id: str, year_month: 
             return cur.fetchone()[0]
 
 def get_next_employee_sequence(upload_date: str, employee_code: int, tenant_id: str) -> int:
-    """却下済みを除いた当日連番を返す（却下分は番号を消費しない）"""
+    """却下済みを除いた当日連番を返す（却下分は番号を消費しない）。
+    count-based で起算し、既存IDと衝突する場合はスキップして次を返す。"""
     prefix = f"T{upload_date.replace('-', '')}-{employee_code:02d}"
     with _get_conn(tenant_id) as conn:
         with conn.cursor() as cur:
@@ -201,7 +202,16 @@ def get_next_employee_sequence(upload_date: str, employee_code: int, tenant_id: 
                 (f"{prefix}%", tenant_id)
             )
             count = cur.fetchone()[0]
-    return count + 1
+            seq = count + 1
+            # 却下済みIDと衝突する場合はスキップ
+            while True:
+                cur.execute(
+                    "SELECT 1 FROM accounting_events WHERE event_id=%s AND tenant_id=%s",
+                    (f"{prefix}{seq:03d}", tenant_id)
+                )
+                if not cur.fetchone():
+                    return seq
+                seq += 1
 
 def get_next_sequence(event_date, tenant_id):
     date_prefix = event_date.replace("-", "")
