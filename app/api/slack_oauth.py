@@ -26,12 +26,13 @@ def slack_oauth_start():
 
         # OAuth URLを生成
         scopes = [
-            "bot",
             "chat:write",
             "files:read",
             "channels:manage",
             "channels:read",
-            "users:read"
+            "users:read",
+            "app_mentions:read",
+            "team:read"
         ]
 
         oauth_url = (
