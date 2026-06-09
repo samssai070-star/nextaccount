@@ -244,9 +244,13 @@ def handle_file_shared(event, client, logger):
             ocr_result.taxable_8_amount  = int(ai_result.get("taxable_8_amount") or 0)
             ocr_result.tax_8_amount      = int(ai_result.get("tax_8_amount") or 0)
             inv = ai_result.get("invoice_number")
-            if inv and inv != "null":
-                ocr_result.invoice_number = str(inv)
-                ocr_result.has_invoice    = True
+            if inv and str(inv).strip().lower() != "null":
+                inv_clean = re.sub(r"[-ー－]", "", str(inv).strip())  # ハイフン除去
+                if re.match(r"^T\d{13}$", inv_clean):
+                    ocr_result.invoice_number = inv_clean
+                    ocr_result.has_invoice    = True
+                else:
+                    logger.warning(f"T番号フォーマット不正（ハイフン除去後）: {inv_clean}")
         else:
             # フォールバック: Google Vision OCR → Claude テキスト分類
             logger.warning("Claude Vision失敗 → Google Vision OCRにフォールバック")
@@ -404,6 +408,20 @@ def handle_file_shared(event, client, logger):
             text=f"🧾 登録済 {entry.counterparty} {_fmt_yen(entry.total_amount)}",
             blocks=dm_blocks,
         )
+
+        # 入湯税が含まれる場合はDMに分割仕訳の案内を追加
+        nyutou_amount = int(ai_result.get("nyutou_tax_amount") or 0)
+        if nyutou_amount > 0:
+            client.chat_postMessage(
+                channel=channel_id,
+                text=(
+                    f"⚠️ *入湯税 ¥{nyutou_amount:,} を検出しました*\n\n"
+                    f"この領収書には入湯税が含まれています。\n"
+                    f"必要に応じて手動で分割仕訳を行ってください:\n"
+                    f"• 旅費交通費 / 宿泊費: *¥{entry.total_amount - nyutou_amount:,}*\n"
+                    f"• 租税公課 / 入湯税: *¥{nyutou_amount:,}*"
+                ),
+            )
 
         # 承認カードを財務承認チャンネルに送信（申請者のSlack IDをvalueに含める）
         approval_msg = _send_approval_card(
