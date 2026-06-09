@@ -232,7 +232,7 @@ SHEET_COLUMNS = [
 EMPLOYEE_SHEET_NAME_FORMAT = "{employee}_{ym}"
 
 # 会社財務集計シート名
-FINANCE_SUMMARY_SHEET_NAME = "財務部門_集計"
+FINANCE_SUMMARY_SHEET_NAME = "年間集計"
 
 # ============================================================
 # 2026-04-05 追加ルール
