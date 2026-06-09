@@ -856,6 +856,7 @@ def handle_approve(ack, body, client, logger):
             return
 
         # Google Sheets 同期
+        sheets_sync_failed = False
         if sheets:
             evt = get_event_by_id(event_id, tenant_id)
             if evt:
@@ -884,22 +885,7 @@ def handle_approve(ack, body, client, logger):
                     logger.info(f"Sheets 同期完了: {event_id}")
                 else:
                     logger.warning(f"Sheets 同期失敗: {event_id}")
-                    # 申請者に再同期を促す通知
-                    applicant_id = evt.get("employee_slack_id", "") or applicant_slack_id
-                    if applicant_id:
-                        try:
-                            client.chat_postMessage(
-                                channel=applicant_id,
-                                text=(
-                                    f"⚠️ *Sheets同期エラー*\n\n"
-                                    f"管理ID `{event_id}` の承認は完了しましたが、"
-                                    f"Google Sheetsへの書き込みに失敗しました。\n"
-                                    f"Slackで `/edit {event_id}` を実行し、"
-                                    f"変更なしで「保存」を押すと再同期されます。"
-                                ),
-                            )
-                        except Exception:
-                            pass
+                    sheets_sync_failed = True
 
         # 入湯税リンクエントリも同時承認
         from core.database import get_linked_nyutou_entry
@@ -946,6 +932,10 @@ def handle_approve(ack, body, client, logger):
         approver_name = _get_employee_name(client, approver)
 
         # #経費承認チャンネルの承認カードを更新
+        sheets_error_msg = (
+            f"\n\n⚠️ *Sheets同期エラー*\n"
+            f"`/edit {event_id}` を実行し「保存」で再同期できます。"
+        ) if sheets_sync_failed else ""
         client.chat_update(
             channel=channel_id, ts=msg_ts,
             text=f"✅ 承認済: {event_id}",
@@ -959,6 +949,7 @@ def handle_approve(ack, body, client, logger):
                         f"承認者: {approver_name}\n"
                         f"日時: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
                         f"{accounting_msg}"
+                        f"{sheets_error_msg}"
                     ),
                 },
             }],
