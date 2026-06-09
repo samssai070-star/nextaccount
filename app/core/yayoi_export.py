@@ -112,12 +112,16 @@ def _build_csv(events: list[dict], row_fn) -> str:
                 non_deductible_tax = deduction["non_deductible_tax"]
                 deduction_label    = deduction["deduction_label"]
 
+                # 貸借一致: debit_amount が total_amount を超える場合は total_amount を使用
+                effective_debit = min(debit_amount, total_amount)
+                remainder = total_amount - effective_debit  # 非課税部分（>0 なら別行追加）
+
                 if has_invoice or non_deductible_tax == 0:
                     writer.writerow(row_fn(
                         voucher_no, event_date, debit_account, "",
                         _tax_kubun(tax_10, tax_8),
-                        debit_amount, debit_tax,
-                        credit_base, employee, total_amount,
+                        effective_debit, debit_tax,
+                        credit_base, employee, effective_debit,
                         summary, event_id, "適格請求書（全額控除）"
                     ))
                 else:
@@ -125,8 +129,8 @@ def _build_csv(events: list[dict], row_fn) -> str:
                     writer.writerow(row_fn(
                         voucher_no, event_date, debit_account, "",
                         _tax_kubun(deductible_tax, 0),
-                        debit_amount, deductible_tax,
-                        credit_base, employee, total_amount,
+                        effective_debit, deductible_tax,
+                        credit_base, employee, effective_debit,
                         summary, event_id, f"経過措置（{deduction_label}）控除可能分"
                     ))
                     writer.writerow(row_fn(
@@ -135,6 +139,15 @@ def _build_csv(events: list[dict], row_fn) -> str:
                         credit_base, employee, non_deductible_tax,
                         summary + "（控除不可分）", event_id,
                         f"経過措置（{deduction_label}）控除不可分→雑損失"
+                    ))
+
+                # 非課税部分が残る場合（対象外の追加行）
+                if remainder > 0:
+                    writer.writerow(row_fn(
+                        voucher_no, event_date, debit_account, "", "対象外",
+                        remainder, 0,
+                        credit_base, employee, remainder,
+                        summary + "（対象外）", event_id, "対象外（非課税部分）"
                     ))
 
             voucher_no += 1
