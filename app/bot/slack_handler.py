@@ -237,7 +237,17 @@ def handle_file_shared(event, client, logger):
             # Claude Vision成功 → OcrResultに変換
             ocr_result = OcrResult(used_real_ocr=True)
             ocr_result.counterparty      = ai_result.get("counterparty") or "不明"
-            ocr_result.event_date        = ai_result.get("event_date")
+            raw_date = ai_result.get("event_date") or ""
+            # YY-MM-DD → 2025年と誤って和暦変換された場合を補正（例: 2013→2025）
+            date_m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", str(raw_date))
+            if date_m:
+                y = int(date_m.group(1))
+                if y < 2000:  # 和暦換算ミスの可能性（昭和/平成）
+                    # 末2桁を20XX年に強制補正
+                    corrected_y = 2000 + (y % 100)
+                    raw_date = f"{corrected_y}-{date_m.group(2)}-{date_m.group(3)}"
+                    logger.warning(f"日付年補正: {y} → {corrected_y} ({raw_date})")
+            ocr_result.event_date        = raw_date or None
             ocr_result.total_amount      = int(ai_result.get("total_amount") or 0)
             ocr_result.taxable_10_amount = int(ai_result.get("taxable_10_amount") or 0)
             ocr_result.tax_10_amount     = int(ai_result.get("tax_10_amount") or 0)
