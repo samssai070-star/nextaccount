@@ -317,6 +317,124 @@ class SheetsManager:
             None,
         )
 
+    def delete_row_by_event_id(self, sheet_name: str, event_id: str) -> bool:
+        """指定 event_id の行をシートから物理削除する。見つからない場合は False を返す。"""
+        sheet_id = self._get_sheet_id(sheet_name)
+        if sheet_id is None:
+            return False
+        row_index = self._find_row_by_event_id(sheet_name, event_id)
+        if row_index is None:
+            return False
+        self._execute(
+            self.service.spreadsheets().batchUpdate(
+                spreadsheetId=self.spreadsheet_id,
+                body={
+                    "requests": [{
+                        "deleteDimension": {
+                            "range": {
+                                "sheetId": sheet_id,
+                                "dimension": "ROWS",
+                                "startIndex": row_index - 1,  # 0-indexed
+                                "endIndex": row_index,
+                            }
+                        }
+                    }]
+                },
+            )
+        )
+        logger.info(f"行削除: {sheet_name} row={row_index} ({event_id})")
+        return True
+
+    def remove_event(self, event_id: str, employee_name: str, year: int, month: int) -> bool:
+        """
+        DB削除・却下後に社員シートと財務集計シート両方から行を削除し、月次合計を更新する。
+        """
+        ym = f"{year:04d}{month:02d}"
+        employee_sheet = EMPLOYEE_SHEET_NAME_FORMAT.format(employee=employee_name, ym=ym)
+        try:
+            for sheet_name in [employee_sheet, FINANCE_SUMMARY_SHEET_NAME]:
+                if sheet_name not in self._get_sheet_names():
+                    continue
+                deleted = self.delete_row_by_event_id(sheet_name, event_id)
+                if deleted:
+                    self._update_monthly_total(sheet_name, year, month)
+        except Exception as e:
+            logger.error(f"Sheets行削除エラー: {e}", exc_info=True)
+            return False
+        return True
+
+    def rebuild_finance_summary(self, year: int, month: int, all_events: list[dict]) -> bool:
+        """
+        財務部門_集計シートの当月データを全再構築する。
+        all_events は全社員の当月承認済み仕訳リスト。
+        """
+        from .accounting import JournalEntry
+        sheet_name = FINANCE_SUMMARY_SHEET_NAME
+        ym_prefix  = f"{year:04d}/{month:02d}"
+
+        try:
+            self._ensure_sheet(sheet_name)
+            sheet_id = self._get_sheet_id(sheet_name)
+
+            # 当月行（発生日が当月 または 合計ラベルが当月）を特定して削除
+            rows = self._get_all_values(sheet_name)
+            delete_indices = []
+            for i, row in enumerate(rows):
+                if i == 0:
+                    continue  # ヘッダー
+                id_val   = str(row[0]) if len(row) > 0 else ""
+                date_val = str(row[1]) if len(row) > 1 else ""
+                if (date_val.startswith(f"{year:04d}-{month:02d}")
+                        or id_val == f"{ym_prefix}合計"):
+                    delete_indices.append(i + 1)  # 1-indexed
+
+            if delete_indices and sheet_id is not None:
+                requests = [
+                    {"deleteDimension": {"range": {
+                        "sheetId": sheet_id, "dimension": "ROWS",
+                        "startIndex": idx - 1, "endIndex": idx,
+                    }}}
+                    for idx in sorted(delete_indices, reverse=True)
+                ]
+                self._execute(
+                    self.service.spreadsheets().batchUpdate(
+                        spreadsheetId=self.spreadsheet_id,
+                        body={"requests": requests},
+                    )
+                )
+
+            # 当月仕訳を再追記
+            for evt in all_events:
+                entry = JournalEntry(
+                    event_id          = evt.get("event_id", ""),
+                    event_date        = str(evt.get("event_date", "")),
+                    counterparty      = evt.get("counterparty", ""),
+                    total_amount      = evt.get("amount", 0),
+                    taxable_10_amount = evt.get("taxable_10_amount", 0),
+                    tax_10_amount     = evt.get("tax_10_amount", 0),
+                    taxable_8_amount  = evt.get("taxable_8_amount", 0),
+                    tax_8_amount      = evt.get("tax_8_amount", 0),
+                    invoice_number    = evt.get("invoice_number"),
+                    has_invoice       = bool(evt.get("has_invoice")),
+                    debit_account     = evt.get("debit_account", ""),
+                    debit_subsidiary  = evt.get("debit_subsidiary", ""),
+                    credit_account    = evt.get("credit_account", ""),
+                    employee_name     = evt.get("employee_name", ""),
+                    status            = evt.get("status", ""),
+                    evidence_url      = evt.get("evidence_url", ""),
+                    purpose           = evt.get("purpose", "") or evt.get("memo", ""),
+                )
+                self._append_row(sheet_name, entry.to_sheet_row())
+
+            self._sort_by_date(sheet_name)
+            self._update_monthly_total(sheet_name, year, month)
+            logger.info(f"財務集計シート再構築完了: {ym_prefix} ({len(all_events)}件)")
+            return True
+
+        except Exception as e:
+            logger.error(f"財務集計シート再構築エラー: {e}", exc_info=True)
+            return False
+
     def write_journal_entry(self, entry) -> bool:
         """
         JournalEntry を受け取り、社員別月次シートと財務集計シートに書き込む。
