@@ -19,7 +19,7 @@ def _make_row(voucher_no, event_date, debit_account, debit_sub, tax_kubun,
               credit_amount, summary, event_id, memo="") -> list:
     # 26列固定（弥生会計仕訳日記帳インポート形式）
     return [
-        voucher_no, event_date, debit_account, debit_sub, "",
+        2000, voucher_no, "", event_date, debit_account, debit_sub, "",
         tax_kubun, debit_amount, debit_tax,
         credit_account, credit_sub, "", "対象外", credit_amount, 0,
         summary, event_id, "", "0", "", memo, "", "", "", "no"
