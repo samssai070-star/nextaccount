@@ -227,11 +227,11 @@ def slack_oauth_callback():
 
 def send_email(to_email, subject, body, from_email=None, is_html=False):
     """Send email using SMTP"""
-    smtp_server = os.environ.get("SMTP_SERVER")
+    smtp_server = os.environ.get("SMTP_SERVER") or os.environ.get("SMTP_HOST")
     smtp_port = int(os.environ.get("SMTP_PORT", 587))
     smtp_user = os.environ.get("SMTP_USER")
     smtp_password = os.environ.get("SMTP_PASSWORD")
-    from_email = from_email or os.environ.get("CONTACT_FROM_EMAIL", "support@nextaccount.jp")
+    from_email = from_email or os.environ.get("MAIL_FROM") or os.environ.get("CONTACT_FROM_EMAIL", "support@nextaccount.jp")
 
     if not smtp_server or not smtp_user or not smtp_password:
         logger.warning("SMTP settings not configured, email not sent")
