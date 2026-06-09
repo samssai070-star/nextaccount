@@ -48,6 +48,26 @@ from core.database import (
 logger = logging.getLogger(__name__)
 
 # ============================================================
+# ファイルID重複処理防止（Slackイベント再送対策）
+# ============================================================
+import time as _time
+_processed_file_ids: dict[str, float] = {}
+_FILE_ID_TTL = 180  # 3分間は同一file_idを無視
+
+
+def _is_duplicate_file_event(file_id: str) -> bool:
+    """同一file_idのイベントが3分以内に処理済みならTrueを返す（Slackリプレイ対策）"""
+    now = _time.time()
+    for fid in list(_processed_file_ids.keys()):
+        if now - _processed_file_ids[fid] > _FILE_ID_TTL:
+            del _processed_file_ids[fid]
+    if file_id in _processed_file_ids:
+        return True
+    _processed_file_ids[file_id] = now
+    return False
+
+
+# ============================================================
 # テナント解決ヘルパー
 # ============================================================
 
@@ -195,6 +215,11 @@ def handle_file_shared(event, client, logger):
         logger.info(f"チャンネル投稿を無視: {channel_id}")
         return
 
+    # 同一ファイルの重複イベントをスキップ（Slackリプレイ・二重送信対策）
+    if _is_duplicate_file_event(file_id):
+        logger.warning(f"重複ファイルイベントをスキップ: {file_id}")
+        return
+
     # 処理中メッセージ（申請者のDMに返信）
     post = client.chat_postMessage(channel=channel_id, text="📷 領収書を解析中…")
     msg_ts = post["ts"]
@@ -235,6 +260,12 @@ def handle_file_shared(event, client, logger):
 
         if ai_result:
             # Claude Vision成功 → OcrResultに変換
+            logger.info(f"Claude Vision生結果: counterparty={ai_result.get('counterparty')} "
+                        f"event_date={ai_result.get('event_date')} "
+                        f"total={ai_result.get('total_amount')} "
+                        f"tax10={ai_result.get('tax_10_amount')} "
+                        f"invoice={ai_result.get('invoice_number')} "
+                        f"reason={ai_result.get('reason')}")
             ocr_result = OcrResult(used_real_ocr=True)
             counterparty = ai_result.get("counterparty") or "不明"
             # NTT社名誤読補正（東→海 等の誤認識）

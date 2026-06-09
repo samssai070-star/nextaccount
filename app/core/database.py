@@ -319,7 +319,7 @@ def update_event(event_id: str, tenant_id: str, fields: dict) -> bool:
     """仕訳の任意フィールドを更新する（承認後の修正にも使用）"""
     ALLOWED = {
         "counterparty", "amount", "event_date", "debit_account", "debit_subsidiary",
-        "invoice_number", "has_invoice", "memo", "purpose",
+        "credit_account", "invoice_number", "has_invoice", "memo", "purpose",
         "taxable_10_amount", "tax_10_amount", "taxable_8_amount", "tax_8_amount",
     }
     updates = {k: v for k, v in fields.items() if k in ALLOWED}

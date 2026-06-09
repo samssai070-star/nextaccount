@@ -94,7 +94,7 @@ def extract_all_by_claude(ocr_text: str) -> dict:
         user_content = f"今日の日付: {today}\n\nOCRテキスト:\n\"\"\"\n{ocr_text[:2000]}\n\"\"\""
 
         response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-sonnet-4-6",
             max_tokens=600,
             system=[
                 {
@@ -159,7 +159,7 @@ def extract_all_by_claude_vision(image_bytes: bytes, mime_type: str = "image/jpe
         image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
 
         response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-sonnet-4-6",
             max_tokens=800,
             system=[
                 {
