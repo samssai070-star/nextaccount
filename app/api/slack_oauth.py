@@ -24,20 +24,27 @@ def slack_oauth_start():
         if not SLACK_CLIENT_ID:
             return error_response("Slack OAuth not configured"), 503
 
-        # OAuth URLを生成
-        scopes = [
-            "bot",
-            "chat:write",
-            "files:read",
-            "channels:manage",
+        # OAuth URLを生成 - core/slack_oauth.py と同じscopes配置を使用
+        scopes = ",".join([
+            "channels:history",
             "channels:read",
-            "users:read"
-        ]
+            "chat:write",
+            "commands",
+            "files:read",
+            "files:write",
+            "groups:history",
+            "im:history",
+            "im:write",
+            "mpim:history",
+            "team:read",
+            "users:read",
+            "usergroups:read"
+        ])
 
         oauth_url = (
             f"https://slack.com/oauth/v2/authorize?"
             f"client_id={SLACK_CLIENT_ID}&"
-            f"scope={','.join(scopes)}&"
+            f"scope={scopes}&"
             f"redirect_uri={SLACK_REDIRECT_URI}&"
             f"state={org_id}"
         )
