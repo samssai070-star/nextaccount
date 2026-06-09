@@ -1,150 +1,569 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NextAccount - 経費精算管理システム</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
-            background: #f5f7fa;
-            min-height: 100vh;
-            padding: 20px;
-            color: #333;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: white;
-            padding: 40px 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .logo {
-            margin-bottom: 10px;
-        }
-        .logo h1 {
-            font-size: 32px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-        }
-        .logo .next {
-            color: #0052cc;
-        }
-        .logo .account {
-            color: #333;
-        }
-        .subtitle {
-            font-size: 13px;
-            color: #999;
-            margin-bottom: 30px;
-            letter-spacing: 0.5px;
-        }
-        .tagline {
-            font-size: 28px;
-            font-weight: 700;
-            line-height: 1.4;
-            margin-bottom: 25px;
-        }
-        .tagline .highlight {
-            color: #0052cc;
-        }
-        .description {
-            font-size: 13px;
-            color: #666;
-            line-height: 1.8;
-            margin-bottom: 30px;
-        }
-        .cta-button {
-            display: inline-block;
-            background: #0052cc;
-            color: white;
-            padding: 14px 30px;
-            border-radius: 4px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 14px;
-            margin-bottom: 15px;
-            cursor: pointer;
-            border: none;
-            width: 100%;
-            text-align: center;
-            transition: background 0.3s;
-        }
-        .cta-button:hover {
-            background: #0041a1;
-        }
-        .cta-button .icon {
-            margin-right: 8px;
-        }
-        .help-link {
-            display: inline-block;
-            font-size: 13px;
-            color: #0052cc;
-            text-decoration: none;
-            margin-top: 10px;
-        }
-        .help-link:hover {
-            text-decoration: underline;
-        }
-        .divider {
-            height: 1px;
-            background: #e0e0e0;
-            margin: 30px 0;
-        }
-        .login-section {
-            text-align: center;
-        }
-        .login-link {
-            font-size: 14px;
-            color: #666;
-        }
-        .login-link a {
-            color: #0052cc;
-            text-decoration: none;
-            font-weight: 600;
-        }
-        .login-link a:hover {
-            text-decoration: underline;
-        }
-    </style>
+<meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NextAccount — 領収書をSlackに送るだけ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --ink:#0a0a0a;--paper:#f5f3ee;--accent:#1a5cff;--accent2:#ff4d1a;
+  --muted:#6b6b6b;--muted2:#9a9690;--border:#d8d4cc;--border-l:#e8e5e0;
+  --card:#ffffff;--green:#0f6e56;
+  --mono:'DM Mono',monospace;--sans:'Noto Sans JP',sans-serif;
+}
+html{scroll-behavior:smooth;}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);line-height:1.7;overflow-x:hidden;}
+
+/* ── LAYOUT ── */
+.wrap{max-width:1080px;margin:0 auto;padding:0 2rem;}
+
+/* ── NAV ── */
+.nav{position:sticky;top:0;z-index:100;background:rgba(245,243,238,0.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);}
+.nav-inner{max-width:1080px;margin:0 auto;padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;}
+.nav-logo{font-family:var(--mono);font-size:1rem;font-weight:500;letter-spacing:-0.03em;text-decoration:none;color:var(--ink);}
+.nav-logo .blue{color:var(--accent);}
+.nav-links{display:flex;gap:1.5rem;}@media(max-width:640px){.nav-links{display:none;}.nav-inner{padding:0.8rem 1.2rem;}.hero{padding:3rem 1.2rem 2.5rem;}.impact{padding:2rem 1.2rem;}.sec{padding:2.5rem 1.2rem;}.wrap{padding:0;}.cta-band{padding:2rem 1.2rem;flex-direction:column;}.cta-right{width:100%;}.btn-cta{width:100%;text-align:center;}.foot{flex-direction:column;gap:1rem;text-align:center;padding:1.2rem;}.foot-note{padding:0.8rem 1.2rem;}.comp-grid{font-size:0.65rem;}.comp-cell{padding:0.5rem 0.5rem;}}
+.nav-links a{font-size:0.78rem;color:var(--muted);text-decoration:none;transition:color 0.15s;}
+.nav-links a:hover{color:var(--ink);}
+.nav-right{display:flex;align-items:center;gap:0.8rem;}
+.nav-sub{display:flex;align-items:center;justify-content:space-between;padding:0.5rem 2rem;border-top:0.5px solid var(--border);background:rgba(245,243,238,0.95);}.nav-sub a{font-size:0.75rem;color:var(--muted);text-decoration:none;}.nav-sub a:hover{color:var(--ink);}.nav-login{font-family:var(--mono);font-size:0.72rem;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:3px;background:none;border:none;white-space:nowrap;}
+.nav-cta{font-family:var(--mono);font-size:0.72rem;font-weight:500;background:var(--accent);color:#fff;border:none;padding:0.5rem 1.2rem;border-radius:3px;cursor:pointer;white-space:nowrap;transition:background 0.15s;}
+.nav-cta:hover{background:#0f3fcc;}
+
+/* ── HERO ── */
+.hero{padding:5rem 2rem 4rem;text-align:left;border-bottom:1px solid var(--border);}
+.eyebrow{display:inline-flex;align-items:center;gap:0.5rem;margin-bottom:1.5rem;}
+.e-dot{width:7px;height:7px;background:var(--accent);border-radius:50%;flex-shrink:0;}
+.e-txt{font-family:var(--mono);font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);}
+.hero-h1{font-size:clamp(2.8rem,5.5vw,4.5rem);font-weight:900;line-height:1.1;letter-spacing:-0.04em;margin-bottom:1.5rem;text-align:left;}
+.hero-h1 .blue{color:var(--accent);}
+.hero-body{font-size:1rem;color:var(--muted);line-height:2;font-weight:300;margin-bottom:1.2rem;}
+.compat-line{display:flex;align-items:center;justify-content:center;gap:0.4rem;flex-wrap:wrap;margin-bottom:1.5rem;}
+.compat-count{font-family:var(--mono);font-size:0.65rem;color:var(--accent);font-weight:500;white-space:nowrap;}
+.compat-badge{font-family:var(--mono);font-size:0.6rem;color:var(--muted);background:var(--card);border:0.5px solid var(--border);padding:0.2rem 0.5rem;border-radius:2px;white-space:nowrap;}
+.hero-tags{display:flex;flex-wrap:wrap;justify-content:center;gap:0.5rem;margin-bottom:2rem;}
+.tag{font-family:var(--mono);font-size:0.62rem;color:var(--muted);background:var(--paper);border:0.5px solid var(--border);padding:0.3rem 0.7rem;border-radius:2px;display:flex;align-items:center;gap:0.4rem;}
+.tag .ok{color:var(--accent);}
+.hero-actions{display:flex;align-items:center;justify-content:center;gap:1rem;flex-wrap:wrap;margin-bottom:0.8rem;}
+.btn-primary{font-family:var(--mono);font-size:0.78rem;font-weight:500;background:var(--accent);color:#fff;border:none;padding:0.8rem 2rem;border-radius:3px;cursor:pointer;display:inline-flex;align-items:center;gap:0.5rem;transition:background 0.15s;}
+.btn-primary:hover{background:#0f3fcc;}
+.btn-ghost{font-family:var(--mono);font-size:0.72rem;color:var(--muted);background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
+.hero-fine{font-family:var(--mono);font-size:0.62rem;color:var(--muted2);}
+
+/* ── IMPACT BANNER ── */
+.impact{background:var(--ink);padding:2.5rem 2rem;text-align:center;border-bottom:1px solid #222;}
+.impact-title{font-size:clamp(1rem,2.5vw,1.3rem);font-weight:700;color:#fff;margin-bottom:1rem;}
+.impact-items{display:flex;align-items:center;justify-content:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;}
+.impact-item{font-size:clamp(1.2rem,3.5vw,2rem);font-weight:700;color:#fff;}
+.impact-plus{font-family:var(--mono);font-size:1rem;color:rgba(255,255,255,0.25);}
+.impact-price{display:flex;align-items:baseline;justify-content:center;gap:0.5rem;}
+.impact-label{font-family:var(--mono);font-size:0.9rem;color:rgba(255,255,255,0.4);}
+.impact-num{font-family:var(--mono);font-size:clamp(2rem,6vw,3.2rem);font-weight:500;color:var(--accent);letter-spacing:-0.04em;line-height:1;}
+.impact-sub{font-family:var(--mono);font-size:0.9rem;color:rgba(255,255,255,0.4);}
+
+/* ── STATS ── */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border-bottom:1px solid var(--border);}
+.stat{padding:1.5rem 1rem;text-align:center;border-right:1px solid var(--border);}
+.stat:last-child{border-right:none;}
+.stat-n{font-family:var(--mono);font-size:1.8rem;font-weight:500;color:var(--accent);letter-spacing:-0.03em;}
+.stat-l{font-size:0.72rem;color:var(--muted);margin-top:2px;}
+
+/* ── SECTION ── */
+.sec{padding:3.5rem 2rem;}
+.sec-alt{background:var(--card);border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+.sec-label{font-family:var(--mono);font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted2);margin-bottom:0.5rem;}
+.sec-h{font-size:clamp(1.2rem,3vw,1.4rem);font-weight:700;letter-spacing:-0.02em;margin-bottom:0.3rem;}
+.sec-sub{font-size:0.82rem;color:var(--muted);line-height:1.9;margin-bottom:2rem;font-weight:300;}
+
+/* ── HOW IT WORKS ── */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:4px;overflow:hidden;}
+.step{background:var(--card);padding:1.4rem 1.1rem;border-top:2.5px solid transparent;}
+.step:nth-child(1){border-top-color:#1a5cff;}
+.step:nth-child(2){border-top-color:#ff4d1a;}
+.step:nth-child(3){border-top-color:#0f6e56;}
+.step:nth-child(4){border-top-color:#854F0B;}
+.step-n{font-family:var(--mono);font-size:0.6rem;color:var(--muted2);letter-spacing:0.08em;margin-bottom:0.8rem;}
+.step-ico{width:38px;height:38px;border-radius:6px;display:flex;align-items:center;justify-content:center;margin-bottom:0.8rem;font-size:17px;}
+.ic-b{background:#E6F1FB;color:#185FA5;}
+.ic-o{background:#FAECE7;color:#993C1D;}
+.ic-t{background:#E1F5EE;color:#0F6E56;}
+.ic-a{background:#FAEEDA;color:#854F0B;}
+.step-t{font-size:0.82rem;font-weight:500;margin-bottom:0.3rem;}
+.step-d{font-size:0.72rem;color:var(--muted);line-height:1.7;}
+.compat-row{display:flex;align-items:center;gap:0.5rem;margin-top:1.5rem;flex-wrap:wrap;}
+.compat-l{font-family:var(--mono);font-size:0.62rem;color:var(--muted2);}
+.compat-b{display:flex;align-items:center;gap:0.4rem;font-family:var(--mono);font-size:0.65rem;color:var(--muted);background:var(--paper);border:0.5px solid var(--border);padding:0.25rem 0.6rem;border-radius:2px;}
+.c-dot{width:7px;height:7px;border-radius:50%;}
+
+/* ── DEMO ── */
+.demo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;}
+.slack-win{background:var(--card);border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+.slack-bar{background:#1a1a1f;padding:0.65rem 1rem;display:flex;align-items:center;gap:0.5rem;}
+.s-dot{width:7px;height:7px;border-radius:50%;}
+.s-channel{font-family:var(--mono);font-size:0.65rem;color:rgba(255,255,255,0.5);margin-left:0.4rem;}
+.s-channel strong{color:rgba(255,255,255,0.85);}
+.slack-body{padding:1rem;display:flex;flex-direction:column;gap:0.8rem;}
+.s-msg{display:flex;gap:0.65rem;}
+.s-av{width:34px;height:34px;border-radius:6px;font-size:0.65rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.av-b{background:#dbeafe;color:#1d4ed8;}
+.av-p{background:#ede9fe;color:#7c3aed;}
+.av-bot{background:var(--accent);color:#fff;font-size:0.6rem;font-family:var(--mono);}
+.s-bub{flex:1;}
+.s-name{font-size:0.75rem;font-weight:700;color:#111;margin-bottom:3px;}
+.s-time{font-size:0.62rem;color:#bbb;margin-left:6px;font-weight:400;}
+.s-bot-name{color:var(--accent);}
+.s-txt{font-size:0.75rem;color:#444;line-height:1.65;}
+.s-attach{font-size:0.65rem;color:#aaa;font-style:italic;margin-top:2px;}
+.rcpt{background:#f7f6f3;border:0.5px solid var(--border);border-radius:5px;padding:0.75rem 0.9rem;margin-top:0.5rem;}
+.rcpt-row{display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;padding:3px 0;color:var(--muted);}
+.rcpt-row .v{font-weight:500;color:var(--ink);font-family:var(--mono);font-size:0.68rem;}
+.rcpt-sep{height:0.5px;background:var(--border-l);margin:5px 0;}
+.csv-btns{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
+.csv-btn{font-family:var(--mono);font-size:0.62rem;padding:3px 8px;border-radius:3px;cursor:pointer;border:none;}
+.slack-foot{border-top:1px solid var(--border-l);padding:0.75rem 1rem;font-size:0.7rem;color:var(--muted);text-align:center;}
+.slack-foot a{color:var(--accent);text-decoration:none;}
+.cta-panel{background:var(--paper);border:0.5px solid var(--border);border-radius:6px;padding:2rem;display:flex;flex-direction:column;gap:1rem;}
+.cta-panel-h{font-size:1.1rem;font-weight:700;letter-spacing:-0.02em;}
+.cta-panel-sub{font-size:0.78rem;color:var(--muted);line-height:1.8;font-weight:300;}
+.cta-card{background:var(--card);border:0.5px solid var(--border);border-radius:4px;padding:1.2rem;display:flex;flex-direction:column;gap:0.8rem;}
+.cta-card.primary{border-left:2.5px solid var(--accent);}
+.cta-card.secondary{border-left:2.5px solid var(--border);}
+.cta-card-label{font-family:var(--mono);font-size:0.58rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted2);}
+.cta-card-h{font-size:0.88rem;font-weight:500;}
+.cta-card-desc{font-size:0.72rem;color:var(--muted);line-height:1.7;}
+.btn-slack{width:100%;font-family:var(--mono);font-size:0.75rem;font-weight:500;background:var(--accent);color:#fff;border:none;padding:0.7rem 1rem;border-radius:3px;cursor:pointer;transition:background 0.15s;}
+.btn-slack:hover{background:#0f3fcc;}
+.btn-demo{width:100%;font-family:var(--mono);font-size:0.72rem;font-weight:500;background:transparent;color:var(--muted);border:0.5px solid var(--border);padding:0.65rem 1rem;border-radius:3px;cursor:pointer;transition:all 0.15s;}
+.btn-demo:hover{border-color:var(--ink);color:var(--ink);}
+.cta-note{font-family:var(--mono);font-size:0.6rem;color:var(--muted2);text-align:center;}
+
+/* ── FEATURES ── */
+.feats{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;}
+.feat{background:var(--paper);border:0.5px solid var(--border);border-left:2.5px solid transparent;border-radius:0 3px 3px 0;padding:1.2rem 1.1rem 1.2rem 1rem;}
+.feat:nth-child(1){border-left-color:#1a5cff;}
+.feat:nth-child(2){border-left-color:#ff4d1a;}
+.feat:nth-child(3){border-left-color:#0f6e56;}
+.feat:nth-child(4){border-left-color:#854F0B;}
+.feat-t{font-size:0.85rem;font-weight:500;margin-bottom:0.35rem;}
+.feat-d{font-size:0.72rem;color:var(--muted);line-height:1.75;}
+
+/* ── PRICING ── */
+.plan-banners{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:1.5rem;}
+.plan-banner{background:var(--card);border:0.5px solid var(--border);border-left:2.5px solid transparent;border-radius:0 3px 3px 0;padding:0.9rem 1rem;display:flex;align-items:center;gap:0.8rem;}
+.plan-banner.b1{border-left-color:var(--accent);}
+.plan-banner.b2{border-left-color:var(--accent2);}
+.banner-icon{font-family:var(--mono);font-size:1.2rem;font-weight:500;}
+.banner-title{font-size:0.8rem;font-weight:500;margin-bottom:2px;}
+.banner-sub{font-family:var(--mono);font-size:0.65rem;color:var(--muted);}
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:4px;overflow:hidden;}
+.plan{background:var(--card);padding:1.8rem 1.4rem;}
+.plan.hot{background:#f0f4ff;}
+.plan-badge{font-family:var(--mono);font-size:0.58rem;letter-spacing:0.08em;background:var(--accent);color:#fff;padding:0.2rem 0.6rem;border-radius:2px;display:inline-block;margin-bottom:0.6rem;}
+.plan-n{font-family:var(--mono);font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.6rem;}
+.plan-p{font-family:var(--mono);font-size:2rem;font-weight:500;letter-spacing:-0.04em;color:var(--ink);}
+.plan-p sup{font-size:1rem;font-weight:400;}
+.plan-p sub{font-size:0.7rem;font-weight:400;color:var(--muted);}
+.plan-init{display:inline-block;font-family:var(--mono);font-size:0.65rem;background:var(--green);color:#fff;padding:0.2rem 0.6rem;border-radius:2px;margin:0.4rem 0 0.6rem;}
+.plan-vol{font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-bottom:1rem;padding-bottom:0.8rem;border-bottom:0.5px solid var(--border);}
+.plan-fs{list-style:none;display:flex;flex-direction:column;gap:0.45rem;margin-bottom:1.2rem;}
+.plan-fs li{font-size:0.72rem;color:var(--muted);display:flex;gap:0.5rem;}
+.plan-fs li::before{content:"—";color:var(--border);flex-shrink:0;}
+.plan-btn{width:100%;font-family:var(--mono);font-size:0.7rem;font-weight:500;padding:0.55rem;border-radius:2px;cursor:pointer;letter-spacing:0.03em;border:0.5px solid var(--border);background:transparent;color:var(--muted);transition:all 0.15s;}
+.plan-btn:hover{border-color:var(--ink);color:var(--ink);}
+.plan.hot .plan-btn{background:var(--accent);color:#fff;border-color:var(--accent);}
+.plan.hot .plan-btn:hover{background:#0f3fcc;}
+
+/* ── COMPARISON TABLE ── */
+.comp-table{margin-top:2rem;background:var(--card);border:0.5px solid var(--border);border-radius:4px;overflow:hidden;}
+.comp-table-head{padding:1rem 1.4rem;border-bottom:0.5px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.comp-table-label{font-family:var(--mono);font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted2);}
+.comp-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;overflow-x:auto;}
+.comp-cell{padding:0.65rem 1rem;font-size:0.72rem;border-bottom:0.5px solid var(--border-l);border-right:0.5px solid var(--border);}
+.comp-cell:nth-child(4n){border-right:none;}
+.comp-header{background:var(--paper);font-family:var(--mono);font-size:0.65rem;color:var(--muted);text-align:center;border-bottom:0.5px solid var(--border);}
+.comp-header.na{background:#f0f4ff;color:var(--accent);font-weight:500;}
+.comp-label{color:var(--muted);}
+.comp-val{font-family:var(--mono);text-align:center;color:var(--muted);}
+.comp-val.na{color:var(--accent);font-weight:500;background:#f8faff;}
+.comp-val.bad{color:#e74c3c;font-weight:500;}
+.comp-total{font-weight:500;color:var(--ink);}
+.comp-foot{padding:0.7rem 1.4rem;background:#f0f4ff;border-top:0.5px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;}
+.comp-foot-note{font-family:var(--mono);font-size:0.62rem;color:var(--muted2);}
+.comp-foot-result{font-family:var(--mono);font-size:0.72rem;font-weight:500;color:var(--accent);}
+
+/* ── CTA BAND ── */
+.cta-band{padding:3rem 2rem;display:flex;align-items:center;justify-content:space-between;gap:2rem;flex-wrap:wrap;border-top:1px solid var(--border);background:var(--card);}
+.cta-h{font-size:clamp(1rem,3vw,1.2rem);font-weight:700;letter-spacing:-0.02em;margin-bottom:0.3rem;}
+.cta-s{font-size:0.8rem;color:var(--muted);font-weight:300;}
+.cta-right{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;}
+.btn-cta{font-family:var(--mono);font-size:0.78rem;font-weight:500;background:var(--ink);color:var(--paper);border:none;padding:0.8rem 2rem;border-radius:3px;cursor:pointer;transition:opacity 0.15s;white-space:nowrap;}
+.btn-cta:hover{opacity:0.85;}
+.cta-note-sm{font-family:var(--mono);font-size:0.62rem;color:var(--muted2);}
+
+/* ── FOOTER ── */
+.foot{padding:1.4rem 2rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;}
+.foot-logo{font-family:var(--mono);font-size:0.88rem;font-weight:500;}
+.foot-logo .blue{color:var(--accent);}
+.foot-links{display:flex;gap:1.5rem;flex-wrap:wrap;}
+.foot-links a{font-family:var(--mono);font-size:0.62rem;color:var(--muted2);text-decoration:none;}
+.foot-links a:hover{color:var(--ink);}
+.foot-copy{font-family:var(--mono);font-size:0.6rem;color:var(--muted2);}
+.foot-note{width:100%;padding:0.8rem 2rem;background:var(--paper);border-top:0.5px solid var(--border-l);}
+.foot-note p{font-family:var(--mono);font-size:0.6rem;color:var(--muted2);line-height:1.8;}
+.foot-note a{color:var(--accent);}
+.ico-slack{display:inline-block;width:14px;height:14px;vertical-align:middle;}
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="logo">
-            <h1><span class="next">Next</span><span class="account">Account</span></h1>
-        </div>
-
-        <div class="subtitle">
-            日本の中小企業向け・経費精算 SAAS
-        </div>
-
-        <div class="tagline">
-            領収書を<span class="highlight">無料</span><br><span class="highlight">Slack</span>に送るだけ。
-        </div>
-
-        <div class="description">
-            OCR × AI判定 × 自動仕訳。<br>
-            経費精算のすべてが Slack で完結する。<br>
-            Slack 無料プランで動作。弥生・freee・MF<br>
-            クラウド対応。
-        </div>
-
-        <a href="/signup.html" class="cta-button">
-            <span class="icon">🔍</span>30日間無料トライアル
-        </a>
-
-        <a href="#" class="help-link">使い方を見る →</a>
-        <a href="/contact.html" class="help-link">お問い合わせ →</a>
-
-        <div class="divider"></div>
-
-        <div class="login-section">
-            <div class="login-link">
-                すでにアカウントをお持ちですか？ <a href="/login.html">ログイン</a>
-            </div>
-        </div>
+<header class="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="#"><span class="blue">Next</span>Account</a>
+    <button class="nav-login" onclick="location.href='/login.html'">ログイン</button>
+  </div>
+  <div class="nav-sub">
+    <div style="display:flex;gap:2rem;">
+      <a href="/guide.html">使い方</a>
+      <a href="#pricing">料金</a>
+      <a href="#features">特徴</a>
     </div>
+    <button class="nav-cta" onclick="location.href='/signup.html'">30日間無料トライアル</button>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="eyebrow">
+    <span class="e-dot"></span>
+    <span class="e-txt">中小企業向け · 経費精算 SaaSシステム</span>
+  </div>
+  <h1 class="hero-h1"><span style="font-size:1em;">領収書を<span class="blue">無料</span>、</span><br><span style="font-size:0.75em;"><span class="blue">Slack</span>に送るだけ。</span></h1>
+  <div class="hero-body">
+    <p>OCR × AI判定 × 自動仕訳。経費精算のすべてが Slack で完結する。</p>
+    <p>Slack 無料プランで動作。</p>
+  </div>
+  <div class="compat-line">
+    <span class="compat-count">対応ソフト —</span>
+    <span class="compat-badge">弥生</span>
+    <span class="compat-badge">freee</span>
+    <span class="compat-badge">MFクラウド</span>
+    <span class="compat-badge">勘定奉行</span>
+    <span class="compat-badge">PCA</span>
+    <span class="compat-badge">TKC</span>
+    <span class="compat-badge">MJS</span>
+    <span class="compat-badge">JDL</span>
+    <span class="compat-badge">汎用CSV</span>
+  </div>
+  <div class="hero-tags">
+    <span class="tag"><span class="ok">✓</span> Slack無料プランで動作</span>
+    <span class="tag"><span class="ok">✓</span> クレカ不要で試用開始</span>
+    <span class="tag"><span class="ok">✓</span> 電子帳簿保存法対応</span>
+    <span class="tag"><span class="ok">✓</span> 競合比64%コスト削減</span>
+  </div>
+  <div class="hero-actions">
+    <button class="btn-primary" onclick="location.href='/signup.html'">
+      <svg class="ico-slack" viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
+      30日間無料トライアル
+    </button>
+    <button class="btn-ghost" onclick="location.href='/guide.html'">使い方を見る →</button>
+  </div>
+  <p class="hero-fine">// クレジットカード不要・いつでもキャンセル可</p>
+</section>
+
+<div class="impact">
+  <div class="impact-title">すべてが、この価格に含まれる。</div>
+  <div class="impact-items">
+    <span class="impact-item">経費精算</span>
+    <span class="impact-plus">+</span>
+    <span class="impact-item">自動仕訳</span>
+    <span class="impact-plus">+</span>
+    <span class="impact-item">CSV出力</span>
+    <span class="impact-plus">+</span>
+    <span class="impact-item">電子帳簿保存法対応</span>
+  </div>
+  <div class="impact-price">
+    <span class="impact-label">月額</span>
+    <span class="impact-num">¥980</span>
+    <span class="impact-sub">〜 · 人数無制限</span>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="stat-n">500+</div><div class="stat-l">導入企業数</div></div>
+  <div class="stat"><div class="stat-n">99.2%</div><div class="stat-l">OCR認識精度</div></div>
+  <div class="stat"><div class="stat-n">10秒</div><div class="stat-l">平均処理時間/枚</div></div>
+  <div class="stat"><div class="stat-n">64%</div><div class="stat-l">最大コスト削減</div></div>
+</div>
+<section class="sec" id="how">
+  <div class="wrap">
+    <div class="sec-label">// How it works</div>
+    <div class="sec-h">4ステップで完結</div>
+    <p class="sec-sub">複雑な設定は一切不要。Slackがあればすぐに始められます。</p>
+    <div class="steps">
+      <div class="step"><div class="step-n">01</div><div class="step-ico ic-b">📷</div><div class="step-t">写真を送る</div><p class="step-d">Slackの経費チャンネルに領収書の写真を送るだけ。スマホで撮影してそのまま。</p></div>
+      <div class="step"><div class="step-n">02</div><div class="step-ico ic-o">🧠</div><div class="step-t">AIが自動分類</div><p class="step-d">OCRで文字認識→AIが勘定科目・税区分・T番号を自動判定。</p></div>
+      <div class="step"><div class="step-n">03</div><div class="step-ico ic-t">✅</div><div class="step-t">Slackで承認</div><p class="step-d">承認者がSlack上でワンクリック。メールも別アプリも不要。</p></div>
+      <div class="step"><div class="step-n">04</div><div class="step-ico ic-a">📊</div><div class="step-t">CSV出力</div><p class="step-d">弥生・freee・MF対応CSVをSlackから直接ダウンロード。</p></div>
+    </div>
+    <div class="compat-row">
+      <span class="compat-l">// 対応ソフト：</span>
+      <span class="compat-b"><span class="c-dot" style="background:#2563eb"></span>弥生</span>
+      <span class="compat-b"><span class="c-dot" style="background:#22c55e"></span>freee</span>
+      <span class="compat-b"><span class="c-dot" style="background:#f59e0b"></span>MFクラウド</span>
+      <span class="compat-b"><span class="c-dot" style="background:#8b5cf6"></span>勘定奉行</span>
+      <span class="compat-b"><span class="c-dot" style="background:#ec4899"></span>PCA</span>
+      <span class="compat-b"><span class="c-dot" style="background:#14b8a6"></span>TKC</span>
+      <span class="compat-b"><span class="c-dot" style="background:#f97316"></span>MJS</span>
+      <span class="compat-b"><span class="c-dot" style="background:#6366f1"></span>JDL</span>
+      <span class="compat-b"><span class="c-dot" style="background:#888"></span>汎用CSV</span>
+    </div>
+  </div>
+</section>
+
+<section class="sec sec-alt" id="demo">
+  <div class="wrap">
+    <div class="sec-label">// Live demo</div>
+    <div class="sec-h">実際の動きを見る</div>
+    <p class="sec-sub">領収書を送ってから記帳完了まで、すべてSlack内で完結。</p>
+    <div class="demo-grid">
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="slack-win">
+          <div class="slack-bar">
+            <div class="s-dot" style="background:#ff6057"></div>
+            <div class="s-dot" style="background:#ffbb2c"></div>
+            <div class="s-dot" style="background:#28ca41"></div>
+            <span class="s-channel"><strong>#経費精算</strong> · 申請時</span>
+          </div>
+          <div class="slack-body">
+            <div class="s-msg">
+              <div class="s-av av-b">田中</div>
+              <div class="s-bub">
+                <div class="s-name">田中 佑樹<span class="s-time">14:32</span></div>
+                <div class="s-txt">🧾 タクシー代の領収書です<br><span style="color:#aaa;font-size:0.65rem;font-style:italic;">[receipt_0518.jpg]</span></div>
+              </div>
+            </div>
+            <div class="s-msg">
+              <div class="s-av av-bot">NA</div>
+              <div class="s-bub">
+                <div class="s-name s-bot-name">NextAccount<span class="s-time">14:32</span></div>
+                <div class="s-txt">OCR・AI分類が完了しました ✅</div>
+                <div class="rcpt">
+                  <div class="rcpt-row"><span>取引先</span><span class="v">アサヒ交通</span></div>
+                  <div class="rcpt-row"><span>税込金額</span><span class="v">¥ 2,800</span></div>
+                  <div class="rcpt-row"><span>借方科目</span><span class="v">旅費交通費</span></div>
+                  <div class="rcpt-row"><span>貸方科目</span><span class="v">未払費用</span></div>
+                  <div class="rcpt-sep"></div>
+                  <div class="rcpt-row"><span>T番号</span><span style="font-family:var(--mono);font-size:0.65rem;color:#0f6e56;font-weight:600;">✅ 照合済 · 控除対象</span></div>
+                </div>
+                <div style="margin-top:0.5rem;">
+                  <span style="font-family:var(--mono);font-size:0.65rem;background:#f1efe8;border:0.5px solid var(--border);padding:4px 10px;border-radius:3px;color:var(--muted);">✏️ 内容を修正</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="slack-win">
+          <div class="slack-bar">
+            <div class="s-dot" style="background:#ff6057"></div>
+            <div class="s-dot" style="background:#ffbb2c"></div>
+            <div class="s-dot" style="background:#28ca41"></div>
+            <span class="s-channel"><strong>#経費精算</strong> · CSV出力時</span>
+          </div>
+          <div class="slack-body">
+            <div class="s-msg">
+              <div class="s-av av-p">鈴木</div>
+              <div class="s-bub">
+                <div class="s-name">鈴木 美咲<span class="s-time">14:45</span></div>
+                <div class="s-txt">/csv</div>
+              </div>
+            </div>
+            <div class="s-msg">
+              <div class="s-av av-bot">NA</div>
+              <div class="s-bub">
+                <div class="s-name s-bot-name">NextAccount<span class="s-time">14:45</span></div>
+                <div class="s-txt" style="margin-bottom:0.5rem;">日付範囲と会計ソフト形式を選択してください。</div>
+                <div style="display:flex;gap:6px;margin-bottom:0.5rem;flex-wrap:wrap;">
+                  <span style="font-family:var(--mono);font-size:0.6rem;background:#f1efe8;border:0.5px solid var(--border);padding:3px 8px;border-radius:3px;color:var(--muted);">📅 2026/05/01</span>
+                  <span style="font-family:var(--mono);font-size:0.6rem;color:var(--muted2);">〜</span>
+                  <span style="font-family:var(--mono);font-size:0.6rem;background:#f1efe8;border:0.5px solid var(--border);padding:3px 8px;border-radius:3px;color:var(--muted);">📅 2026/05/31</span>
+                </div>
+                <div style="font-family:var(--mono);font-size:0.6rem;color:var(--muted2);margin-bottom:4px;">形式</div>
+                <div class="csv-btns" style="margin-bottom:0.4rem;">
+                  <span class="csv-btn" style="background:#0f6e56;color:#fff;border:0.5px solid #0f6e56;">🗂 弥生</span>
+                  <span class="csv-btn" style="background:#f1efe8;color:var(--muted);border:0.5px solid var(--border);">📱 freee</span>
+                  <span class="csv-btn" style="background:#f1efe8;color:var(--muted);border:0.5px solid var(--border);">💰 MF</span>
+                  <span class="csv-btn" style="background:#f1efe8;color:var(--muted);border:0.5px solid var(--border);">📄 汎用</span>
+                </div>
+                <div style="font-family:var(--mono);font-size:0.6rem;color:var(--muted2);margin-bottom:4px;">エンタープライズ向け</div>
+                <div class="csv-btns" style="margin-bottom:0.4rem;">
+                  <span class="csv-btn" style="background:#f1efe8;color:var(--muted);border:0.5px solid var(--border);">🏢 勘定奉行</span>
+                  <span class="csv-btn" style="background:#f1efe8;color:var(--muted);border:0.5px solid var(--border);">🏛 PCA</span>
+                  <span class="csv-btn" style="background:#f1efe8;color:var(--muted);border:0.5px solid var(--border);">📋 TKC</span>
+                </div>
+                <div style="font-family:var(--mono);font-size:0.6rem;color:var(--muted2);margin-bottom:4px;">会計事務所向け</div>
+                <div class="csv-btns">
+                  <span class="csv-btn" style="background:#f1efe8;color:var(--muted);border:0.5px solid var(--border);">🔵 JDL</span>
+                  <span class="csv-btn" style="background:#f1efe8;color:var(--muted);border:0.5px solid var(--border);">⚡ MJS</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="cta-panel">
+        <div>
+          <div class="sec-label">// 今すぐ始める</div>
+          <div class="cta-panel-h">Slackがあれば、<br>すぐに始められる。</div>
+          <p class="cta-panel-sub">Slackの準備さえあればすぐ使えます。<br>クレジットカード不要・30日間完全無料。</p>
+        </div>
+        <div style="height:1px;background:var(--border);"></div>
+        <div class="cta-card primary">
+          <div class="cta-card-label">// 01 · おすすめ</div>
+          <div class="cta-card-h">無料トライアルを始める</div>
+          <p class="cta-card-desc">NextAccountに登録後、最終ステップで連携するSlackチャンネルを選択。</p>
+          <button class="btn-slack" onclick="location.href='/signup.html'">30日間無料で始める →</button>
+        </div>
+        <div class="cta-card secondary">
+          <div class="cta-card-label">// 02 · デモを見る</div>
+          <div class="cta-card-h">使い方ガイドを見る</div>
+          <p class="cta-card-desc">導入前に詳しい使い方や設定方法を確認したい方はこちら。</p>
+          <button class="btn-demo" onclick="location.href='/guide.html'">はじめかたを見る →</button>
+        </div>
+        <p class="cta-note">// クレジットカード不要・いつでもキャンセル可・500社以上が導入済み</p>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="sec" id="features">
+  <div class="wrap">
+    <div class="sec-label">// Features</div>
+    <div class="sec-h">選ばれる理由</div>
+    <p class="sec-sub">Slackだけで完結する、日本で唯一の経費精算。</p>
+    <div class="feats">
+      <div class="feat"><div class="feat-t">完全Slack完結</div><p class="feat-d">申請・承認・CSV出力まですべてSlack内で完結。別のWebアプリへの切り替えは一切不要。競合他社は必ずWeb画面に遷移する。</p></div>
+      <div class="feat"><div class="feat-t">高精度OCR × Claude AI</div><p class="feat-d">Google Cloud VisionとClaude AIの2段階処理で、金額・日付・T番号・税区分を自動認識。誤認識があればSlackで即訂正。</p></div>
+      <div class="feat"><div class="feat-t">9種類の会計ソフト対応</div><p class="feat-d">弥生・freee・MFクラウド・勘定奉行・PCA・TKC・MJS・JDL・汎用CSV。国内95%以上の会計ソフトに対応。</p></div>
+      <div class="feat" style="cursor:pointer;" onclick="location.href='/docs/electronic_books.html'"><div class="feat-t">電子帳簿保存法対応 <span style="font-family:var(--mono);font-size:0.6rem;color:var(--accent);">→ 詳細・テンプレート</span></div><p class="feat-d">RFC3161タイムスタンプ・T番号照合・事務処理規程テンプレート付属。追加費用ゼロで法令対応完了。</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec sec-alt" id="pricing">
+  <div class="wrap">
+    <div class="sec-label">// Pricing</div>
+    <div class="sec-h">シンプルな料金体系</div>
+    <p class="sec-sub">領収書の枚数だけで決まる。人数が増えても、料金は変わらない。</p>
+    <div class="plan-banners">
+      <div class="plan-banner b1">
+        <div style="font-family:var(--mono);font-size:1.2rem;font-weight:500;color:var(--accent);">∞</div>
+        <div>
+          <div class="banner-title">何人使っても追加料金なし</div>
+          <div class="banner-sub">他社サービスは+¥300/人。10人で月+¥3,000の隠れコスト。</div>
+        </div>
+      </div>
+      <div class="plan-banner b2">
+        <div style="font-family:var(--mono);font-size:1.2rem;font-weight:500;color:var(--accent2);">↑</div>
+        <div>
+          <div class="banner-title">上限超過時は自動アップグレード</div>
+          <div class="banner-sub">月末に元のプランへ自動で戻ります。</div>
+        </div>
+      </div>
+    </div>
+    <div class="plans">
+      <div class="plan">
+        <div class="plan-n">Starter</div>
+        <div class="plan-p"><sup>¥</sup>980<sub>/月</sub></div>
+        <div class="plan-init">初期費用 ¥0</div>
+        <div class="plan-vol">// 30枚/月 · 人数無制限 · 超過→Standard自動切替</div>
+        <ul class="plan-fs"><li>OCR + AI分類</li><li>9種類CSV対応</li><li>Slack承認フロー</li><li>Google Sheets自動連携</li><li>メールサポート</li></ul>
+        <button class="plan-btn" onclick="location.href='/signup.html?plan=starter'">トライアル開始</button>
+      </div>
+      <div class="plan hot">
+        <div class="plan-badge">人気プラン</div>
+        <div class="plan-n">Standard</div>
+        <div class="plan-p"><sup>¥</sup>1,980<sub>/月</sub></div>
+        <div class="plan-init">初期費用 ¥0</div>
+        <div class="plan-vol">// 100枚/月 · 人数無制限 · 超過→Business自動切替</div>
+        <ul class="plan-fs"><li>Starterの全機能</li><li>T番号自動照合</li><li>消費税自動区分計算</li><li>RFC3161タイムスタンプ</li><li>優先サポート</li></ul>
+        <button class="plan-btn" onclick="location.href='/signup.html?plan=standard'">トライアル開始</button>
+      </div>
+      <div class="plan">
+        <div class="plan-n">Business</div>
+        <div class="plan-p"><sup>¥</sup>5,980<sub>/月</sub></div>
+        <div class="plan-init">初期費用 ¥0</div>
+        <div class="plan-vol">// 枚数無制限 · 人数無制限 · 上限なし</div>
+        <ul class="plan-fs"><li>Standardの全機能</li><li>複数チャンネル対応</li><li>APIアクセス</li><li>専任サポート</li></ul>
+        <button class="plan-btn" onclick="location.href='/signup.html?plan=business'">トライアル開始</button>
+      </div>
+    </div>
+    <div class="comp-table">
+      <div class="comp-table-head">
+        <span class="comp-table-label">// コスト比較 — 月100枚・5人チームで試算</span>
+      </div>
+      <div class="comp-grid">
+        <div class="comp-cell comp-header"></div>
+        <div class="comp-cell comp-header">税理士<br>記帳代行</div>
+        <div class="comp-cell comp-header">他社SaaS<br>（従量課金型）</div>
+        <div class="comp-cell comp-header na">NextAccount</div>
+        <div class="comp-cell comp-label">月額基本料</div>
+        <div class="comp-cell comp-val">¥6,000〜</div>
+        <div class="comp-cell comp-val">¥1,980</div>
+        <div class="comp-cell comp-val na">¥1,980</div>
+        <div class="comp-cell comp-label">従量課金（100枚）</div>
+        <div class="comp-cell comp-val">込み</div>
+        <div class="comp-cell comp-val">+¥2,000</div>
+        <div class="comp-cell comp-val na">¥0（込み）</div>
+        <div class="comp-cell comp-label">ユーザー課金（5人）</div>
+        <div class="comp-cell comp-val">なし</div>
+        <div class="comp-cell comp-val">+¥1,500</div>
+        <div class="comp-cell comp-val na">¥0（無制限）</div>
+        <div class="comp-cell comp-label">処理スピード</div>
+        <div class="comp-cell comp-val">月次</div>
+        <div class="comp-cell comp-val">リアルタイム</div>
+        <div class="comp-cell comp-val na">リアルタイム</div>
+        <div class="comp-cell comp-label">CSV出力</div>
+        <div class="comp-cell comp-val">別途費用</div>
+        <div class="comp-cell comp-val">込み</div>
+        <div class="comp-cell comp-val na">込み</div>
+        <div class="comp-cell comp-label comp-total">月合計</div>
+        <div class="comp-cell comp-val bad">¥6,000〜</div>
+        <div class="comp-cell comp-val bad">¥5,480</div>
+        <div class="comp-cell comp-val na">¥1,980</div>
+      </div>
+      <div class="comp-foot">
+        <span class="comp-foot-note">// 月100枚・5人チームの場合の概算。他社は公開情報をもとに試算。</span>
+        <span class="comp-foot-result">→ 最大64%コスト削減</span>
+      </div>
+    </div>
+  </div>
+</section>
+<div class="cta-band">
+  <div>
+    <div class="cta-h">今すぐ無料で始める</div>
+    <div class="cta-s">30日間完全無料・クレジットカード不要・いつでもキャンセル可</div>
+  </div>
+  <div class="cta-right">
+    <button class="btn-cta" onclick="location.href='/signup.html'">30日間無料トライアル →</button>
+    <div class="cta-note-sm">// 500社以上が導入済み</div>
+  </div>
+</div>
+
+<footer>
+  <div class="foot-note">
+    <p>※ Businessプラン（枚数無制限）は、月間3,000枚を超える著しく大量の処理が継続する場合、別途ご相談させていただく場合があります。詳細は<a href="/docs/specified_commercial_transaction.html">利用規約</a>をご確認ください。</p>
+  </div>
+  <div class="foot">
+    <div class="foot-logo"><span class="blue">Next</span>Account</div>
+    <div class="foot-links">
+      <a href="/docs/privacy_policy.html">プライバシーポリシー</a>
+      <a href="/docs/specified_commercial_transaction.html">利用規約</a>
+      <a href="mailto:support@nextaccount.jp">お問い合わせ</a>
+    </div>
+    <div class="foot-copy">// © 2025 株式会社Ｋｉｒｅｉ</div>
+  </div>
+</footer>
 </body>
 </html>
