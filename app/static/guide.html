@@ -14,38 +14,28 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);line-heigh
 .nav-inner{max-width:1080px;margin:0 auto;padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;}
 .nav-logo{font-family:var(--mono);font-size:1rem;font-weight:500;letter-spacing:-0.03em;text-decoration:none;color:var(--ink);}
 .nav-logo .blue{color:var(--accent);}
-.nav-back{font-family:var(--mono);font-size:0.7rem;color:var(--muted);text-decoration:none;}
+.nav-back{font-family:var(--mono);font-size:0.7rem;color:var(--muted);text-decoration:none;cursor:pointer;}
+.nav-back:hover{color:var(--accent);}
 .wrap{max-width:800px;margin:0 auto;padding:3rem 2rem;}
-.header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:3rem;gap:2rem;}
+.header{display:flex;align-items:flex-start;justify-content:space-between;gap:2rem;margin-bottom:3rem;}
 .header-content{flex:1;}
 .doc-label{font-family:var(--mono);font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted2);margin-bottom:0.5rem;}
 .doc-title{font-size:1.8rem;font-weight:700;letter-spacing:-0.03em;margin-bottom:0.5rem;}
-.doc-desc{font-size:0.85rem;color:var(--muted);line-height:1.8;}
-.lang-switcher{display:flex;gap:0.5rem;}
-.lang-btn{font-family:var(--mono);font-size:0.75rem;padding:0.5rem 0.8rem;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;border-radius:3px;transition:all 0.2s;}
+.doc-date{font-family:var(--mono);font-size:0.65rem;color:var(--muted2);margin-bottom:3rem;}
+.lang-buttons{display:flex;gap:0.5rem;flex-wrap:wrap;}
+.lang-btn{font-family:var(--mono);font-size:0.7rem;padding:0.5rem 0.8rem;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;border-radius:3px;transition:all 0.2s;text-transform:uppercase;letter-spacing:0.05em;}
 .lang-btn:hover{border-color:var(--accent);color:var(--accent);}
 .lang-btn.active{background:var(--accent);color:white;border-color:var(--accent);}
-h2{font-size:0.95rem;font-weight:700;margin:2.5rem 0 1rem;padding-left:0.8rem;border-left:2.5px solid var(--accent);}
-h3{font-size:0.88rem;font-weight:600;margin:1.5rem 0 0.8rem;color:var(--ink);}
+h2{font-size:0.95rem;font-weight:700;margin:2.5rem 0 0.8rem;padding-left:0.8rem;border-left:2.5px solid var(--accent);}
 p{font-size:0.82rem;color:var(--muted);margin-bottom:0.8rem;line-height:1.9;}
-ul{margin:0.5rem 0 1rem 1.2rem;}
-ul li{font-size:0.82rem;color:var(--muted);line-height:1.9;margin-bottom:0.3rem;}
-ol{margin:0.5rem 0 1rem 1.2rem;}
-ol li{font-size:0.82rem;color:var(--muted);line-height:1.9;margin-bottom:0.3rem;}
-table{width:100%;border-collapse:collapse;margin:1rem 0 1.5rem;border:0.5px solid var(--border);border-radius:4px;overflow:hidden;font-size:0.82rem;}
-th{background:var(--paper);font-size:0.78rem;font-weight:500;padding:0.7rem 1.2rem;text-align:left;border-bottom:0.5px solid var(--border);color:var(--ink);width:35%;}
-td{padding:0.7rem 1.2rem;border-bottom:0.5px solid var(--border);color:var(--muted);line-height:1.8;}
-tr:last-child td,tr:last-child th{border-bottom:none;}
 a{color:var(--accent);text-decoration:none;}
+.toc{background:rgba(26,92,255,0.03);padding:1.5rem;border-left:2.5px solid var(--accent);margin:2rem 0;border-radius:4px;}
+.toc h3{margin:0 0 1rem;color:var(--accent);font-size:0.85rem;}
+.toc ul{margin:0;padding-left:1.2rem;}
+.toc li{font-size:0.82rem;color:var(--muted);line-height:1.8;margin-bottom:0.4rem;}
+.toc a{color:var(--accent);}
+.toc a:hover{text-decoration:underline;}
 .divider{height:0.5px;background:var(--border);margin:2.5rem 0;}
-.toc-box{background:rgba(26,92,255,0.03);padding:1.5rem;border-left:2.5px solid var(--accent);margin:2rem 0;border-radius:4px;}
-.toc-box h3{margin:0 0 1rem;color:var(--accent);}
-.toc-box ul{margin:0;padding-left:1.2rem;}
-.toc-box li{margin-bottom:0.4rem;}
-.toc-box a{color:var(--accent);}
-.toc-box a:hover{text-decoration:underline;}
-.tip-box{background:rgba(26,92,255,0.05);padding:1rem 1.2rem;border-left:2.5px solid var(--accent);margin:1rem 0;border-radius:4px;font-size:0.8rem;line-height:1.8;}
-.code-block{background:var(--ink);color:#e8e8e8;padding:1rem;margin:1rem 0;border-radius:4px;overflow-x:auto;font-family:var(--mono);font-size:0.75rem;line-height:1.6;}
 footer{padding:1.5rem 2rem;border-top:1px solid var(--border);text-align:center;}
 footer p{font-family:var(--mono);font-size:0.6rem;color:var(--muted2);}
 footer a{color:var(--accent);}
@@ -55,7 +45,7 @@ footer a{color:var(--accent);}
 <nav class="nav">
   <div class="nav-inner">
     <a class="nav-logo" href="/"><span class="blue">Next</span>Account</a>
-    <button class="nav-back" onclick="window.history.back()" style="background:none;border:none;padding:0;cursor:pointer;">← 戻る</button>
+    <a class="nav-back" onclick="window.history.back()">← 戻る</a>
   </div>
 </nav>
 
@@ -64,16 +54,16 @@ footer a{color:var(--accent);}
     <div class="header-content">
       <div class="doc-label" id="docLabel">// Guide</div>
       <div class="doc-title" id="docTitle">使い方ガイド</div>
-      <div class="doc-desc" id="docDesc">NextAccount の基本的な使い方から応用機能まで、わかりやすく解説します。</div>
+      <div class="doc-date" id="docDate">最終更新日：2026年6月10日</div>
     </div>
-    <div class="lang-switcher">
+    <div class="lang-buttons">
       <button class="lang-btn active" data-lang="ja">日本語</button>
       <button class="lang-btn" data-lang="en">English</button>
       <button class="lang-btn" data-lang="zh">中文</button>
     </div>
   </div>
 
-  <div class="toc-box" id="tocContainer"></div>
+  <div class="toc" id="tocContainer"></div>
 
   <div id="contentContainer"></div>
 
@@ -88,94 +78,54 @@ footer a{color:var(--accent);}
 let guideContent = null;
 let currentLang = localStorage.getItem('guideLang') || 'ja';
 
-// Load content
+// Load and render guide
 fetch('/static/guide-content.json')
   .then(res => res.json())
   .then(data => {
     guideContent = data;
-    initializeGuide();
+    render();
+    setupLanguageSwitcher();
   })
   .catch(err => console.error('Failed to load guide content:', err));
 
-function initializeGuide() {
-  renderHeader();
-  renderTOC();
-  renderContent();
-  setupLanguageSwitcher();
-}
+function render() {
+  if (!guideContent) return;
 
-function renderHeader() {
   const content = guideContent[currentLang];
+
+  // Update header
   document.getElementById('docLabel').textContent = `// ${content.label}`;
   document.getElementById('docTitle').textContent = content.title;
-  document.getElementById('docDesc').textContent = content.description;
-}
+  document.getElementById('docDate').textContent = `最終更新日：${content.lastUpdate}`;
 
-function renderTOC() {
-  const content = guideContent[currentLang];
+  // Render table of contents
   const tocHtml = `
     <h3>${currentLang === 'ja' ? '目次' : currentLang === 'en' ? 'Table of Contents' : '目录'}</h3>
     <ul>
-      ${content.toc.map(item => `<li><a href="#${item.id}">${item.label}</a></li>`).join('')}
+      ${content.sections.map(s => `<li><a href="#${s.id}">${s.title}</a></li>`).join('')}
     </ul>
   `;
   document.getElementById('tocContainer').innerHTML = tocHtml;
-}
 
-function renderContent() {
-  const content = guideContent[currentLang];
-  let html = '';
-
-  content.toc.forEach(section => {
-    const sectionData = content.sections[section.id];
-    html += `<h2 id="${section.id}">${sectionData.title}</h2>`;
-    html += renderElements(sectionData.content);
-  });
-
-  document.getElementById('contentContainer').innerHTML = html;
-}
-
-function renderElements(elements) {
-  return elements.map(el => {
-    switch(el.type) {
-      case 'h3':
-        return `<h3>${el.text}</h3>`;
-      case 'p':
-        return `<p>${el.text}</p>`;
-      case 'ul':
-        return `<ul>${el.items.map(item => `<li>${item}</li>`).join('')}</ul>`;
-      case 'ol':
-        return `<ol>${el.items.map(item => `<li>${item}</li>`).join('')}</ol>`;
-      case 'table':
-        return `<table>${el.rows.map((row, idx) => {
-          if (idx === 0) return `<tr><th>${row.th}</th><td>${row.td}</td></tr>`;
-          return `<tr><th>${row.th}</th><td>${row.td}</td></tr>`;
-        }).join('')}</table>`;
-      case 'code':
-        return `<div class="code-block">${el.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`;
-      case 'tip':
-        return `<div class="tip-box">${el.text}</div>`;
-      default:
-        return '';
-    }
-  }).join('');
+  // Render content sections
+  const contentHtml = content.sections
+    .map(s => `<h2 id="${s.id}">${s.title}</h2><p>${s.content}</p>`)
+    .join('');
+  document.getElementById('contentContainer').innerHTML = contentHtml;
 }
 
 function setupLanguageSwitcher() {
   document.querySelectorAll('.lang-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.lang === currentLang);
-    btn.addEventListener('click', () => changeLanguage(btn.dataset.lang));
+    btn.addEventListener('click', () => {
+      currentLang = btn.dataset.lang;
+      localStorage.setItem('guideLang', currentLang);
+      document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      render();
+      window.scrollTo(0, 0);
+    });
   });
-}
-
-function changeLanguage(lang) {
-  currentLang = lang;
-  localStorage.setItem('guideLang', lang);
-  renderHeader();
-  renderTOC();
-  renderContent();
-  setupLanguageSwitcher();
-  window.scrollTo(0, 0);
 }
 </script>
 </body>
