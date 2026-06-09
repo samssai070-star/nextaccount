@@ -305,15 +305,29 @@ def get_approval_card_info(event_id: str, tenant_id: str):
         return row[0], row[1]
     return None
 
-def update_status(event_id, status, tenant_id, approved_by=None):
+def update_status(event_id, status, tenant_id, approved_by=None) -> bool:
+    """ステータスを更新する。申請中→承認/却下のみ成功（既に承認済みならFalseを返す）"""
     now = datetime.now()
     with _get_conn(tenant_id) as conn:
         with conn.cursor() as cur:
             if approved_by:
-                cur.execute("UPDATE accounting_events SET status=%s, approved_by=%s, approved_at=%s, updated_at=%s WHERE event_id=%s AND tenant_id=%s", (status, approved_by, now, now, event_id, tenant_id))
+                cur.execute(
+                    "UPDATE accounting_events SET status=%s, approved_by=%s, approved_at=%s, updated_at=%s "
+                    "WHERE event_id=%s AND tenant_id=%s AND status='申請中'",
+                    (status, approved_by, now, now, event_id, tenant_id)
+                )
             else:
-                cur.execute("UPDATE accounting_events SET status=%s, updated_at=%s WHERE event_id=%s AND tenant_id=%s", (status, now, event_id, tenant_id))
-    logger.info(f"ステータス更新: {event_id} → {status}")
+                cur.execute(
+                    "UPDATE accounting_events SET status=%s, updated_at=%s "
+                    "WHERE event_id=%s AND tenant_id=%s AND status='申請中'",
+                    (status, now, event_id, tenant_id)
+                )
+            updated = cur.rowcount > 0
+    if updated:
+        logger.info(f"ステータス更新: {event_id} → {status}")
+    else:
+        logger.warning(f"ステータス更新スキップ（既に処理済み）: {event_id}")
+    return updated
 
 def update_event(event_id: str, tenant_id: str, fields: dict) -> bool:
     """仕訳の任意フィールドを更新する（承認後の修正にも使用）"""

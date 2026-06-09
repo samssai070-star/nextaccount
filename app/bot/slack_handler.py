@@ -844,10 +844,18 @@ def handle_approve(ack, body, client, logger):
     logger.info(f"承認: {event_id} by {approver}")
 
     try:
-        # DB更新
+        # DB更新（申請中の場合のみ成功 — 二重承認防止）
         tenant = _get_tenant(body.get("team", {}).get("id", ""))
         tenant_id = tenant["id"] if tenant else None
-        update_status(event_id, "業務承認済", tenant_id, approved_by=approver)
+        updated = update_status(event_id, "業務承認済", tenant_id, approved_by=approver)
+        if not updated:
+            client.chat_update(
+                channel=channel_id, ts=msg_ts,
+                text=f"⚠️ `{event_id}` は既に承認・却下済みです（二重承認をスキップ）",
+                blocks=[{"type": "section", "text": {"type": "mrkdwn",
+                    "text": f"⚠️ *二重承認防止*\n`{event_id}` は既に処理済みのため、今回の承認はスキップしました。"}}],
+            )
+            return
 
         # Google Sheets 同期
         if sheets:
