@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>使い方ガイド - NextAccount</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            color: #0052cc;
+        }
+        .header a {
+            color: #0052cc;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .header a:hover {
+            text-decoration: underline;
+        }
+        .section {
+            background: white;
+            padding: 30px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .section h2 {
+            font-size: 20px;
+            color: #0052cc;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #0052cc;
+        }
+        .section h3 {
+            font-size: 16px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .section p {
+            margin-bottom: 15px;
+            color: #666;
+        }
+        .step-list {
+            list-style: none;
+            counter-reset: step-counter;
+        }
+        .step-list li {
+            counter-increment: step-counter;
+            margin-bottom: 15px;
+            padding-left: 30px;
+            position: relative;
+        }
+        .step-list li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: #0052cc;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .btn-back {
+            display: inline-block;
+            margin-top: 30px;
+            padding: 10px 20px;
+            background: #0052cc;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .btn-back:hover {
+            background: #0041a1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>使い方ガイド</h1>
+            <p>NextAccount の基本的な使い方をご説明します</p>
+        </div>
+
+        <div class="section">
+            <h2>📋 セットアップ</h2>
+            <h3>1. アカウント作成</h3>
+            <p>新しくアカウントを作成し、企業情報や基本設定を行います。</p>
+
+            <h3>2. 初期設定ウィザード</h3>
+            <ol class="step-list">
+                <li><strong>会計年度設定</strong> - 企業の会計年度を設定します</li>
+                <li><strong>部門管理</strong> - 企業の部門を登録します</li>
+                <li><strong>従業員管理</strong> - チームメンバーを追加します</li>
+                <li><strong>Slack連携</strong> - Slack ワークスペースと連携します</li>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h2>💼 基本的な使用方法</h2>
+            <h3>領収書のアップロード</h3>
+            <p>Slack の指定チャンネルに領収書の写真やPDFをアップロードすることで、自動的に以下の処理が行われます：</p>
+            <ol class="step-list">
+                <li><strong>OCR処理</strong> - 領収書から金額や日付を自動抽出</li>
+                <li><strong>AI分類</strong> - 経費科目を自動判定</li>
+                <li><strong>仕訳生成</strong> - 会計仕訳を自動生成</li>
+                <li><strong>承認フロー</strong> - 管理者による承認・確認</li>
+            </ol>
+
+            <h3>ダッシュボード</h3>
+            <p>ダッシュボードでは以下の情報を確認できます：</p>
+            <ul class="step-list">
+                <li>組織の統計情報</li>
+                <li>部門一覧</li>
+                <li>従業員一覧</li>
+                <li>ユーザー管理</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🔧 設定とカスタマイズ</h2>
+            <h3>部門管理</h3>
+            <p>企業の部門を追加・編集・削除できます。各従業員を部門に割り当てることで、経費の部門別集計が可能になります。</p>
+
+            <h3>従業員管理</h3>
+            <p>チームメンバーを追加し、Slack ユーザー ID と連携させることで、個人別の経費管理が実現します。</p>
+
+            <h3>Slack 連携</h3>
+            <p>Slack ワークスペースと連携することで、Slack から直接領収書をアップロードできます。</p>
+        </div>
+
+        <div class="section">
+            <h2>❓ よくあるご質問</h2>
+            <h3>Q. 領収書の自動抽出の精度は？</h3>
+            <p>A. 高い精度で自動抽出されますが、不鮮明な領収書の場合は手動確認・修正が必要な場合があります。</p>
+
+            <h3>Q. Slack連携は必須ですか？</h3>
+            <p>A. いいえ、ダッシュボードからも領収書をアップロード・管理できます。Slack連携はオプションです。</p>
+
+            <h3>Q. どの会計ソフトに対応していますか？</h3>
+            <p>A. freee、MFクラウド、弥生クラウドに対応しています。</p>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="https://nextaccount.jp/" class="btn-back">← トップページに戻る</a>
+        </div>
+    </div>
+</body>
+</html>
