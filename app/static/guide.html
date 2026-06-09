@@ -10,10 +10,10 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
             background: #f5f7fa;
             color: #333;
-            line-height: 1.6;
+            line-height: 1.8;
         }
         .container {
-            max-width: 900px;
+            max-width: 1000px;
             margin: 0 auto;
             padding: 40px 20px;
         }
@@ -22,16 +22,36 @@
             margin-bottom: 50px;
         }
         .header h1 {
-            font-size: 32px;
-            margin-bottom: 10px;
+            font-size: 36px;
+            margin-bottom: 15px;
             color: #0052cc;
         }
-        .header a {
+        .header p {
+            font-size: 16px;
+            color: #666;
+        }
+        .toc {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .toc h3 {
+            color: #0052cc;
+            margin-bottom: 15px;
+        }
+        .toc ul {
+            list-style: none;
+        }
+        .toc li {
+            margin: 8px 0;
+        }
+        .toc a {
             color: #0052cc;
             text-decoration: none;
-            font-size: 14px;
         }
-        .header a:hover {
+        .toc a:hover {
             text-decoration: underline;
         }
         .section {
@@ -42,30 +62,38 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         .section h2 {
-            font-size: 20px;
+            font-size: 24px;
             color: #0052cc;
             margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #0052cc;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #0052cc;
         }
         .section h3 {
+            font-size: 18px;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            color: #0052cc;
+        }
+        .section h4 {
             font-size: 16px;
             margin-top: 20px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             color: #333;
         }
         .section p {
             margin-bottom: 15px;
-            color: #666;
+            color: #555;
+            line-height: 1.9;
         }
         .step-list {
             list-style: none;
             counter-reset: step-counter;
+            margin: 20px 0;
         }
         .step-list li {
             counter-increment: step-counter;
-            margin-bottom: 15px;
-            padding-left: 30px;
+            margin-bottom: 20px;
+            padding-left: 50px;
             position: relative;
         }
         .step-list li::before {
@@ -73,26 +101,84 @@
             position: absolute;
             left: 0;
             top: 0;
-            background: #0052cc;
+            background: linear-gradient(135deg, #0052cc, #003d99);
             color: white;
-            width: 24px;
-            height: 24px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 12px;
+            font-size: 16px;
+        }
+        .highlight {
+            background: #fffacd;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .code-block {
+            background: #f5f5f5;
+            border-left: 4px solid #0052cc;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+        }
+        .tip {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .tip strong {
+            color: #1976D2;
+        }
+        .warning {
+            background: #fff3e0;
+            border-left: 4px solid #FF9800;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .warning strong {
+            color: #E65100;
+        }
+        .table-responsive {
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f5f5f5;
+            font-weight: 600;
+            color: #0052cc;
+        }
+        tr:hover {
+            background: #f9f9f9;
         }
         .btn-back {
             display: inline-block;
             margin-top: 30px;
-            padding: 10px 20px;
+            padding: 12px 24px;
             background: #0052cc;
             color: white;
             text-decoration: none;
             border-radius: 4px;
             font-size: 14px;
+            font-weight: 600;
         }
         .btn-back:hover {
             background: #0041a1;
@@ -102,67 +188,347 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>使い方ガイド</h1>
-            <p>NextAccount の基本的な使い方をご説明します</p>
+            <h1>📖 NextAccount 使い方ガイド</h1>
+            <p>経費精算を自動化し、組織全体の効率を向上させるための完全ガイド</p>
         </div>
 
-        <div class="section">
-            <h2>📋 セットアップ</h2>
-            <h3>1. アカウント作成</h3>
-            <p>新しくアカウントを作成し、企業情報や基本設定を行います。</p>
-
-            <h3>2. 初期設定ウィザード</h3>
-            <ol class="step-list">
-                <li><strong>会計年度設定</strong> - 企業の会計年度を設定します</li>
-                <li><strong>部門管理</strong> - 企業の部門を登録します</li>
-                <li><strong>従業員管理</strong> - チームメンバーを追加します</li>
-                <li><strong>Slack連携</strong> - Slack ワークスペースと連携します</li>
-            </ol>
-        </div>
-
-        <div class="section">
-            <h2>💼 基本的な使用方法</h2>
-            <h3>領収書のアップロード</h3>
-            <p>Slack の指定チャンネルに領収書の写真やPDFをアップロードすることで、自動的に以下の処理が行われます：</p>
-            <ol class="step-list">
-                <li><strong>OCR処理</strong> - 領収書から金額や日付を自動抽出</li>
-                <li><strong>AI分類</strong> - 経費科目を自動判定</li>
-                <li><strong>仕訳生成</strong> - 会計仕訳を自動生成</li>
-                <li><strong>承認フロー</strong> - 管理者による承認・確認</li>
-            </ol>
-
-            <h3>ダッシュボード</h3>
-            <p>ダッシュボードでは以下の情報を確認できます：</p>
-            <ul class="step-list">
-                <li>組織の統計情報</li>
-                <li>部門一覧</li>
-                <li>従業員一覧</li>
-                <li>ユーザー管理</li>
+        <div class="toc">
+            <h3>📋 目次</h3>
+            <ul>
+                <li><a href="#setup">1. セットアップ手順</a></li>
+                <li><a href="#dashboard">2. ダッシュボード</a></li>
+                <li><a href="#receipt">3. 領収書のアップロード</a></li>
+                <li><a href="#slack">4. Slack連携</a></li>
+                <li><a href="#settings">5. 設定とカスタマイズ</a></li>
+                <li><a href="#accounting">6. 会計ソフト連携</a></li>
+                <li><a href="#faq">7. よくあるご質問</a></li>
             </ul>
         </div>
 
-        <div class="section">
-            <h2>🔧 設定とカスタマイズ</h2>
-            <h3>部門管理</h3>
-            <p>企業の部門を追加・編集・削除できます。各従業員を部門に割り当てることで、経費の部門別集計が可能になります。</p>
+        <div class="section" id="setup">
+            <h2>1️⃣ セットアップ手順</h2>
 
-            <h3>従業員管理</h3>
-            <p>チームメンバーを追加し、Slack ユーザー ID と連携させることで、個人別の経費管理が実現します。</p>
+            <h3>初回登録から運用開始まで</h3>
+            <p>NextAccount の初期セットアップは、4つのステップで簡単に完了できます。</p>
 
-            <h3>Slack 連携</h3>
-            <p>Slack ワークスペースと連携することで、Slack から直接領収書をアップロードできます。</p>
+            <h4>ステップ1: アカウント作成</h4>
+            <p>アカウント登録ページで以下の情報を入力します：</p>
+            <ul class="step-list" style="list-style: disc; margin-left: 20px;">
+                <li><span class="highlight">企業名/部門名</span> - 貴社の正式名称</li>
+                <li><span class="highlight">担当者名</span> - セットアップを担当する方のお名前</li>
+                <li><span class="highlight">メールアドレス</span> - ログインに使用するメールアドレス</li>
+                <li><span class="highlight">パスワード</span> - 8文字以上の安全なパスワード</li>
+            </ul>
+
+            <h4>ステップ2: 会計年度設定</h4>
+            <p>組織の会計年度を設定します。これは月次報告書や年間集計の基準となります。</p>
+            <div class="tip">
+                <strong>💡 ヒント：</strong> 日本企業の多くは4月開始の会計年度を採用しています。カスタム会計年度にも対応しています。
+            </div>
+
+            <h4>ステップ3: 部門管理</h4>
+            <p>組織の部門構造を登録します：</p>
+            <table>
+                <tr>
+                    <th>項目</th>
+                    <th>説明</th>
+                    <th>例</th>
+                </tr>
+                <tr>
+                    <td>部門名</td>
+                    <td>部門の正式名称</td>
+                    <td>営業部、企画部、経理部</td>
+                </tr>
+                <tr>
+                    <td>部門コード</td>
+                    <td>会計管理用の部門コード</td>
+                    <td>D001、D002、D003</td>
+                </tr>
+                <tr>
+                    <td>説明</td>
+                    <td>部門の役割や機能</td>
+                    <td>営業活動全般を担当</td>
+                </tr>
+            </table>
+
+            <h4>ステップ4: 従業員管理</h4>
+            <p>チームメンバーを登録します。各従業員には以下の情報が必要です：</p>
+            <div class="code-block">
+名前: 山田太郎
+メール: yamada.taro@company.jp
+Slack User ID: U0A93AZ6WER (Slack連携する場合)
+所属部門: 営業部
+            </div>
+
+            <div class="warning">
+                <strong>⚠️ 注意：</strong> Slack User ID は Slack のワークスペース管理画面から確認できます。ユーザーをクリックして「メンバーID」をコピーしてください。
+            </div>
+
+            <h4>ステップ5: Slack連携（オプション）</h4>
+            <p>Slack ワークスペースと連携することで、Slack から直接領収書をアップロードできるようになります。連携手順：</p>
+            <ol class="step-list">
+                <li>NextAccount の設定ページで「Slack を連携」をクリック</li>
+                <li>Slack の認可画面で権限を許可</li>
+                <li>領収書受付用のチャンネルを指定</li>
+            </ol>
         </div>
 
-        <div class="section">
-            <h2>❓ よくあるご質問</h2>
-            <h3>Q. 領収書の自動抽出の精度は？</h3>
-            <p>A. 高い精度で自動抽出されますが、不鮮明な領収書の場合は手動確認・修正が必要な場合があります。</p>
+        <div class="section" id="dashboard">
+            <h2>2️⃣ ダッシュボード</h2>
 
-            <h3>Q. Slack連携は必須ですか？</h3>
-            <p>A. いいえ、ダッシュボードからも領収書をアップロード・管理できます。Slack連携はオプションです。</p>
+            <h3>組織全体の情報を一元管理</h3>
+            <p>ダッシュボードは NextAccount のメイン画面で、組織の重要な統計情報をリアルタイムで表示します。</p>
 
-            <h3>Q. どの会計ソフトに対応していますか？</h3>
-            <p>A. freee、MFクラウド、弥生クラウドに対応しています。</p>
+            <h4>主要な表示情報</h4>
+            <table>
+                <tr>
+                    <th>セクション</th>
+                    <th>表示内容</th>
+                    <th>活用方法</th>
+                </tr>
+                <tr>
+                    <td>組織概要</td>
+                    <td>企業名、設立日、従業員数</td>
+                    <td>組織の基本情報を確認</td>
+                </tr>
+                <tr>
+                    <td>統計情報</td>
+                    <td>メンバー数、部門数、会計年度</td>
+                    <td>規模の成長を追跡</td>
+                </tr>
+                <tr>
+                    <td>部門一覧</td>
+                    <td>登録済み部門とコード</td>
+                    <td>部門の編集・削除</td>
+                </tr>
+                <tr>
+                    <td>従業員一覧</td>
+                    <td>メンバー名、メール、所属部門</td>
+                    <td>メンバー情報の管理</td>
+                </tr>
+                <tr>
+                    <td>ユーザー管理</td>
+                    <td>システムユーザー一覧</td>
+                    <td>権限管理</td>
+                </tr>
+            </table>
+
+            <h4>クイックアクション</h4>
+            <p>ダッシュボード上部には以下のアクションボタンがあります：</p>
+            <ul style="list-style: disc; margin-left: 20px;">
+                <li><strong>⚙️ 設定</strong> - セットアップ後の設定変更</li>
+                <li><strong>📖 使用方法</strong> - このガイドを表示</li>
+                <li><strong>💬 サポート</strong> - お問い合わせフォーム</li>
+            </ul>
+        </div>
+
+        <div class="section" id="receipt">
+            <h2>3️⃣ 領収書のアップロード</h2>
+
+            <h3>OCR × AI で自動処理</h3>
+            <p>NextAccount は最新の OCR（光学文字認識）と AI 技術を使用して、領収書から自動的に重要な情報を抽出します。</p>
+
+            <h4>アップロード方法</h4>
+            <p><strong>方法1: Slack から</strong></p>
+            <ol class="step-list">
+                <li>Slack で連携済みのチャンネルを開く</li>
+                <li>「+」アイコンから「ファイルを追加」を選択</li>
+                <li>領収書の写真や PDF ファイルを選択</li>
+                <li>NextAccount が自動的に処理を開始</li>
+            </ol>
+
+            <p><strong>方法2: ダッシュボードから</strong></p>
+            <ol class="step-list">
+                <li>ダッシュボードの「領収書をアップロード」ボタンをクリック</li>
+                <li>ファイルを選択またはドラッグ&ドロップ</li>
+                <li>処理完了を待つ</li>
+            </ol>
+
+            <h4>自動処理の流れ</h4>
+            <ol class="step-list">
+                <li><strong>OCR 処理</strong> - 領収書から以下を自動抽出：
+                    <ul style="list-style: disc; margin-left: 20px; margin-top: 10px;">
+                        <li>購入日付</li>
+                        <li>購入金額（税込・税抜）</li>
+                        <li>消費税率（8%・10%）</li>
+                        <li>商品/サービス内容</li>
+                        <li>店舗名/発行者</li>
+                    </ul>
+                </li>
+                <li><strong>AI 分類</strong> - 経費科目を自動判定：
+                    <ul style="list-style: disc; margin-left: 20px; margin-top: 10px;">
+                        <li>交通費（ガソリン、タクシー等）</li>
+                        <li>食事代（接待、会議等）</li>
+                        <li>消耗品（文房具、PC 周辺機器等）</li>
+                        <li>通信費（電話、インターネット等）</li>
+                    </ul>
+                </li>
+                <li><strong>仕訳生成</strong> - 会計仕訳を自動生成</li>
+                <li><strong>承認フロー</strong> - 管理者に通知、承認待ち</li>
+            </ol>
+
+            <div class="tip">
+                <strong>💡 ヒント：</strong> 領収書の品質が高いほど、自動抽出の精度が上がります。明るく、角度のない写真が最適です。
+            </div>
+        </div>
+
+        <div class="section" id="slack">
+            <h2>4️⃣ Slack 連携</h2>
+
+            <h3>チャットから直接領収書管理</h3>
+            <p>Slack ワークスペースと連携することで、チームの日常的なコミュニケーション内で領収書管理ができます。</p>
+
+            <h4>連携のメリット</h4>
+            <ul style="list-style: disc; margin-left: 20px;">
+                <li>外出先からでもスマートフォンで領収書を送信可能</li>
+                <li>承認・却下の通知がリアルタイムで届く</li>
+                <li>チーム全体の経費状況を可視化</li>
+                <li>Slack を離れずに経費処理が完結</li>
+            </ul>
+
+            <h4>Slack ボットコマンド</h4>
+            <div class="code-block">
+/nextaccount help      - ヘルプを表示
+/nextaccount status    - 処理状況を確認
+/nextaccount export    - データをエクスポート
+            </div>
+
+            <h4>チャンネル設定</h4>
+            <p>以下の専用チャンネルを作成することをお勧めします：</p>
+            <table>
+                <tr>
+                    <th>チャンネル名</th>
+                    <th>用途</th>
+                    <th>参加者</th>
+                </tr>
+                <tr>
+                    <td>#経費申請</td>
+                    <td>領収書アップロード用</td>
+                    <td>全従業員</td>
+                </tr>
+                <tr>
+                    <td>#経費承認</td>
+                    <td>管理者用の承認通知</td>
+                    <td>経理担当者</td>
+                </tr>
+                <tr>
+                    <td>#経費レポート</td>
+                    <td>月次集計レポート配信</td>
+                    <td>経営者・管理層</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="section" id="settings">
+            <h2>5️⃣ 設定とカスタマイズ</h2>
+
+            <h3>組織に合わせた柔軟な設定</h3>
+
+            <h4>部門管理</h4>
+            <p>部門は組織の階層構造に合わせてカスタマイズできます：</p>
+            <ul style="list-style: disc; margin-left: 20px;">
+                <li>部門の追加・編集・削除</li>
+                <li>部門の階層化（本部 > 部 > 課）</li>
+                <li>部門別予算管理</li>
+                <li>部門別レポート生成</li>
+            </ul>
+
+            <h4>従業員管理</h4>
+            <p>従業員情報を組織の変化に合わせて管理：</p>
+            <ul style="list-style: disc; margin-left: 20px;">
+                <li>新入社員の追加</li>
+                <li>配置転換時の部門変更</li>
+                <li>退職者のアカウント無効化</li>
+                <li>権限設定（承認者・管理者等）</li>
+            </ul>
+
+            <h4>経費科目カスタマイズ</h4>
+            <p>デフォルトの経費科目は以下の通りです（カスタマイズ可能）：</p>
+            <ul style="list-style: disc; margin-left: 20px;">
+                <li>交通費（ガソリン、電車、飛行機等）</li>
+                <li>食事代（出張、接待、会議等）</li>
+                <li>宿泊費</li>
+                <li>消耗品</li>
+                <li>通信費</li>
+                <li>雑費</li>
+            </ul>
+        </div>
+
+        <div class="section" id="accounting">
+            <h2>6️⃣ 会計ソフト連携</h2>
+
+            <h3>自動仕訳で事務作業を削減</h3>
+            <p>NextAccount は主要な会計ソフトと連携し、自動的に仕訳を計上できます。</p>
+
+            <h4>対応会計ソフト</h4>
+            <table>
+                <tr>
+                    <th>ソフト名</th>
+                    <th>対応レベル</th>
+                    <th>特徴</th>
+                </tr>
+                <tr>
+                    <td>freee</td>
+                    <td>完全対応</td>
+                    <td>クラウド会計ソフトの定番</td>
+                </tr>
+                <tr>
+                    <td>MFクラウド会計</td>
+                    <td>完全対応</td>
+                    <td>中小企業向けの高機能ソフト</td>
+                </tr>
+                <tr>
+                    <td>弥生クラウド</td>
+                    <td>完全対応</td>
+                    <td>長年の実績があるソフト</td>
+                </tr>
+            </table>
+
+            <h4>連携のステップ</h4>
+            <ol class="step-list">
+                <li>会計ソフトで API キーを取得</li>
+                <li>NextAccount の設定で API キーを入力</li>
+                <li>連携テストを実行</li>
+                <li>自動仕訳の設定を完成</li>
+            </ol>
+
+            <div class="tip">
+                <strong>💡 ヒント：</strong> 会計ソフトとの連携により、手作業による二重入力を完全に排除できます。
+            </div>
+        </div>
+
+        <div class="section" id="faq">
+            <h2>7️⃣ よくあるご質問</h2>
+
+            <h4>Q. 領収書の自動抽出の精度はどのくらい？</h4>
+            <p>A. 一般的な領収書で 95% 以上の精度です。不鮮明な領収書やレシートの場合は、確認画面で手動修正が可能です。</p>
+
+            <h4>Q. 複数の会計ソフトに同時対応できる？</h4>
+            <p>A. はい、複数の会計ソフトへの同時出力に対応しています。グループ企業で異なるソフトを使用している場合も便利です。</p>
+
+            <h4>Q. オフラインでも使用できる？</h4>
+            <p>A. NextAccount はクラウドサービスのため、インターネット接続が必要です。ただし Slack では事前にファイルをダウンロードしておけば、オフライン時にもアップロード予定ができます。</p>
+
+            <h4>Q. データのセキュリティは大丈夫？</h4>
+            <p>A. 以下のセキュリティ対策を実施しています：
+            <ul style="list-style: disc; margin-left: 20px;">
+                <li>エンドツーエンド暗号化</li>
+                <li>定期的なセキュリティ監査</li>
+                <li>ISO 27001 準拠</li>
+                <li>24/7 監視</li>
+            </ul></p>
+
+            <h4>Q. 使用人数による制限はある？</h4>
+            <p>A. ユーザー数による制限はありません。従業員数に応じた料金体系となっています。</p>
+
+            <h4>Q. データはどこに保存される？</h4>
+            <p>A. すべてのデータは AWS の日本リージョン（東京）のデータセンターに保存されます。</p>
+
+            <h4>Q. 領収書の保存期間は？</h4>
+            <p>A. 日本の法律に従い、7 年間保存されます。その後は自動削除されますが、事前に PDF エクスポート可能です。</p>
+
+            <h4>Q. サポート体制は？</h4>
+            <p>A. メール、チャット、電話でのサポートを提供しています。お問い合わせフォームからいつでもご連絡ください。</p>
         </div>
 
         <div style="text-align: center;">
