@@ -10,101 +10,103 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
             background: #f5f7fa;
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             padding: 20px;
+            color: #333;
         }
         .container {
+            max-width: 600px;
+            margin: 0 auto;
             background: white;
+            padding: 40px 30px;
             border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 480px;
-            padding: 60px 40px;
-            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         .logo {
-            margin-bottom: 40px;
+            margin-bottom: 10px;
         }
         .logo h1 {
             font-size: 32px;
             font-weight: 700;
-            margin-bottom: 10px;
+            letter-spacing: -0.5px;
         }
-        .logo h1 .next { color: #0052cc; }
-        .logo h1 .account { color: #333; }
-        .logo p {
-            color: #666;
-            font-size: 14px;
+        .logo .next {
+            color: #0052cc;
+        }
+        .logo .account {
+            color: #333;
+        }
+        .subtitle {
+            font-size: 13px;
+            color: #999;
+            margin-bottom: 30px;
+            letter-spacing: 0.5px;
         }
         .tagline {
-            font-size: 18px;
-            color: #333;
-            line-height: 1.6;
-            margin-bottom: 40px;
-            font-weight: 500;
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.4;
+            margin-bottom: 25px;
         }
-        .tagline-sub {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 30px;
+        .tagline .highlight {
+            color: #0052cc;
         }
-        .btn {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            display: block;
-            margin-bottom: 15px;
-        }
-        .btn-primary {
-            background: #0052cc;
-            color: white;
-        }
-        .btn-primary:hover {
-            background: #0041a1;
-        }
-        .btn-secondary {
-            background: #f0f0f0;
-            color: #333;
-            border: 1px solid #ddd;
-        }
-        .btn-secondary:hover {
-            background: #e0e0e0;
-        }
-        .features {
-            margin-top: 50px;
-            padding-top: 30px;
-            border-top: 1px solid #e0e0e0;
-            text-align: left;
-        }
-        .features h3 {
-            font-size: 14px;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .feature-item {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 15px;
+        .description {
             font-size: 13px;
             color: #666;
+            line-height: 1.8;
+            margin-bottom: 30px;
         }
-        .feature-item .icon {
-            font-size: 18px;
-            flex-shrink: 0;
+        .cta-button {
+            display: inline-block;
+            background: #0052cc;
+            color: white;
+            padding: 14px 30px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            border: none;
+            width: 100%;
+            text-align: center;
+            transition: background 0.3s;
         }
-        .feature-item p {
-            line-height: 1.5;
+        .cta-button:hover {
+            background: #0041a1;
+        }
+        .cta-button .icon {
+            margin-right: 8px;
+        }
+        .help-link {
+            display: inline-block;
+            font-size: 13px;
+            color: #0052cc;
+            text-decoration: none;
+            margin-top: 10px;
+        }
+        .help-link:hover {
+            text-decoration: underline;
+        }
+        .divider {
+            height: 1px;
+            background: #e0e0e0;
+            margin: 30px 0;
+        }
+        .login-section {
+            text-align: center;
+        }
+        .login-link {
+            font-size: 14px;
+            color: #666;
+        }
+        .login-link a {
+            color: #0052cc;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .login-link a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -112,48 +114,34 @@
     <div class="container">
         <div class="logo">
             <h1><span class="next">Next</span><span class="account">Account</span></h1>
-            <p>経費精算管理システム</p>
+        </div>
+
+        <div class="subtitle">
+            日本の中小企業向け・経費精算 SAAS
         </div>
 
         <div class="tagline">
-            Slack から経費を自動仕訳
-        </div>
-        <div class="tagline-sub">
-            領収書をアップロードするだけで、<br>AI が自動で会計仕訳を生成します
+            領収書を<span class="highlight">無料</span><br><span class="highlight">Slack</span>に送るだけ。
         </div>
 
-        <a href="/signup.html" class="btn btn-primary">アカウント登録</a>
-        <a href="/login.html" class="btn btn-secondary">ログイン</a>
+        <div class="description">
+            OCR × AI判定 × 自動仕訳。<br>
+            経費精算のすべてが Slack で完結する。<br>
+            Slack 無料プランで動作。弥生・freee・MF<br>
+            クラウド対応。
+        </div>
 
-        <div class="features">
-            <h3>特徴</h3>
-            <div class="feature-item">
-                <div class="icon">🤖</div>
-                <div>
-                    <p><strong>AI OCR</strong><br>
-                    領収書から自動で金額・店舗名を認識</p>
-                </div>
-            </div>
-            <div class="feature-item">
-                <div class="icon">⚡</div>
-                <div>
-                    <p><strong>自動仕訳</strong><br>
-                    会計仕訳が自動で生成される</p>
-                </div>
-            </div>
-            <div class="feature-item">
-                <div class="icon">📊</div>
-                <div>
-                    <p><strong>複数会計ソフト対応</strong><br>
-                    9種類の会計ソフトに対応</p>
-                </div>
-            </div>
-            <div class="feature-item">
-                <div class="icon">💬</div>
-                <div>
-                    <p><strong>Slack 連携</strong><br>
-                    Slack 内で作業が完結</p>
-                </div>
+        <a href="/signup.html" class="cta-button">
+            <span class="icon">🔍</span>30日間無料トライアル
+        </a>
+
+        <a href="#" class="help-link">使い方を見る →</a>
+
+        <div class="divider"></div>
+
+        <div class="login-section">
+            <div class="login-link">
+                すでにアカウントをお持ちですか？ <a href="/login.html">ログイン</a>
             </div>
         </div>
     </div>
