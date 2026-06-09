@@ -297,7 +297,7 @@
                 <h2>クイックアクション</h2>
                 <div class="action-buttons">
                     <a href="/settings.html" class="btn btn-secondary">⚙️ 設定</a>
-                    <button class="btn btn-secondary" onclick="downloadGuide()">📖 使用方法</button>
+                    <a href="/guide.html" class="btn btn-secondary">📖 使用方法</a>
                     <a href="/contact.html" class="btn btn-secondary">💬 サポート</a>
                 </div>
             </div>
@@ -413,10 +413,6 @@
             localStorage.removeItem('userId');
             localStorage.removeItem('organizationId');
             window.location.href = '/login.html';
-        }
-
-        function downloadGuide() {
-            alert('使用方法:\n\n1. Slack の #経費申請 チャンネルに領収書を送付\n2. システムが自動でOCR処理\n3. 仕訳が生成されます\n4. ここのダッシュボードで確認・CSV導出');
         }
 
         function contactSupport() {
