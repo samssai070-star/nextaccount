@@ -92,6 +92,9 @@ if GOOGLE_SHEET_ID:
 else:
     logger.warning("GOOGLE_SHEET_ID 未設定 — Sheets 同期は無効")
 
+# /csv インタラクティブメッセージの日付状態（ユーザーID → {start, end}）
+_csv_date_state: dict = {}
+
 
 # ============================================================
 # ユーティリティ
@@ -1177,143 +1180,211 @@ def handle_export(ack, body, client, logger):
     logger.info(f"弥生CSV出力: {filename} ({len(events)}件)")
 
 
-@app.command("/csv")
-def handle_csv(ack, body, client, logger):
-    """/csv → 月・形式を選択するモーダルを表示"""
-    ack()
-    from datetime import datetime, date
-    now = datetime.now()
-
-    # 過去6ヶ月 + 当月 の選択肢を生成
-    month_options = []
-    for i in range(6):
-        m = now.month - i
-        y = now.year
-        while m <= 0:
-            m += 12
-            y -= 1
-        label = f"{y:04d}/{m:02d}"
-        value = f"{y:04d}-{m:02d}"
-        month_options.append({
-            "text": {"type": "plain_text", "text": label},
-            "value": value,
-        })
-
-    trigger_id = body.get("trigger_id", "")
-    channel_id = body["channel_id"]
-
-    client.views_open(
-        trigger_id=trigger_id,
-        view={
-            "type": "modal",
-            "callback_id": "csv_export_modal",
-            "private_metadata": channel_id,
-            "title": {"type": "plain_text", "text": "📊 CSV出力"},
-            "submit": {"type": "plain_text", "text": "出力"},
-            "close":  {"type": "plain_text", "text": "キャンセル"},
-            "blocks": [
+def _build_csv_menu_blocks(start: str, end: str) -> list:
+    """インタラクティブ /csv メニューのブロックを生成する"""
+    return [
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*📊 CSV出力*\n日付範囲と会計ソフト形式を選択してください。"},
+        },
+        {
+            "type": "actions",
+            "block_id": "csv_date_pickers",
+            "elements": [
                 {
-                    "type": "input",
-                    "block_id": "csv_month",
-                    "label": {"type": "plain_text", "text": "対象月"},
-                    "element": {
-                        "type": "static_select",
-                        "action_id": "value",
-                        "placeholder": {"type": "plain_text", "text": "月を選択"},
-                        "initial_option": month_options[0],
-                        "options": month_options,
-                    },
+                    "type": "datepicker",
+                    "action_id": "csv_start_date",
+                    "initial_date": start,
+                    "placeholder": {"type": "plain_text", "text": "開始日付"},
                 },
                 {
-                    "type": "input",
-                    "block_id": "csv_format",
-                    "label": {"type": "plain_text", "text": "会計ソフト形式"},
-                    "element": {
-                        "type": "radio_buttons",
-                        "action_id": "value",
-                        "initial_option": {
-                            "text": {"type": "plain_text", "text": "弥生会計"},
-                            "value": "yayoi",
-                        },
-                        "options": [
-                            {"text": {"type": "plain_text", "text": "弥生会計"},          "value": "yayoi"},
-                            {"text": {"type": "plain_text", "text": "freee"},              "value": "freee"},
-                            {"text": {"type": "plain_text", "text": "マネーフォワード"},   "value": "mf"},
-                            {"text": {"type": "plain_text", "text": "汎用CSV（税理士用）"}, "value": "csv"},
-                        ],
-                    },
+                    "type": "datepicker",
+                    "action_id": "csv_end_date",
+                    "initial_date": end,
+                    "placeholder": {"type": "plain_text", "text": "終了日付"},
                 },
             ],
         },
+        {"type": "divider"},
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*形式*"},
+        },
+        {
+            "type": "actions",
+            "block_id": "csv_format_standard",
+            "elements": [
+                {"type": "button", "text": {"type": "plain_text", "text": "📋 弥生"},
+                 "action_id": "csv_dl_yayoi", "style": "primary"},
+                {"type": "button", "text": {"type": "plain_text", "text": "📱 freee"},
+                 "action_id": "csv_dl_freee"},
+                {"type": "button", "text": {"type": "plain_text", "text": "💰 マネーフォワード"},
+                 "action_id": "csv_dl_mf"},
+                {"type": "button", "text": {"type": "plain_text", "text": "📄 汎用"},
+                 "action_id": "csv_dl_generic"},
+            ],
+        },
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*エンタープライズ向け*"},
+        },
+        {
+            "type": "actions",
+            "block_id": "csv_format_enterprise",
+            "elements": [
+                {"type": "button", "text": {"type": "plain_text", "text": "🏢 勘定奉行"},
+                 "action_id": "csv_dl_obc"},
+                {"type": "button", "text": {"type": "plain_text", "text": "🏛️ PCA会計"},
+                 "action_id": "csv_dl_pca"},
+                {"type": "button", "text": {"type": "plain_text", "text": "📋 TKC"},
+                 "action_id": "csv_dl_tkc"},
+            ],
+        },
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*会計事務所向け*"},
+        },
+        {
+            "type": "actions",
+            "block_id": "csv_format_firm",
+            "elements": [
+                {"type": "button", "text": {"type": "plain_text", "text": "🔵 JDL"},
+                 "action_id": "csv_dl_jdl"},
+                {"type": "button", "text": {"type": "plain_text", "text": "⚡ MJS"},
+                 "action_id": "csv_dl_mjs"},
+            ],
+        },
+    ]
+
+
+@app.command("/csv")
+def handle_csv(ack, body, client, logger):
+    """/csv → インタラクティブメッセージで日付・形式を選択"""
+    ack()
+    import calendar
+    from datetime import datetime
+    now = datetime.now()
+    start = now.replace(day=1).strftime("%Y-%m-%d")
+    last_day = calendar.monthrange(now.year, now.month)[1]
+    end = now.replace(day=last_day).strftime("%Y-%m-%d")
+    user_id    = body["user_id"]
+    channel_id = body["channel_id"]
+    _csv_date_state[user_id] = {"start": start, "end": end}
+    client.chat_postMessage(
+        channel=channel_id,
+        blocks=_build_csv_menu_blocks(start, end),
     )
 
 
-@app.view("csv_export_modal")
-def handle_csv_export_modal(ack, body, client, logger):
-    """CSV出力モーダルのサブミット処理"""
+@app.action("csv_start_date")
+def handle_csv_start_date(ack, body, action, logger):
+    """開始日付ピッカーの選択"""
     ack()
-    values     = body["view"]["state"]["values"]
-    channel_id = body["view"].get("private_metadata", "")
+    user_id = body["user"]["id"]
+    selected = action.get("selected_date", "")
+    if selected:
+        _csv_date_state.setdefault(user_id, {})["start"] = selected
+        logger.info(f"CSV開始日付変更: {user_id} → {selected}")
+
+
+@app.action("csv_end_date")
+def handle_csv_end_date(ack, body, action, logger):
+    """終了日付ピッカーの選択"""
+    ack()
+    user_id = body["user"]["id"]
+    selected = action.get("selected_date", "")
+    if selected:
+        _csv_date_state.setdefault(user_id, {})["end"] = selected
+        logger.info(f"CSV終了日付変更: {user_id} → {selected}")
+
+
+@app.action(re.compile(r"^csv_dl_"))
+def handle_csv_download_action(ack, body, action, client, logger):
+    """CSVダウンロードボタン押下 → 該当形式のCSVをアップロード"""
+    ack()
     user_id    = body["user"]["id"]
+    channel_id = body["container"]["channel_id"]
     team_id    = body.get("team", {}).get("id", "")
+    fmt        = action["action_id"].replace("csv_dl_", "")  # yayoi / freee / mf / generic / obc / pca / tkc / jdl / mjs
 
-    ym_str = values["csv_month"]["value"]["selected_option"]["value"]   # "2026-05"
-    fmt    = values["csv_format"]["value"]["selected_option"]["value"]  # "yayoi" etc.
+    state      = _csv_date_state.get(user_id, {})
+    from datetime import datetime, date
+    today = date.today()
+    import calendar as _cal
+    default_start = today.replace(day=1).strftime("%Y-%m-%d")
+    default_end   = today.replace(day=_cal.monthrange(today.year, today.month)[1]).strftime("%Y-%m-%d")
+    start_date = state.get("start", default_start)
+    end_date   = state.get("end",   default_end)
 
-    from datetime import datetime
-    target = datetime.strptime(ym_str, "%Y-%m")
-    year, month = target.year, target.month
-    ym_label = f"{year:04d}/{month:02d}"
-
-    from core.database import list_all_events_by_month
+    from core.database import list_events_by_date_range
     tenant    = _get_tenant(team_id)
     tenant_id = tenant["id"] if tenant else None
-    events    = [e for e in list_all_events_by_month(year, month, tenant_id)
+    events    = [e for e in list_events_by_date_range(start_date, end_date, tenant_id)
                  if e.get("status") == "業務承認済"]
 
+    date_label = f"{start_date} 〜 {end_date}"
     if not events:
         client.chat_postMessage(
             channel=channel_id,
-            text=f"📭 {ym_label} の承認済み仕訳が見つかりません。"
+            text=f"📭 {date_label} の承認済み仕訳が見つかりません。"
         )
         return
 
-    if fmt == "freee":
+    fmt_map = {
+        "yayoi":   ("弥生会計",        "yayoi",   "shift_jis", "弥生会計 → データ読み込み → インポート"),
+        "freee":   ("freee",           "freee",   "utf-8-bom", "freee会計 → 会計帳簿 → 仕訳帳 → インポート"),
+        "mf":      ("マネーフォワード", "mf",      "utf-8-bom", "MFクラウド会計 → 仕訳帳 → インポート"),
+        "generic": ("汎用CSV",         "journal", "utf-8-bom", "勘定奉行・PCA・TKC・MJS・JDL等"),
+        "obc":     ("勘定奉行",        "kanjo",   "utf-8-bom", "勘定奉行 → 仕訳入力 → インポート"),
+        "pca":     ("PCA会計",         "pca",     "shift_jis", "PCA会計 → データインポート"),
+        "tkc":     ("TKC",             "tkc",     "utf-8-bom", "TKC → 仕訳インポート"),
+        "jdl":     ("JDL",             "jdl",     "shift_jis", "JDL → 仕訳データインポート"),
+        "mjs":     ("MJS",             "mjs",     "utf-8-bom", "MJS → 仕訳帳インポート"),
+    }
+    fmt_label, prefix, _enc, fmt_note = fmt_map.get(fmt, ("汎用CSV", "journal", "utf-8-bom", ""))
+
+    date_tag = start_date[:7].replace("-", "") if start_date[:7] == end_date[:7] else f"{start_date.replace('-','')}_{end_date.replace('-','')}"
+    filename = f"{prefix}_{date_tag}.csv"
+
+    if fmt == "yayoi":
+        from core.yayoi_export import build_yayoi_csv
+        csv_bytes = build_yayoi_csv(events)
+    elif fmt == "freee":
         from core.csv_export import build_freee_csv
         csv_bytes = build_freee_csv(events)
-        filename  = f"freee_{year:04d}{month:02d}.csv"
-        fmt_label = "freee"
-        fmt_note  = "freee会計 → 会計帳簿 → 仕訳帳 → インポート"
     elif fmt == "mf":
         from core.csv_export import build_mf_csv
         csv_bytes = build_mf_csv(events)
-        filename  = f"mf_{year:04d}{month:02d}.csv"
-        fmt_label = "マネーフォワード"
-        fmt_note  = "MFクラウド会計 → 仕訳帳 → インポート"
-    elif fmt == "csv":
+    elif fmt == "obc":
+        from core.multi_software_export import build_kanjo_ahra_csv
+        csv_bytes = build_kanjo_ahra_csv(events)
+    elif fmt == "pca":
+        from core.multi_software_export import build_pca_csv
+        csv_bytes = build_pca_csv(events)
+    elif fmt == "tkc":
+        from core.multi_software_export import build_tkc_csv
+        csv_bytes = build_tkc_csv(events)
+    elif fmt == "jdl":
+        from core.multi_software_export import build_jdl_csv
+        csv_bytes = build_jdl_csv(events)
+    elif fmt == "mjs":
+        from core.multi_software_export import build_mjs_csv
+        csv_bytes = build_mjs_csv(events)
+    else:
         from core.csv_export import build_generic_csv
         csv_bytes = build_generic_csv(events)
-        filename  = f"journal_{year:04d}{month:02d}.csv"
-        fmt_label = "汎用CSV"
-        fmt_note  = "勘定奉行・PCA・TKC・MJS・JDL等"
-    else:
-        from core.yayoi_export import build_yayoi_csv
-        csv_bytes = build_yayoi_csv(events)
-        filename  = f"yayoi_{year:04d}{month:02d}.csv"
-        fmt_label = "弥生会計"
-        fmt_note  = "弥生会計 → データ読み込み → インポート"
 
     client.files_upload_v2(
         channel=channel_id,
         content=csv_bytes,
         filename=filename,
-        title=f"{fmt_label}インポート用仕訳CSV {ym_label}（{len(events)}件）",
+        title=f"{fmt_label}インポート用仕訳CSV {date_label}（{len(events)}件）",
         initial_comment=(
-            f"📊 *{ym_label} 承認済み仕訳 — {fmt_label}形式*\n"
+            f"📊 *{date_label} 承認済み仕訳 — {fmt_label}形式*\n"
             f"件数: {len(events)} 件 | {fmt_note}"
         ),
     )
-    logger.info(f"CSV出力（モーダル）: {filename} ({len(events)}件)")
+    logger.info(f"CSV出力（インタラクティブ）: {filename} ({len(events)}件)")
 
 
 @app.event("app_mention")
