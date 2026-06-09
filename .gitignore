@@ -1,2 +1,5 @@
 secrets/google_key.json
 google_key.json
+.env
+app/.env
+*.env.local
