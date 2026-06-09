@@ -372,7 +372,7 @@ def handle_file_shared(event, client, logger):
         event_date  = ocr_result.event_date or datetime.now().strftime("%Y-%m-%d")
         upload_date = datetime.now().strftime("%Y-%m-%d")
         year_month  = datetime.now().strftime("%Y-%m")
-        from core.database import get_or_assign_employee_code, get_next_employee_sequence
+        from core.database import get_or_assign_employee_code, get_next_employee_sequence, reset_employee_sequence
         emp_code = get_or_assign_employee_code(user_id, tenant_id, year_month)
         seq      = get_next_employee_sequence(upload_date, emp_code, tenant_id)
         event_id = generate_event_id(upload_date, seq, employee_code=emp_code)
@@ -462,6 +462,8 @@ def handle_file_shared(event, client, logger):
         if dup:
             _send_duplicate_warning(client, channel_id, msg_ts, dup, ocr_result)
             logger.warning(f"重複検出 → スキップ: {dup['event_id']}")
+            # 採番済み seq を返却してカウンターの穴を防ぐ
+            reset_employee_sequence(upload_date, emp_code, tenant_id)
             return
 
         insert_event(db_dict, tenant_id)

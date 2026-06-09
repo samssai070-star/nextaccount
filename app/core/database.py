@@ -196,6 +196,32 @@ def get_next_employee_sequence(upload_date: str, employee_code: int, tenant_id: 
     with _get_conn(tenant_id) as conn:
         return _atomic_next_seq(conn, tenant_id, f"daily:{upload_date}:{employee_code:02d}")
 
+def reset_employee_sequence(upload_date: str, employee_code: int, tenant_id: str) -> None:
+    """重複スキップ時にインクリメント済みのカウンターを残存MAXに戻す。
+    これにより採番の穴が生じない。"""
+    date_str = upload_date.replace("-", "")  # "2026-05-21" → "20260521"
+    seq_key  = f"daily:{upload_date}:{employee_code:02d}"
+    prefix   = f"T{date_str}-{employee_code:02d}"
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT MAX(CAST(RIGHT(event_id, 3) AS INT)) FROM accounting_events "
+                "WHERE event_id LIKE %s AND tenant_id=%s",
+                (f"{prefix}%", tenant_id)
+            )
+            max_remaining = cur.fetchone()[0]
+            if max_remaining is None:
+                cur.execute(
+                    "DELETE FROM tenant_sequences WHERE tenant_id=%s AND seq_key=%s",
+                    (tenant_id, seq_key)
+                )
+            else:
+                cur.execute(
+                    "UPDATE tenant_sequences SET current_val=%s WHERE tenant_id=%s AND seq_key=%s",
+                    (max_remaining, tenant_id, seq_key)
+                )
+    logger.info(f"採番リセット（重複スキップ）: {seq_key} → {max_remaining}")
+
 def get_next_sequence(event_date, tenant_id):
     date_prefix = event_date.replace("-", "")
     like_pattern = f"T{date_prefix}-%"
