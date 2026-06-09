@@ -236,7 +236,11 @@ def handle_file_shared(event, client, logger):
         if ai_result:
             # Claude Vision成功 → OcrResultに変換
             ocr_result = OcrResult(used_real_ocr=True)
-            ocr_result.counterparty      = ai_result.get("counterparty") or "不明"
+            counterparty = ai_result.get("counterparty") or "不明"
+            # NTT社名誤読補正（東→海 等の誤認識）
+            counterparty = re.sub(r"NTT[^\s]*海日本", "NTT東日本", counterparty)
+            counterparty = re.sub(r"NTT[^\s]*果日本", "NTT東日本", counterparty)
+            ocr_result.counterparty = counterparty
             raw_date = ai_result.get("event_date") or ""
             # YY-MM-DD → 2025年と誤って和暦変換された場合を補正（例: 2013→2025）
             date_m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", str(raw_date))
