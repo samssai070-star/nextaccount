@@ -36,6 +36,11 @@ def fix_sheet(sm: SheetsManager, sheet_name: str) -> None:
         sm._update_monthly_total(sheet_name, year, month)
         print(f"  [{sheet_name}] {year:04d}/{month:02d}合計 → 再計算完了")
 
+    # 年間集計シートのみ年間合計額を更新
+    if sheet_name == FINANCE_SUMMARY_SHEET_NAME:
+        sm._update_annual_total(sheet_name)
+        print(f"  [{sheet_name}] 年間合計額 → 再計算完了")
+
 
 def main():
     if not GOOGLE_SHEET_ID:
