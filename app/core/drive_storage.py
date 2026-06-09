@@ -12,6 +12,10 @@ NextAccount v2 — core/drive_storage.py
   - 管理ID・日付・金額・取引先をファイル名に含める
   - アップロード日時をファイルプロパティに記録
   - DriveファイルURLをDBに保存
+
+Shared Drive対応:
+  GOOGLE_SHARED_DRIVE_ID 環境変数にShared DriveのIDを設定すると
+  サービスアカウントのストレージ制限を回避できる。
 """
 
 from __future__ import annotations
@@ -30,7 +34,6 @@ from .config import GOOGLE_APPLICATION_CREDENTIALS
 
 logger = logging.getLogger(__name__)
 
-# drive.file だと自分が作ったファイルのみ → drive スコープに変更
 SCOPES = [
     "https://www.googleapis.com/auth/drive",
 ]
@@ -45,36 +48,44 @@ def _build_service():
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
 
+def _shared_drive_id() -> str:
+    return os.environ.get("GOOGLE_SHARED_DRIVE_ID", "")
+
+
 def _get_or_create_folder(service, name: str, parent_id: Optional[str] = None) -> str:
-    """フォルダを取得または作成してIDを返す"""
+    """フォルダを取得または作成してIDを返す（Shared Drive対応）"""
+    drive_id = _shared_drive_id()
+
     query = f"name='{name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
     if parent_id:
         query += f" and '{parent_id}' in parents"
 
-    results = service.files().list(q=query, fields="files(id, name)").execute()
-    files = results.get("files", [])
+    list_kwargs = dict(q=query, fields="files(id, name)", supportsAllDrives=True, includeItemsFromAllDrives=True)
+    if drive_id and not parent_id:
+        list_kwargs["corpora"]  = "drive"
+        list_kwargs["driveId"]  = drive_id
+
+    results = service.files().list(**list_kwargs).execute()
+    files   = results.get("files", [])
 
     if files:
         return files[0]["id"]
 
-    # 作成
     meta = {
-        "name": name,
+        "name":     name,
         "mimeType": "application/vnd.google-apps.folder",
     }
     if parent_id:
         meta["parents"] = [parent_id]
+    elif drive_id:
+        meta["parents"] = [drive_id]
 
-    folder = service.files().create(body=meta, fields="id").execute()
+    folder = service.files().create(body=meta, fields="id", supportsAllDrives=True).execute()
     logger.info(f"フォルダ作成: {name}")
     return folder["id"]
 
 
 def _build_filename(entry: dict, original_filename: str) -> str:
-    """
-    電帳法対応のファイル名を生成する。
-    形式: {管理ID}_{金額}円_{取引先}.{拡張子}
-    """
     event_id     = entry.get("event_id", "unknown")
     amount       = entry.get("total_amount", 0)
     counterparty = entry.get("counterparty", "不明")
@@ -92,21 +103,21 @@ def upload_receipt(
 ) -> Optional[str]:
     """
     領収書画像を Google Drive にアップロードする。
+    GOOGLE_SHARED_DRIVE_ID が設定されている場合は Shared Drive に保存する。
 
     Returns:
         Google Drive の webViewLink URL / 失敗時 None
     """
     root_folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+    drive_id       = _shared_drive_id()
 
     try:
         service = _build_service()
 
-        # 日付からフォルダパスを決定
         event_date = str(entry.get("event_date", datetime.now().strftime("%Y-%m-%d")))
         year  = event_date[:4]
         month = event_date[5:7]
 
-        # フォルダ階層を作成
         if root_folder_id:
             root_id = root_folder_id
         else:
@@ -115,10 +126,7 @@ def upload_receipt(
         year_id  = _get_or_create_folder(service, year,  parent_id=root_id)
         month_id = _get_or_create_folder(service, month, parent_id=year_id)
 
-        # ファイル名生成
-        filename = _build_filename(entry, original_filename)
-
-        # アップロード
+        filename  = _build_filename(entry, original_filename)
         file_meta = {
             "name":    filename,
             "parents": [month_id],
@@ -138,6 +146,7 @@ def upload_receipt(
             body=file_meta,
             media_body=media,
             fields="id, webViewLink",
+            supportsAllDrives=True,
         ).execute()
 
         file_url = file.get("webViewLink", "")
@@ -147,3 +156,4 @@ def upload_receipt(
     except Exception as e:
         logger.error(f"Drive アップロードエラー: {e}", exc_info=True)
         return None
+
