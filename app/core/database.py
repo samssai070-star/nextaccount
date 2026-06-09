@@ -184,6 +184,18 @@ def get_event_by_id(event_id, tenant_id):
             row = cur.fetchone()
     return dict(row) if row else None
 
+
+def get_linked_nyutou_entry(main_event_id: str, tenant_id: str):
+    """主エントリのevent_idにリンクされた入湯税エントリを取得する"""
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT * FROM accounting_events WHERE purpose = %s AND debit_subsidiary = '入湯税' AND tenant_id = %s LIMIT 1",
+                (f"入湯税（{main_event_id}から分割）", tenant_id)
+            )
+            row = cur.fetchone()
+    return dict(row) if row else None
+
 def update_status(event_id, status, tenant_id, approved_by=None):
     now = datetime.now()
     with _get_conn(tenant_id) as conn:
