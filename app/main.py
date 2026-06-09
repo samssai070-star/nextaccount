@@ -49,7 +49,7 @@ def health():
 
 @flask_app.route("/", methods=["GET"])
 def root():
-    return jsonify({"service": "NextAccount v2", "version": "2.0.0"}), 200
+    return send_from_directory(flask_app.static_folder, "index.html")
 
 @flask_app.route("/<path:filename>", methods=["GET"])
 def serve_static(filename):
