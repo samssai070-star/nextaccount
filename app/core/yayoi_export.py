@@ -29,6 +29,9 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
     writer = csv.writer(output, lineterminator="\r\n")
     voucher_no = 1
 
+    def _has_10(evt): return int(evt.get("tax_10_amount", 0) or 0) > 0
+    def _has_8(evt): return int(evt.get("tax_8_amount", 0) or 0) > 0
+
     for evt in events:
         try:
             event_date    = str(evt.get("event_date", "")).replace("-", "/")
@@ -51,40 +54,61 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
             if employee:  summary += f" / {employee}"
             if invoice_no: summary += f" / {invoice_no}"
 
-            # 8%軽減税率専用 or 10% or 対象外
-            if tax_8 > 0 and tax_10 == 0:
-                taxable_amount = taxable_8
-                tax_amount     = tax_8
-            else:
-                taxable_amount = taxable_10
-                tax_amount     = tax_10
+            both = _has_10(evt) and _has_8(evt)
 
-            tax_total  = tax_10 + tax_8
-            deduction  = calc_deductible_tax(tax_total, has_invoice, expense_date)
-            deductible_tax     = deduction["deductible_tax"]
-            non_deductible_tax = deduction["non_deductible_tax"]
-            deduction_label    = deduction["deduction_label"]
-
-            if has_invoice or non_deductible_tax == 0:
+            if both:
+                # 10% 行
+                ded_10 = calc_deductible_tax(tax_10, has_invoice, expense_date)
                 writer.writerow(_make_row(
                     voucher_no, event_date, debit_account, "",
-                    _tax_kubun(tax_10, tax_8),
-                    taxable_amount, tax_amount, credit_base, employee, total_amount,
-                    summary, event_id, "適格請求書（全額控除）"
+                    _tax_kubun(tax_10, 0),
+                    taxable_10, ded_10["deductible_tax"], credit_base, employee, taxable_10 + tax_10,
+                    summary, event_id, ded_10["deduction_label"] if not has_invoice else "適格請求書（10%）"
                 ))
-            else:
+                # 8% 行
+                ded_8 = calc_deductible_tax(tax_8, has_invoice, expense_date)
                 writer.writerow(_make_row(
                     voucher_no, event_date, debit_account, "",
-                    _tax_kubun(deductible_tax, 0),
-                    taxable_amount, deductible_tax, credit_base, employee, total_amount,
-                    summary, event_id, f"経過措置（{deduction_label}）控除可能分"
+                    _tax_kubun(0, tax_8),
+                    taxable_8, ded_8["deductible_tax"], credit_base, employee, taxable_8 + tax_8,
+                    summary, event_id, ded_8["deduction_label"] if not has_invoice else "適格請求書（8%）"
                 ))
-                writer.writerow(_make_row(
-                    voucher_no, event_date, "雑損失", "", "対象外",
-                    non_deductible_tax, 0, credit_base, employee, non_deductible_tax,
-                    summary + "（控除不可分）", event_id,
-                    f"経過措置（{deduction_label}）控除不可分→雑損失"
-                ))
+            else:
+                # 単一税率
+                tax_total  = tax_10 + tax_8
+                deduction  = calc_deductible_tax(tax_total, has_invoice, expense_date)
+                deductible_tax     = deduction["deductible_tax"]
+                non_deductible_tax = deduction["non_deductible_tax"]
+                deduction_label    = deduction["deduction_label"]
+
+                # 8%専用 or 10% or 対象外の場合
+                if tax_8 > 0 and tax_10 == 0:
+                    taxable_amount = taxable_8
+                    tax_amount     = tax_8
+                else:
+                    taxable_amount = taxable_10
+                    tax_amount     = tax_10
+
+                if has_invoice or non_deductible_tax == 0:
+                    writer.writerow(_make_row(
+                        voucher_no, event_date, debit_account, "",
+                        _tax_kubun(tax_10, tax_8),
+                        taxable_amount, tax_amount, credit_base, employee, total_amount,
+                        summary, event_id, "適格請求書（全額控除）"
+                    ))
+                else:
+                    writer.writerow(_make_row(
+                        voucher_no, event_date, debit_account, "",
+                        _tax_kubun(deductible_tax, 0),
+                        taxable_amount, deductible_tax, credit_base, employee, total_amount,
+                        summary, event_id, f"経過措置（{deduction_label}）控除可能分"
+                    ))
+                    writer.writerow(_make_row(
+                        voucher_no, event_date, "雑損失", "", "対象外",
+                        non_deductible_tax, 0, credit_base, employee, non_deductible_tax,
+                        summary + "（控除不可分）", event_id,
+                        f"経過措置（{deduction_label}）控除不可分→雑損失"
+                    ))
             voucher_no += 1
 
         except Exception as e:
