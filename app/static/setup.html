@@ -668,6 +668,16 @@
 
                     if (!response.ok) throw new Error('STEP 2 に失敗しました');
 
+                    // サーバーから返された部門IDでクライアント側の部門配列を更新
+                    const step2Data = await response.json();
+                    if (step2Data.success && step2Data.data.departments) {
+                        step2Data.data.departments.forEach((serverDept, idx) => {
+                            if (idx < departments.length) {
+                                departments[idx].id = serverDept.id;
+                            }
+                        });
+                    }
+
                 } else if (currentStep === 3) {
                     if (employees.length === 0) {
                         showError('最低1人の従業員を追加してください');
