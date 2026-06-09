@@ -1179,8 +1179,141 @@ def handle_export(ack, body, client, logger):
 
 @app.command("/csv")
 def handle_csv(ack, body, client, logger):
-    """/csv は /export のエイリアス"""
-    handle_export(ack, body, client, logger)
+    """/csv → 月・形式を選択するモーダルを表示"""
+    ack()
+    from datetime import datetime, date
+    now = datetime.now()
+
+    # 過去6ヶ月 + 当月 の選択肢を生成
+    month_options = []
+    for i in range(6):
+        m = now.month - i
+        y = now.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        label = f"{y:04d}/{m:02d}"
+        value = f"{y:04d}-{m:02d}"
+        month_options.append({
+            "text": {"type": "plain_text", "text": label},
+            "value": value,
+        })
+
+    trigger_id = body.get("trigger_id", "")
+    channel_id = body["channel_id"]
+
+    client.views_open(
+        trigger_id=trigger_id,
+        view={
+            "type": "modal",
+            "callback_id": "csv_export_modal",
+            "private_metadata": channel_id,
+            "title": {"type": "plain_text", "text": "📊 CSV出力"},
+            "submit": {"type": "plain_text", "text": "出力"},
+            "close":  {"type": "plain_text", "text": "キャンセル"},
+            "blocks": [
+                {
+                    "type": "input",
+                    "block_id": "csv_month",
+                    "label": {"type": "plain_text", "text": "対象月"},
+                    "element": {
+                        "type": "static_select",
+                        "action_id": "value",
+                        "placeholder": {"type": "plain_text", "text": "月を選択"},
+                        "initial_option": month_options[0],
+                        "options": month_options,
+                    },
+                },
+                {
+                    "type": "input",
+                    "block_id": "csv_format",
+                    "label": {"type": "plain_text", "text": "会計ソフト形式"},
+                    "element": {
+                        "type": "radio_buttons",
+                        "action_id": "value",
+                        "initial_option": {
+                            "text": {"type": "plain_text", "text": "弥生会計"},
+                            "value": "yayoi",
+                        },
+                        "options": [
+                            {"text": {"type": "plain_text", "text": "弥生会計"},          "value": "yayoi"},
+                            {"text": {"type": "plain_text", "text": "freee"},              "value": "freee"},
+                            {"text": {"type": "plain_text", "text": "マネーフォワード"},   "value": "mf"},
+                            {"text": {"type": "plain_text", "text": "汎用CSV（税理士用）"}, "value": "csv"},
+                        ],
+                    },
+                },
+            ],
+        },
+    )
+
+
+@app.view("csv_export_modal")
+def handle_csv_export_modal(ack, body, client, logger):
+    """CSV出力モーダルのサブミット処理"""
+    ack()
+    values     = body["view"]["state"]["values"]
+    channel_id = body["view"].get("private_metadata", "")
+    user_id    = body["user"]["id"]
+    team_id    = body.get("team", {}).get("id", "")
+
+    ym_str = values["csv_month"]["value"]["selected_option"]["value"]   # "2026-05"
+    fmt    = values["csv_format"]["value"]["selected_option"]["value"]  # "yayoi" etc.
+
+    from datetime import datetime
+    target = datetime.strptime(ym_str, "%Y-%m")
+    year, month = target.year, target.month
+    ym_label = f"{year:04d}/{month:02d}"
+
+    from core.database import list_all_events_by_month
+    tenant    = _get_tenant(team_id)
+    tenant_id = tenant["id"] if tenant else None
+    events    = [e for e in list_all_events_by_month(year, month, tenant_id)
+                 if e.get("status") == "業務承認済"]
+
+    if not events:
+        client.chat_postMessage(
+            channel=channel_id,
+            text=f"📭 {ym_label} の承認済み仕訳が見つかりません。"
+        )
+        return
+
+    if fmt == "freee":
+        from core.csv_export import build_freee_csv
+        csv_bytes = build_freee_csv(events)
+        filename  = f"freee_{year:04d}{month:02d}.csv"
+        fmt_label = "freee"
+        fmt_note  = "freee会計 → 会計帳簿 → 仕訳帳 → インポート"
+    elif fmt == "mf":
+        from core.csv_export import build_mf_csv
+        csv_bytes = build_mf_csv(events)
+        filename  = f"mf_{year:04d}{month:02d}.csv"
+        fmt_label = "マネーフォワード"
+        fmt_note  = "MFクラウド会計 → 仕訳帳 → インポート"
+    elif fmt == "csv":
+        from core.csv_export import build_generic_csv
+        csv_bytes = build_generic_csv(events)
+        filename  = f"journal_{year:04d}{month:02d}.csv"
+        fmt_label = "汎用CSV"
+        fmt_note  = "勘定奉行・PCA・TKC・MJS・JDL等"
+    else:
+        from core.yayoi_export import build_yayoi_csv
+        csv_bytes = build_yayoi_csv(events)
+        filename  = f"yayoi_{year:04d}{month:02d}.csv"
+        fmt_label = "弥生会計"
+        fmt_note  = "弥生会計 → データ読み込み → インポート"
+
+    client.files_upload_v2(
+        channel=channel_id,
+        content=csv_bytes,
+        filename=filename,
+        title=f"{fmt_label}インポート用仕訳CSV {ym_label}（{len(events)}件）",
+        initial_comment=(
+            f"📊 *{ym_label} 承認済み仕訳 — {fmt_label}形式*\n"
+            f"件数: {len(events)} 件 | {fmt_note}"
+        ),
+    )
+    logger.info(f"CSV出力（モーダル）: {filename} ({len(events)}件)")
 
 
 @app.event("app_mention")
