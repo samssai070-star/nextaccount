@@ -322,6 +322,34 @@ def handle_file_shared(event, client, logger):
         db_dict["evidence_url"] = file_info.get("url_private", "")
         db_dict["source_type"]  = "expense"
 
+        # 入湯税が含まれる場合: 主エントリから入湯税を分割し2仕訳を生成
+        nyutou_amount = int(ai_result.get("nyutou_tax_amount") or 0)
+        nyutou_entry  = None
+        if nyutou_amount > 0 and nyutou_amount < entry.total_amount:
+            entry.total_amount -= nyutou_amount
+            seq2 = get_next_sequence(event_date, tenant_id)
+            from core.accounting import JournalEntry
+            nyutou_entry = JournalEntry(
+                event_id          = generate_event_id(event_date, seq2),
+                event_date        = entry.event_date,
+                counterparty      = entry.counterparty,
+                total_amount      = nyutou_amount,
+                taxable_10_amount = 0,
+                tax_10_amount     = 0,
+                taxable_8_amount  = 0,
+                tax_8_amount      = 0,
+                invoice_number    = None,
+                has_invoice       = False,
+                debit_account     = "租税公課",
+                debit_subsidiary  = "入湯税",
+                credit_account    = build_credit_account(employee_name),
+                employee_name     = employee_name,
+                status            = "申請中",
+                evidence_url      = db_dict.get("evidence_url", ""),
+                purpose           = "入湯税（宿泊費から自動分割）",
+            )
+            logger.info(f"入湯税分割: 主={entry.event_id} ¥{entry.total_amount} / 租税公課={nyutou_entry.event_id} ¥{nyutou_amount}")
+
         dup = check_duplicate(entry.invoice_number, entry.total_amount, entry.event_date, tenant_id)
         if dup:
             _send_duplicate_warning(client, channel_id, msg_ts, dup, ocr_result)
@@ -329,6 +357,16 @@ def handle_file_shared(event, client, logger):
             return
 
         insert_event(db_dict, tenant_id)
+        if nyutou_entry:
+            nyutou_entry.status = "業務承認済"  # 入湯税は金額固定のため自動承認
+            nyutou_db = nyutou_entry.to_db_dict()
+            nyutou_db["employee_slack_id"] = user_id
+            nyutou_db["evidence_url"]      = db_dict.get("evidence_url", "")
+            nyutou_db["source_type"]       = "expense"
+            nyutou_db["status"]            = "業務承認済"
+            insert_event(nyutou_db, tenant_id)
+            if sheets:
+                sheets.write_journal_entry(nyutou_entry)
 
         # Google Drive に証憑を保存（電子帳簿保存法対応）
         try:
@@ -409,17 +447,14 @@ def handle_file_shared(event, client, logger):
             blocks=dm_blocks,
         )
 
-        # 入湯税が含まれる場合はDMに分割仕訳の案内を追加
-        nyutou_amount = int(ai_result.get("nyutou_tax_amount") or 0)
-        if nyutou_amount > 0:
+        # 入湯税分割仕訳の完了通知
+        if nyutou_entry:
             client.chat_postMessage(
                 channel=channel_id,
                 text=(
-                    f"⚠️ *入湯税 ¥{nyutou_amount:,} を検出しました*\n\n"
-                    f"この領収書には入湯税が含まれています。\n"
-                    f"必要に応じて手動で分割仕訳を行ってください:\n"
-                    f"• 旅費交通費 / 宿泊費: *¥{entry.total_amount - nyutou_amount:,}*\n"
-                    f"• 租税公課 / 入湯税: *¥{nyutou_amount:,}*"
+                    f"🏨 *入湯税を自動分割しました*\n\n"
+                    f"• `{entry.event_id}` 旅費交通費 / 宿泊費: *¥{entry.total_amount:,}* （申請中）\n"
+                    f"• `{nyutou_entry.event_id}` 租税公課 / 入湯税: *¥{nyutou_amount:,}* （自動承認済）"
                 ),
             )
 
