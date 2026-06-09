@@ -252,11 +252,24 @@ def handle_file_shared(event, client, logger):
                     raw_date = f"{corrected_y}-{date_m.group(2)}-{date_m.group(3)}"
                     logger.warning(f"日付年補正: {y} → {corrected_y} ({raw_date})")
             ocr_result.event_date        = raw_date or None
-            ocr_result.total_amount      = int(ai_result.get("total_amount") or 0)
-            ocr_result.taxable_10_amount = int(ai_result.get("taxable_10_amount") or 0)
-            ocr_result.tax_10_amount     = int(ai_result.get("tax_10_amount") or 0)
-            ocr_result.taxable_8_amount  = int(ai_result.get("taxable_8_amount") or 0)
-            ocr_result.tax_8_amount      = int(ai_result.get("tax_8_amount") or 0)
+            total      = int(ai_result.get("total_amount") or 0)
+            tax_10     = int(ai_result.get("tax_10_amount") or 0)
+            taxable_10 = int(ai_result.get("taxable_10_amount") or 0)
+            tax_8      = int(ai_result.get("tax_8_amount") or 0)
+            taxable_8  = int(ai_result.get("taxable_8_amount") or 0)
+            # 税額から合計を逆算して整合性チェック（郵便払込票等の誤読検出）
+            tax_total = taxable_10 + tax_10 + taxable_8 + tax_8
+            if tax_10 > 0 and tax_total > 0 and total > 0:
+                implied = taxable_10 + tax_10 + taxable_8 + tax_8
+                if implied > 0 and abs(total - implied) > implied * 0.05:
+                    # 合計と税額合計が5%以上乖離 → 税額ベースで合計を補正
+                    logger.warning(f"金額整合性NG: total={total} tax_implied={implied} → 補正")
+                    total = implied
+            ocr_result.total_amount      = total
+            ocr_result.taxable_10_amount = taxable_10
+            ocr_result.tax_10_amount     = tax_10
+            ocr_result.taxable_8_amount  = taxable_8
+            ocr_result.tax_8_amount      = tax_8
             inv = ai_result.get("invoice_number")
             if inv and str(inv).strip().lower() != "null":
                 inv_clean = re.sub(r"[-ー－]", "", str(inv).strip())  # ハイフン除去
