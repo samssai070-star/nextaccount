@@ -469,13 +469,6 @@ def handle_file_shared(event, client, logger):
                 "action_id": "quick_edit_btn",
                 "value": f"{entry.event_id}|{tenant_id}",
             },
-            {
-                "type": "button",
-                "text": {"type": "plain_text", "text": "📝 用途・補助科目を入力"},
-                "action_id": "input_purpose_btn",
-                "value": f"{entry.event_id}|{tenant_id}",
-                "style": "primary",
-            },
         ]
         if entry.debit_account in ("接待交際費", "会議費"):
             dm_action_elements += [
@@ -724,8 +717,6 @@ def _refresh_uploader_dm(client, event_id: str, tenant_id: str):
     dm_action_elements = [
         {"type": "button", "text": {"type": "plain_text", "text": "✏️ 内容を修正"},
          "action_id": "quick_edit_btn", "value": f"{entry.event_id}|{tenant_id}"},
-        {"type": "button", "text": {"type": "plain_text", "text": "📝 用途・補助科目を入力"},
-         "action_id": "input_purpose_btn", "value": f"{entry.event_id}|{tenant_id}", "style": "primary"},
     ]
     if entry.debit_account in ("接待交際費", "会議費"):
         dm_action_elements += [
