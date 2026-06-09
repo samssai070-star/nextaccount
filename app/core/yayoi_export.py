@@ -85,9 +85,13 @@ def build_yayoi_csv(events: list[dict]) -> bytes:
                 if tax_8 > 0 and tax_10 == 0:
                     taxable_amount = taxable_8
                     tax_amount     = tax_8
-                else:
+                elif tax_10 > 0:
                     taxable_amount = taxable_10
                     tax_amount     = tax_10
+                else:
+                    # 対象外: 借方金額 = 含税合計, 消費税 = 0
+                    taxable_amount = total_amount
+                    tax_amount     = 0
 
                 if has_invoice or non_deductible_tax == 0:
                     writer.writerow(_make_row(
