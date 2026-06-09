@@ -735,7 +735,11 @@
                         })
                     });
 
-                    if (!response.ok) throw new Error('STEP 3 に失敗しました');
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        const errorMsg = errorData.error || 'STEP 3 に失敗しました';
+                        throw new Error(errorMsg);
+                    }
 
                 } else if (currentStep === 4) {
                     if (!slackConnected) {
