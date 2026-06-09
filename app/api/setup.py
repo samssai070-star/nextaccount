@@ -164,6 +164,8 @@ def setup_step3():
         # 既存従業員を削除
         cur.execute("DELETE FROM employees WHERE organization_id=%s", (org_id,))
 
+        logger.info(f"Step3: Processing {len(employees)} employees for org {org_id}")
+
         created_count = 0
         for emp in employees:
             email = emp.get("email", "").strip().lower()
@@ -171,7 +173,10 @@ def setup_step3():
             slack_user_id = emp.get("slack_user_id", "").strip()
             department_id = emp.get("department_id")
 
+            logger.debug(f"Processing employee: {full_name} ({email}), dept_id={department_id}")
+
             if not email or not full_name:
+                logger.warning(f"Skipping employee with missing email or name")
                 continue
 
             try:
@@ -181,9 +186,12 @@ def setup_step3():
                     (org_id, full_name, email, slack_user_id or None, department_id, True)
                 )
                 created_count += 1
+                logger.info(f"Successfully inserted employee: {full_name} ({email})")
             except Exception as e:
                 logger.error(f"Failed to insert employee {full_name} ({email}): {e}", exc_info=True)
                 continue
+
+        logger.info(f"Step3 completed: {created_count}/{len(employees)} employees created")
 
         # 進行状況を更新
         cur.execute(
@@ -192,6 +200,14 @@ def setup_step3():
         )
 
         conn.commit()
+
+        # デバッグ: 実際に保存された従業員をカウント
+        cur.execute(
+            "SELECT COUNT(*) as count FROM employees WHERE organization_id=%s",
+            (org_id,)
+        )
+        db_count = cur.fetchone()["count"]
+        logger.info(f"Database verification: {db_count} total employees for org {org_id}")
 
         # 作成した従業員を返す
         cur.execute(

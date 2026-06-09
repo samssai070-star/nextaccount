@@ -16,6 +16,7 @@ def get_summary():
     """ダッシュボード統計情報を取得"""
     try:
         org_id = request.organization_id
+        logger.debug(f"Getting summary for org_id={org_id}")
 
         conn = get_db_connection()
         cur = get_db_cursor(conn)
@@ -31,12 +32,20 @@ def get_summary():
         )
         period = cur.fetchone()
 
-        # 従業員数
+        # 従業員数（デバッグ用に両方カウント）
+        cur.execute(
+            "SELECT COUNT(*) as count FROM employees WHERE organization_id=%s",
+            (org_id,)
+        )
+        total_employees = cur.fetchone()["count"]
+
         cur.execute(
             "SELECT COUNT(*) as count FROM employees WHERE organization_id=%s AND is_active=true",
             (org_id,)
         )
         employee_count = cur.fetchone()["count"]
+
+        logger.info(f"Summary for org {org_id}: total_emp={total_employees}, active_emp={employee_count}")
 
         # 部門数
         cur.execute(
