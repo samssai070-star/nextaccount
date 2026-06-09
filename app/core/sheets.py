@@ -18,7 +18,7 @@ Google Sheets API v4 との連携を担当する。
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+import time
 from typing import Optional
 
 from google.oauth2 import service_account
@@ -60,6 +60,7 @@ class SheetsManager:
     def __init__(self, spreadsheet_id: str):
         self.spreadsheet_id = spreadsheet_id
         self._service = None
+        self._meta_cache: Optional[dict] = None  # spreadsheets().get() のキャッシュ
 
     @property
     def service(self):
@@ -68,104 +69,128 @@ class SheetsManager:
         return self._service
 
     # ----------------------------------------------------------
+    # リトライ付きAPIコール
+    # ----------------------------------------------------------
+
+    def _execute(self, request, max_retries: int = 4):
+        """APIリクエストを実行する。レート制限(429)・サーバーエラー(5xx)時は指数バックオフでリトライ。"""
+        for attempt in range(max_retries + 1):
+            try:
+                return request.execute()
+            except HttpError as e:
+                status = int(e.resp.status)
+                if status in (429, 500, 502, 503, 504) and attempt < max_retries:
+                    wait = 2 ** attempt  # 1s, 2s, 4s, 8s
+                    logger.warning(
+                        f"Sheets API {status} エラー → {wait}秒後リトライ ({attempt + 1}/{max_retries}): {e}"
+                    )
+                    time.sleep(wait)
+                else:
+                    raise
+
+    # ----------------------------------------------------------
+    # メタデータキャッシュ
+    # ----------------------------------------------------------
+
+    def _get_meta(self, force_refresh: bool = False) -> dict:
+        """スプレッドシートのメタデータを返す（キャッシュ付き）。"""
+        if self._meta_cache is None or force_refresh:
+            self._meta_cache = self._execute(
+                self.service.spreadsheets().get(spreadsheetId=self.spreadsheet_id)
+            )
+        return self._meta_cache
+
+    def _invalidate_meta_cache(self) -> None:
+        self._meta_cache = None
+
+    # ----------------------------------------------------------
     # シート存在確認・作成
     # ----------------------------------------------------------
 
     def _get_sheet_names(self) -> list[str]:
-        """スプレッドシート内のシート名一覧を返す"""
-        meta = (
-            self.service.spreadsheets()
-            .get(spreadsheetId=self.spreadsheet_id)
-            .execute()
-        )
+        """スプレッドシート内のシート名一覧を返す（キャッシュ利用）"""
+        meta = self._get_meta()
         return [s["properties"]["title"] for s in meta.get("sheets", [])]
+
+    def _get_sheet_id(self, sheet_name: str) -> Optional[int]:
+        """シート名からシートIDを取得する（キャッシュ利用）。見つからない場合は再取得して再試行。"""
+        for force in (False, True):
+            meta = self._get_meta(force_refresh=force)
+            for s in meta.get("sheets", []):
+                if s["properties"]["title"] == sheet_name:
+                    return s["properties"]["sheetId"]
+        return None
 
     def _ensure_sheet(self, sheet_name: str) -> None:
         """
         指定名のシートが存在しない場合は作成し、
         ヘッダー行（SHEET_COLUMNS）を書き込む。
         """
-        existing = self._get_sheet_names()
-        if sheet_name in existing:
+        if sheet_name in self._get_sheet_names():
             return
 
-        # シートを追加
-        body = {
-            "requests": [
-                {"addSheet": {"properties": {"title": sheet_name}}}
-            ]
-        }
-        self.service.spreadsheets().batchUpdate(
-            spreadsheetId=self.spreadsheet_id,
-            body=body,
-        ).execute()
+        self._execute(
+            self.service.spreadsheets().batchUpdate(
+                spreadsheetId=self.spreadsheet_id,
+                body={"requests": [{"addSheet": {"properties": {"title": sheet_name}}}]},
+            )
+        )
+        self._invalidate_meta_cache()  # 新シート追加後にキャッシュをクリア
         logger.info(f"シート作成: {sheet_name}")
 
-        # ヘッダー行を書き込む
         self._write_header(sheet_name)
 
     def _write_header(self, sheet_name: str) -> None:
         """ヘッダー行を書き込む（太字・背景色を適用）"""
-        # 値の書き込み
-        self.service.spreadsheets().values().update(
-            spreadsheetId=self.spreadsheet_id,
-            range=f"'{sheet_name}'!A1",
-            valueInputOption="USER_ENTERED",
-            body={"values": [SHEET_COLUMNS]},
-        ).execute()
+        self._execute(
+            self.service.spreadsheets().values().update(
+                spreadsheetId=self.spreadsheet_id,
+                range=f"'{sheet_name}'!A1",
+                valueInputOption="USER_ENTERED",
+                body={"values": [SHEET_COLUMNS]},
+            )
+        )
 
-        # ヘッダー行を太字・背景色に設定
         sheet_id = self._get_sheet_id(sheet_name)
         if sheet_id is None:
             return
 
-        format_body = {
-            "requests": [
-                {
-                    "repeatCell": {
-                        "range": {
-                            "sheetId": sheet_id,
-                            "startRowIndex": 0,
-                            "endRowIndex": 1,
-                        },
-                        "cell": {
-                            "userEnteredFormat": {
-                                "backgroundColor": {
-                                    "red": 0.26,
-                                    "green": 0.52,
-                                    "blue": 0.96,
+        self._execute(
+            self.service.spreadsheets().batchUpdate(
+                spreadsheetId=self.spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "repeatCell": {
+                                "range": {
+                                    "sheetId": sheet_id,
+                                    "startRowIndex": 0,
+                                    "endRowIndex": 1,
                                 },
-                                "textFormat": {
-                                    "bold": True,
-                                    "foregroundColor": {
-                                        "red": 1.0,
-                                        "green": 1.0,
-                                        "blue": 1.0,
-                                    },
+                                "cell": {
+                                    "userEnteredFormat": {
+                                        "backgroundColor": {
+                                            "red": 0.26,
+                                            "green": 0.52,
+                                            "blue": 0.96,
+                                        },
+                                        "textFormat": {
+                                            "bold": True,
+                                            "foregroundColor": {
+                                                "red": 1.0,
+                                                "green": 1.0,
+                                                "blue": 1.0,
+                                            },
+                                        },
+                                    }
                                 },
+                                "fields": "userEnteredFormat(backgroundColor,textFormat)",
                             }
-                        },
-                        "fields": "userEnteredFormat(backgroundColor,textFormat)",
-                    }
-                }
-            ]
-        }
-        self.service.spreadsheets().batchUpdate(
-            spreadsheetId=self.spreadsheet_id,
-            body=format_body,
-        ).execute()
-
-    def _get_sheet_id(self, sheet_name: str) -> Optional[int]:
-        """シート名からシートIDを取得する"""
-        meta = (
-            self.service.spreadsheets()
-            .get(spreadsheetId=self.spreadsheet_id)
-            .execute()
+                        }
+                    ]
+                },
+            )
         )
-        for s in meta.get("sheets", []):
-            if s["properties"]["title"] == sheet_name:
-                return s["properties"]["sheetId"]
-        return None
 
     # ----------------------------------------------------------
     # データ書き込み
@@ -173,58 +198,57 @@ class SheetsManager:
 
     def _append_row(self, sheet_name: str, row: list) -> None:
         """シートの末尾に1行追記する"""
-        self.service.spreadsheets().values().append(
-            spreadsheetId=self.spreadsheet_id,
-            range=f"'{sheet_name}'!A1",
-            valueInputOption="USER_ENTERED",
-            insertDataOption="INSERT_ROWS",
-            body={"values": [row]},
-        ).execute()
+        self._execute(
+            self.service.spreadsheets().values().append(
+                spreadsheetId=self.spreadsheet_id,
+                range=f"'{sheet_name}'!A1",
+                valueInputOption="USER_ENTERED",
+                insertDataOption="INSERT_ROWS",
+                body={"values": [row]},
+            )
+        )
 
     def _get_all_values(self, sheet_name: str) -> list[list]:
         """シートの全データを取得する"""
-        result = (
+        result = self._execute(
             self.service.spreadsheets()
             .values()
             .get(
                 spreadsheetId=self.spreadsheet_id,
                 range=f"'{sheet_name}'!A:P",
             )
-            .execute()
         )
         return result.get("values", [])
 
     def _sort_by_date(self, sheet_name: str) -> None:
-        """
-        B列（発生日）で降順ソートする。
-        ヘッダー行（1行目）は除外。
-        """
+        """B列（発生日）で降順ソートする。ヘッダー行（1行目）は除外。"""
         sheet_id = self._get_sheet_id(sheet_name)
         if sheet_id is None:
             return
 
-        body = {
-            "requests": [
-                {
-                    "sortRange": {
-                        "range": {
-                            "sheetId": sheet_id,
-                            "startRowIndex": 1,  # ヘッダーを除く
-                        },
-                        "sortSpecs": [
-                            {
-                                "dimensionIndex": 1,  # B列
-                                "sortOrder": "DESCENDING",
+        self._execute(
+            self.service.spreadsheets().batchUpdate(
+                spreadsheetId=self.spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "sortRange": {
+                                "range": {
+                                    "sheetId": sheet_id,
+                                    "startRowIndex": 1,  # ヘッダーを除く
+                                },
+                                "sortSpecs": [
+                                    {
+                                        "dimensionIndex": 1,  # B列
+                                        "sortOrder": "DESCENDING",
+                                    }
+                                ],
                             }
-                        ],
-                    }
-                }
-            ]
-        }
-        self.service.spreadsheets().batchUpdate(
-            spreadsheetId=self.spreadsheet_id,
-            body=body,
-        ).execute()
+                        }
+                    ]
+                },
+            )
+        )
 
     # ----------------------------------------------------------
     # 月次合計行
@@ -238,7 +262,6 @@ class SheetsManager:
         rows = self._get_all_values(sheet_name)
         total_label = f"{year:04d}/{month:02d}合計"
 
-        # D列（index 3）の金額を合計
         total_amount = 0
         total_10 = 0
         total_tax10 = 0
@@ -267,13 +290,14 @@ class SheetsManager:
         ]
 
         if existing_total_row:
-            # 既存の合計行を上書き
-            self.service.spreadsheets().values().update(
-                spreadsheetId=self.spreadsheet_id,
-                range=f"'{sheet_name}'!A{existing_total_row}",
-                valueInputOption="USER_ENTERED",
-                body={"values": [total_row]},
-            ).execute()
+            self._execute(
+                self.service.spreadsheets().values().update(
+                    spreadsheetId=self.spreadsheet_id,
+                    range=f"'{sheet_name}'!A{existing_total_row}",
+                    valueInputOption="USER_ENTERED",
+                    body={"values": [total_row]},
+                )
+            )
         else:
             self._append_row(sheet_name, total_row)
 
@@ -281,73 +305,13 @@ class SheetsManager:
     # 公開 API
     # ----------------------------------------------------------
 
-    def update_journal_entry(self, entry) -> bool:
-        """
-        event_id で既存行を検索して上書きする。
-        見つからない場合は write_journal_entry にフォールバック。
-        /edit や用途更新後の再同期に使用する。
-        """
-        try:
-            event_date = entry.event_date
-            year, month = int(event_date[:4]), int(event_date[5:7])
-            ym = f"{year:04d}{month:02d}"
-
-            sheet_names = [
-                EMPLOYEE_SHEET_NAME_FORMAT.format(employee=entry.employee_name, ym=ym),
-                FINANCE_SUMMARY_SHEET_NAME,
-            ]
-
-            for sheet_name in sheet_names:
-                self._ensure_sheet(sheet_name)
-
-                col_a = (
-                    self.service.spreadsheets()
-                    .values()
-                    .get(spreadsheetId=self.spreadsheet_id, range=f"'{sheet_name}'!A:A")
-                    .execute()
-                    .get("values", [])
-                )
-
-                row_index = next(
-                    (i + 1 for i, r in enumerate(col_a) if r and r[0].strip() == entry.event_id.strip()),
-                    None,
-                )
-
-                logger.info(f"update_journal_entry: sheet={sheet_name} event_id={entry.event_id} row_index={row_index} col_a_count={len(col_a)}")
-
-                if row_index:
-                    self.service.spreadsheets().values().update(
-                        spreadsheetId=self.spreadsheet_id,
-                        range=f"'{sheet_name}'!A{row_index}",
-                        valueInputOption="USER_ENTERED",
-                        body={"values": [entry.to_sheet_row()]},
-                    ).execute()
-                    logger.info(f"行更新: {sheet_name} row={row_index} ({entry.event_id})")
-                else:
-                    self._append_row(sheet_name, entry.to_sheet_row())
-                    logger.info(f"行追加: {sheet_name} ({entry.event_id})")
-
-                self._sort_by_date(sheet_name)
-                self._update_monthly_total(sheet_name, year, month)
-
-            return True
-
-        except HttpError as e:
-            logger.error(f"Sheets 更新エラー: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Sheets 更新エラー: {e}", exc_info=True)
-            return False
-
-    def _find_row_by_event_id(self, sheet_name: str, event_id: str):
+    def _find_row_by_event_id(self, sheet_name: str, event_id: str) -> Optional[int]:
         """シート内で event_id が一致する行番号（1始まり）を返す。なければ None。"""
-        col_a = (
+        col_a = self._execute(
             self.service.spreadsheets()
             .values()
             .get(spreadsheetId=self.spreadsheet_id, range=f"'{sheet_name}'!A:A")
-            .execute()
-            .get("values", [])
-        )
+        ).get("values", [])
         return next(
             (i + 1 for i, r in enumerate(col_a) if r and r[0].strip() == event_id.strip()),
             None,
@@ -372,14 +336,15 @@ class SheetsManager:
                 self._ensure_sheet(sheet_name)
                 row_index = self._find_row_by_event_id(sheet_name, entry.event_id)
                 if row_index:
-                    # 既存行を上書き（二重登録防止）
                     col_end = chr(ord("A") + len(entry.to_sheet_row()) - 1)
-                    self.service.spreadsheets().values().update(
-                        spreadsheetId=self.spreadsheet_id,
-                        range=f"'{sheet_name}'!A{row_index}:{col_end}{row_index}",
-                        valueInputOption="USER_ENTERED",
-                        body={"values": [entry.to_sheet_row()]},
-                    ).execute()
+                    self._execute(
+                        self.service.spreadsheets().values().update(
+                            spreadsheetId=self.spreadsheet_id,
+                            range=f"'{sheet_name}'!A{row_index}:{col_end}{row_index}",
+                            valueInputOption="USER_ENTERED",
+                            body={"values": [entry.to_sheet_row()]},
+                        )
+                    )
                     logger.info(f"既存行を上書き（重複防止）: {sheet_name} row={row_index} ({entry.event_id})")
                 else:
                     self._append_row(sheet_name, entry.to_sheet_row())
@@ -396,6 +361,64 @@ class SheetsManager:
             logger.error(f"シート書き込みエラー: {e}", exc_info=True)
             return False
 
+    def update_journal_entry(self, entry) -> bool:
+        """
+        event_id で既存行を検索して上書きする。
+        見つからない場合は write_journal_entry にフォールバック。
+        /edit や用途更新後の再同期に使用する。
+        """
+        try:
+            event_date = entry.event_date
+            year, month = int(event_date[:4]), int(event_date[5:7])
+            ym = f"{year:04d}{month:02d}"
+
+            sheet_names = [
+                EMPLOYEE_SHEET_NAME_FORMAT.format(employee=entry.employee_name, ym=ym),
+                FINANCE_SUMMARY_SHEET_NAME,
+            ]
+
+            for sheet_name in sheet_names:
+                self._ensure_sheet(sheet_name)
+
+                col_a = self._execute(
+                    self.service.spreadsheets()
+                    .values()
+                    .get(spreadsheetId=self.spreadsheet_id, range=f"'{sheet_name}'!A:A")
+                ).get("values", [])
+
+                row_index = next(
+                    (i + 1 for i, r in enumerate(col_a) if r and r[0].strip() == entry.event_id.strip()),
+                    None,
+                )
+
+                logger.info(f"update_journal_entry: sheet={sheet_name} event_id={entry.event_id} row_index={row_index} col_a_count={len(col_a)}")
+
+                if row_index:
+                    self._execute(
+                        self.service.spreadsheets().values().update(
+                            spreadsheetId=self.spreadsheet_id,
+                            range=f"'{sheet_name}'!A{row_index}",
+                            valueInputOption="USER_ENTERED",
+                            body={"values": [entry.to_sheet_row()]},
+                        )
+                    )
+                    logger.info(f"行更新: {sheet_name} row={row_index} ({entry.event_id})")
+                else:
+                    self._append_row(sheet_name, entry.to_sheet_row())
+                    logger.info(f"行追加: {sheet_name} ({entry.event_id})")
+
+                self._sort_by_date(sheet_name)
+                self._update_monthly_total(sheet_name, year, month)
+
+            return True
+
+        except HttpError as e:
+            logger.error(f"Sheets 更新エラー: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Sheets 更新エラー: {e}", exc_info=True)
+            return False
+
     def rebuild_employee_sheet(
         self, employee_name: str, year: int, month: int, events: list[dict]
     ) -> bool:
@@ -409,13 +432,14 @@ class SheetsManager:
         try:
             self._ensure_sheet(sheet_name)
 
-            # ヘッダー以降をクリア（16列）
             sheet_id = self._get_sheet_id(sheet_name)
             if sheet_id:
-                self.service.spreadsheets().values().clear(
-                    spreadsheetId=self.spreadsheet_id,
-                    range=f"'{sheet_name}'!A2:P",
-                ).execute()
+                self._execute(
+                    self.service.spreadsheets().values().clear(
+                        spreadsheetId=self.spreadsheet_id,
+                        range=f"'{sheet_name}'!A2:P",
+                    )
+                )
 
             from .accounting import JournalEntry
             for evt in events:
