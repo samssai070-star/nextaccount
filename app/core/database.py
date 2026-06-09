@@ -65,6 +65,8 @@ ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS timestamp_at TIMESTAMP;
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS timestamp_verified BOOLEAN DEFAULT FALSE;
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS approval_card_channel VARCHAR(50) DEFAULT '';
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS approval_card_ts VARCHAR(50) DEFAULT '';
+ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS uploader_dm_channel VARCHAR(50) DEFAULT '';
+ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS uploader_dm_ts VARCHAR(50) DEFAULT '';
 CREATE TABLE IF NOT EXISTS employee_monthly_codes (
     id          SERIAL PRIMARY KEY,
     tenant_id   UUID         REFERENCES tenants(id),
@@ -262,6 +264,26 @@ def get_linked_nyutou_entry(main_event_id: str, tenant_id: str):
             )
             row = cur.fetchone()
     return dict(row) if row else None
+
+def save_uploader_dm_info(event_id: str, tenant_id: str, channel: str, ts: str) -> None:
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE accounting_events SET uploader_dm_channel=%s, uploader_dm_ts=%s WHERE event_id=%s AND tenant_id=%s",
+                (channel, ts, event_id, tenant_id)
+            )
+
+def get_uploader_dm_info(event_id: str, tenant_id: str):
+    with _get_conn(tenant_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT uploader_dm_channel, uploader_dm_ts FROM accounting_events WHERE event_id=%s AND tenant_id=%s",
+                (event_id, tenant_id)
+            )
+            row = cur.fetchone()
+    if row and row[0] and row[1]:
+        return row[0], row[1]
+    return None
 
 def save_approval_card_info(event_id: str, tenant_id: str, channel: str, ts: str) -> None:
     with _get_conn(tenant_id) as conn:

@@ -473,6 +473,8 @@ def handle_file_shared(event, client, logger):
             text=f"🧾 登録済 {entry.counterparty} {_fmt_yen(entry.total_amount)}",
             blocks=dm_blocks,
         )
+        from core.database import save_uploader_dm_info
+        save_uploader_dm_info(entry.event_id, tenant_id, channel_id, msg_ts)
 
         # 飲料代が含まれる場合は振り分け選択を促す
         beverage_amount = int(ai_result.get("beverage_amount") or 0)
@@ -659,6 +661,63 @@ def _send_approval_card(client, channel_id, msg_ts, entry, used_real_ocr: bool, 
             text="🧾 経費申請", blocks=blocks,
         )
         return resp.get("ts")
+
+
+def _refresh_uploader_dm(client, event_id: str, tenant_id: str):
+    """編集後にアップロード者DMを最新情報で更新する"""
+    from core.database import get_uploader_dm_info
+    info = get_uploader_dm_info(event_id, tenant_id)
+    if not info:
+        return
+    channel, ts = info
+    evt = get_event_by_id(event_id, tenant_id)
+    if not evt:
+        return
+    from core.accounting import JournalEntry
+    entry = JournalEntry(
+        event_id          = evt["event_id"],
+        event_date        = str(evt["event_date"]),
+        counterparty      = evt["counterparty"],
+        total_amount      = evt["amount"],
+        taxable_10_amount = evt.get("taxable_10_amount", 0),
+        tax_10_amount     = evt.get("tax_10_amount", 0),
+        taxable_8_amount  = evt.get("taxable_8_amount", 0),
+        tax_8_amount      = evt.get("tax_8_amount", 0),
+        debit_account     = evt["debit_account"],
+        debit_subsidiary  = evt.get("debit_subsidiary", ""),
+        credit_account    = evt["credit_account"],
+        invoice_number    = evt.get("invoice_number"),
+        has_invoice       = bool(evt.get("has_invoice")),
+        employee_name     = evt.get("employee_name", ""),
+        status            = evt.get("status", ""),
+        evidence_url      = evt.get("evidence_url", ""),
+        purpose           = evt.get("purpose", ""),
+    )
+    dm_action_elements = [
+        {"type": "button", "text": {"type": "plain_text", "text": "✏️ 内容を修正"},
+         "action_id": "quick_edit_btn", "value": f"{entry.event_id}|{tenant_id}"},
+        {"type": "button", "text": {"type": "plain_text", "text": "📝 用途・補助科目を入力"},
+         "action_id": "input_purpose_btn", "value": f"{entry.event_id}|{tenant_id}", "style": "primary"},
+    ]
+    if entry.debit_account in ("接待交際費", "会議費"):
+        dm_action_elements += [
+            {"type": "button", "text": {"type": "plain_text", "text": "🍽️ 会議費"},
+             "action_id": "switch_to_kaigi_btn", "value": f"{entry.event_id}|{tenant_id}"},
+            {"type": "button", "text": {"type": "plain_text", "text": "🤝 接待交際費"},
+             "action_id": "switch_to_settai_btn", "value": f"{entry.event_id}|{tenant_id}"},
+        ]
+    blocks = _build_entry_blocks(entry, used_real_ocr=True) + [
+        {"type": "actions", "elements": dm_action_elements},
+    ]
+    try:
+        client.chat_update(
+            channel=channel, ts=ts,
+            text=f"🧾 登録済（更新）{entry.counterparty} {_fmt_yen(entry.total_amount)}",
+            blocks=blocks,
+        )
+        logger.info(f"アップロード者DM更新: {event_id}")
+    except Exception as e:
+        logger.warning(f"アップロード者DM更新失敗: {e}")
 
 
 def _refresh_approval_card(client, event_id: str, tenant_id: str):
@@ -1444,6 +1503,7 @@ def handle_edit_submit(ack, body, client, logger):
         logger.warning(f"修正通知DM失敗: {dm_err}")
 
     _refresh_approval_card(client, event_id, tenant_id)
+    _refresh_uploader_dm(client, event_id, tenant_id)
     logger.info(f"仕訳修正完了: {event_id} by {user_id}")
 
 
@@ -1596,6 +1656,7 @@ def handle_switch_to_kaigi(ack, body, client, logger):
 
     update_event(event_id, tenant_id, {"debit_account": "会議費", "debit_subsidiary": "会議飲食費"})
     _refresh_approval_card(client, event_id, tenant_id)
+    _refresh_uploader_dm(client, event_id, tenant_id)
     client.chat_postMessage(
         channel=body["user"]["id"],
         text=f"✅ 借方科目を *会議費 / 会議飲食費* に変更しました。\n管理ID: `{event_id}`",
@@ -1615,6 +1676,7 @@ def handle_switch_to_settai(ack, body, client, logger):
 
     update_event(event_id, tenant_id, {"debit_account": "接待交際費", "debit_subsidiary": "接待飲食費"})
     _refresh_approval_card(client, event_id, tenant_id)
+    _refresh_uploader_dm(client, event_id, tenant_id)
     client.chat_postMessage(
         channel=body["user"]["id"],
         text=f"✅ 借方科目を *接待交際費 / 接待飲食費* に変更しました。\n管理ID: `{event_id}`",
@@ -1858,6 +1920,7 @@ def handle_purpose_modal(ack, body, client, logger):
         logger.warning(f"Sheets 再同期スキップ: {e}")
 
     _refresh_approval_card(client, event_id, tenant_id)
+    _refresh_uploader_dm(client, event_id, tenant_id)
 
     # 申請者に保存完了を通知
     user_id = body["user"]["id"]
