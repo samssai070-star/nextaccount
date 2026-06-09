@@ -763,12 +763,94 @@
             }, 5000);
         }
 
+        async function loadExistingDepartments() {
+            const token = localStorage.getItem('authToken');
+            const orgId = localStorage.getItem('organizationId');
+
+            if (!token || !orgId) return;
+
+            try {
+                const response = await fetch('/api/dashboard/departments', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.data && Array.isArray(data.data)) {
+                        // Load existing departments
+                        data.data.forEach(dept => {
+                            departments.push({
+                                id: dept.id,
+                                name: dept.name,
+                                code: dept.code
+                            });
+                        });
+                        // Render the departments
+                        if (departments.length > 0) {
+                            renderDepartments();
+                            updateEmployeeSelectOptions();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load departments:', error);
+            }
+        }
+
+        async function loadExistingEmployees() {
+            const token = localStorage.getItem('authToken');
+            const orgId = localStorage.getItem('organizationId');
+
+            if (!token || !orgId) return;
+
+            try {
+                const response = await fetch('/api/dashboard/employees', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.data && Array.isArray(data.data)) {
+                        // Load existing employees
+                        data.data.forEach(emp => {
+                            employees.push({
+                                id: emp.id,
+                                name: emp.full_name,
+                                email: emp.email,
+                                slack: emp.slack_user_id || '',
+                                dept: emp.department_id
+                            });
+                        });
+                        // Render the employees
+                        if (employees.length > 0) {
+                            renderEmployees();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load employees:', error);
+            }
+        }
+
         // Check authentication
         if (!localStorage.getItem('authToken')) {
             window.location.href = '/login.html';
         }
 
-        updateUI();
+        // Load existing data
+        async function initSetup() {
+            await loadExistingDepartments();
+            await loadExistingEmployees();
+            updateUI();
+        }
+
+        initSetup();
     </script>
 </body>
 </html>
