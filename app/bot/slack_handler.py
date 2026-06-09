@@ -1177,6 +1177,12 @@ def handle_export(ack, body, client, logger):
     logger.info(f"弥生CSV出力: {filename} ({len(events)}件)")
 
 
+@app.command("/csv")
+def handle_csv(ack, body, client, logger):
+    """/csv は /export のエイリアス"""
+    handle_export(ack, body, client, logger)
+
+
 @app.event("app_mention")
 def handle_mention(event, say):
     sheets_status = "有効 ✅" if sheets else "無効 ⚠️ (GOOGLE_SHEET_ID 未設定)"
