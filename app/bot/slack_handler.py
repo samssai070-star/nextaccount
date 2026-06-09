@@ -285,12 +285,19 @@ def handle_file_shared(event, client, logger):
             taxable_10 = int(ai_result.get("taxable_10_amount") or 0)
             tax_8      = int(ai_result.get("tax_8_amount") or 0)
             taxable_8  = int(ai_result.get("taxable_8_amount") or 0)
+            # 非課税金額がある場合: total = 課税計 + 非課税計
+            non_taxable = int(ai_result.get("non_taxable_amount") or 0)
+            if non_taxable > 0:
+                taxable_total = taxable_10 + tax_10 + taxable_8 + tax_8
+                if total <= taxable_total + 1:  # totalが課税分しか含まれていない場合
+                    corrected = taxable_total + non_taxable
+                    logger.warning(f"非課税補正: total={total} → {corrected} (non_taxable={non_taxable})")
+                    total = corrected
             # 税額から合計を逆算して整合性チェック（郵便払込票等の誤読検出）
             tax_total = taxable_10 + tax_10 + taxable_8 + tax_8
-            if tax_10 > 0 and tax_total > 0 and total > 0:
+            if tax_10 > 0 and tax_total > 0 and total > 0 and non_taxable == 0:
                 implied = taxable_10 + tax_10 + taxable_8 + tax_8
                 if implied > 0 and abs(total - implied) > implied * 0.05:
-                    # 合計と税額合計が5%以上乖離 → 税額ベースで合計を補正
                     logger.warning(f"金額整合性NG: total={total} tax_implied={implied} → 補正")
                     total = implied
             ocr_result.total_amount      = total
