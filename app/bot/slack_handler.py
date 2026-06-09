@@ -327,7 +327,7 @@ def handle_file_shared(event, client, logger):
         nyutou_entry  = None
         if nyutou_amount > 0 and nyutou_amount < entry.total_amount:
             entry.total_amount -= nyutou_amount
-            seq2 = get_next_sequence(event_date, tenant_id)
+            seq2 = seq + 1  # 主エントリ未挿入のためget_next_sequenceは同番号を返すので+1
             from core.accounting import JournalEntry
             nyutou_entry = JournalEntry(
                 event_id          = generate_event_id(event_date, seq2),
