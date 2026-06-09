@@ -88,7 +88,7 @@ def extract_all_by_claude(ocr_text: str) -> dict:
 
     try:
         import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
+        client = anthropic.Anthropic(api_key=api_key, timeout=60.0)
 
         today = datetime.now().strftime("%Y-%m-%d")
         user_content = f"今日の日付: {today}\n\nOCRテキスト:\n\"\"\"\n{ocr_text[:2000]}\n\"\"\""
@@ -150,7 +150,7 @@ def extract_all_by_claude_vision(image_bytes: bytes, mime_type: str = "image/jpe
         import anthropic
         import base64
 
-        client = anthropic.Anthropic(api_key=api_key)
+        client = anthropic.Anthropic(api_key=api_key, timeout=60.0)
         today = datetime.now().strftime("%Y-%m-%d")
 
         supported_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
