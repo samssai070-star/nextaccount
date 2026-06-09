@@ -1,0 +1,252 @@
+{
+  "ja": {
+    "label": "ガイド",
+    "title": "使い方ガイド",
+    "description": "NextAccount の基本的な使い方から応用機能まで、わかりやすく解説します。",
+    "toc": [
+      {"id": "setup", "label": "1. はじめに"},
+      {"id": "dashboard", "label": "2. ダッシュボード"},
+      {"id": "receipt", "label": "3. 領収書のアップロード"},
+      {"id": "slack", "label": "4. Slack連携"},
+      {"id": "settings", "label": "5. 組織設定"},
+      {"id": "accounting", "label": "6. 会計ソフト連携"},
+      {"id": "faq", "label": "7. よくあるご質問"}
+    ],
+    "sections": {
+      "setup": {
+        "title": "1. はじめに",
+        "content": [
+          {"type": "h3", "text": "初期セットアップについて"},
+          {"type": "p", "text": "NextAccount をご利用いただく際は、初期セットアップウィザードにしたがって各種設定を行っていただきます。所要時間は約10～15分です。"},
+          {"type": "h3", "text": "セットアップの流れ"},
+          {"type": "p", "text": "以下の情報を順番に入力していただきます："},
+          {"type": "table", "rows": [{"th": "企業名および部門名", "td": ""}, {"th": "ご担当者のお名前", "td": ""}, {"th": "ログイン用メールアドレス", "td": ""}, {"th": "パスワード（8文字以上）", "td": ""}]},
+          {"type": "h3", "text": "会計年度の設定"},
+          {"type": "p", "text": "貴社の会計年度を設定していただきます。"}
+        ]
+      },
+      "dashboard": {
+        "title": "2. ダッシュボード",
+        "content": [
+          {"type": "p", "text": "ダッシュボードは NextAccount のメイン画面です。登録済みの部門数、従業員数、会計年度などの基本情報を確認できます。"},
+          {"type": "h3", "text": "表示される情報"},
+          {"type": "table", "rows": [{"th": "組織名および基本情報", "td": ""}, {"th": "登録済みの部門一覧", "td": ""}, {"th": "従業員情報", "td": ""}, {"th": "ユーザーアカウント一覧", "td": ""}]},
+          {"type": "p", "text": "各セクションから詳細情報を確認できます。"}
+        ]
+      },
+      "receipt": {
+        "title": "3. 領収書のアップロード",
+        "content": [
+          {"type": "p", "text": "領収書、請求書、その他の経費関連書類をアップロードします。"},
+          {"type": "h3", "text": "アップロード方法"},
+          {"type": "ul", "items": ["ダッシュボードから「新規アップロード」ボタンをクリック", "ファイルを選択するか、ドラッグ&ドロップでアップロード", "自動的に内容が解析されます"]},
+          {"type": "p", "text": "対応ファイル形式：PDF、PNG、JPG"}
+        ]
+      },
+      "slack": {
+        "title": "4. Slack連携",
+        "content": [
+          {"type": "p", "text": "Slack を使用して、経費申請の承認通知を受け取ることができます。"},
+          {"type": "h3", "text": "セットアップ手順"},
+          {"type": "ol", "items": ["ダッシュボードの「設定」より Slack 連携を選択", "「Slack でこのアプリを承認」ボタンをクリック", "Slack の権限許可画面で「許可する」をクリック"]},
+          {"type": "p", "text": "連携完了後、#経費申請 チャンネルが自動作成されます。"}
+        ]
+      },
+      "settings": {
+        "title": "5. 組織設定",
+        "content": [
+          {"type": "p", "text": "組織情報、部門、従業員の管理を行います。"},
+          {"type": "h3", "text": "設定項目"},
+          {"type": "ul", "items": ["企業情報の編集", "部門の追加・編集・削除", "従業員の管理", "ユーザーアカウントの権限設定"]},
+          {"type": "p", "text": "すべての変更はリアルタイムで反映されます。"}
+        ]
+      },
+      "accounting": {
+        "title": "6. 会計ソフト連携",
+        "content": [
+          {"type": "p", "text": "弥生会計、freee、MFクラウドなど、主要会計ソフトへの自動連携が可能です。"},
+          {"type": "h3", "text": "対応ソフト"},
+          {"type": "ul", "items": ["弥生会計", "freee", "MFクラウド会計", "JDL", "その他CSV形式対応ソフト"]},
+          {"type": "p", "text": "詳細な設定方法は各ソフトの連携ガイドを参照してください。"}
+        ]
+      },
+      "faq": {
+        "title": "7. よくあるご質問",
+        "content": [
+          {"type": "h3", "text": "Q: データはどこに保存されますか？"},
+          {"type": "p", "text": "A: すべてのデータは日本国内のサーバーに暗号化して保存されます。"},
+          {"type": "h3", "text": "Q: サポートは受けられますか？"},
+          {"type": "p", "text": "A: 「サポート」ページからお問い合わせください。"},
+          {"type": "h3", "text": "Q: 操作方法がわかりません"},
+          {"type": "p", "text": "A: このガイドを参照するか、サポートまでお気軽にお問い合わせください。"}
+        ]
+      }
+    }
+  },
+  "en": {
+    "label": "Guide",
+    "title": "User Guide",
+    "description": "Learn how to use NextAccount from the basics to advanced features.",
+    "toc": [
+      {"id": "setup", "label": "1. Getting Started"},
+      {"id": "dashboard", "label": "2. Dashboard"},
+      {"id": "receipt", "label": "3. Upload Receipts"},
+      {"id": "slack", "label": "4. Slack Integration"},
+      {"id": "settings", "label": "5. Organization Settings"},
+      {"id": "accounting", "label": "6. Accounting Software"},
+      {"id": "faq", "label": "7. FAQ"}
+    ],
+    "sections": {
+      "setup": {
+        "title": "1. Getting Started",
+        "content": [
+          {"type": "h3", "text": "Initial Setup"},
+          {"type": "p", "text": "When you start using NextAccount, follow the setup wizard to configure your account. It takes about 10-15 minutes."},
+          {"type": "h3", "text": "Setup Steps"},
+          {"type": "p", "text": "Enter the following information in order:"},
+          {"type": "table", "rows": [{"th": "Company Name and Departments", "td": ""}, {"th": "Contact Person Name", "td": ""}, {"th": "Login Email", "td": ""}, {"th": "Password (8 characters minimum)", "td": ""}]},
+          {"type": "p", "text": "After completing the setup, you can access the dashboard immediately."}
+        ]
+      },
+      "dashboard": {
+        "title": "2. Dashboard",
+        "content": [
+          {"type": "p", "text": "The dashboard is the main interface of NextAccount. You can view the number of registered departments, employees, and other key information."},
+          {"type": "h3", "text": "Information Displayed"},
+          {"type": "table", "rows": [{"th": "Organization Info", "td": ""}, {"th": "Department List", "td": ""}, {"th": "Employee Information", "td": ""}, {"th": "User Accounts", "td": ""}]},
+          {"type": "p", "text": "You can access detailed information from each section."}
+        ]
+      },
+      "receipt": {
+        "title": "3. Upload Receipts",
+        "content": [
+          {"type": "p", "text": "Upload receipts, invoices, and other expense-related documents."},
+          {"type": "h3", "text": "How to Upload"},
+          {"type": "ul", "items": ["Click 'New Upload' from the dashboard", "Select files or drag & drop", "Content is automatically analyzed"]},
+          {"type": "p", "text": "Supported formats: PDF, PNG, JPG"}
+        ]
+      },
+      "slack": {
+        "title": "4. Slack Integration",
+        "content": [
+          {"type": "p", "text": "Receive expense approval notifications through Slack."},
+          {"type": "h3", "text": "Setup Steps"},
+          {"type": "ol", "items": ["Go to Settings from the dashboard", "Click 'Authorize with Slack'", "Click 'Allow' on Slack's permission screen"]},
+          {"type": "p", "text": "After completion, a #expense-request channel is created automatically."}
+        ]
+      },
+      "settings": {
+        "title": "5. Organization Settings",
+        "content": [
+          {"type": "p", "text": "Manage organization info, departments, and employees."},
+          {"type": "h3", "text": "Settings"},
+          {"type": "ul", "items": ["Edit company information", "Add/edit/delete departments", "Manage employees", "Set user account permissions"]},
+          {"type": "p", "text": "All changes take effect immediately."}
+        ]
+      },
+      "accounting": {
+        "title": "6. Accounting Software",
+        "content": [
+          {"type": "p", "text": "Automatically sync with major accounting software."},
+          {"type": "h3", "text": "Supported Software"},
+          {"type": "ul", "items": ["Yayoi Accounting", "freee", "MF Cloud Accounting", "JDL", "Other CSV-compatible software"]},
+          {"type": "p", "text": "See each software's integration guide for detailed setup."}
+        ]
+      },
+      "faq": {
+        "title": "7. FAQ",
+        "content": [
+          {"type": "h3", "text": "Q: Where is my data stored?"},
+          {"type": "p", "text": "A: All data is stored securely in Japan with encryption."},
+          {"type": "h3", "text": "Q: Is support available?"},
+          {"type": "p", "text": "A: Contact us from the Support page."},
+          {"type": "h3", "text": "Q: How do I get help?"},
+          {"type": "p", "text": "A: Refer to this guide or contact support."}
+        ]
+      }
+    }
+  },
+  "zh": {
+    "label": "指南",
+    "title": "使用指南",
+    "description": "从基础到高级功能，了解如何使用 NextAccount。",
+    "toc": [
+      {"id": "setup", "label": "1. 入门"},
+      {"id": "dashboard", "label": "2. 仪表板"},
+      {"id": "receipt", "label": "3. 上传收据"},
+      {"id": "slack", "label": "4. Slack 集成"},
+      {"id": "settings", "label": "5. 组织设置"},
+      {"id": "accounting", "label": "6. 会计软件"},
+      {"id": "faq", "label": "7. 常见问题"}
+    ],
+    "sections": {
+      "setup": {
+        "title": "1. 入门",
+        "content": [
+          {"type": "h3", "text": "初始设置"},
+          {"type": "p", "text": "首次使用 NextAccount 时，请按照设置向导配置您的帐户。大约需要 10-15 分钟。"},
+          {"type": "h3", "text": "设置步骤"},
+          {"type": "p", "text": "按顺序输入以下信息："},
+          {"type": "table", "rows": [{"th": "公司名称和部门", "td": ""}, {"th": "联系人姓名", "td": ""}, {"th": "登录邮箱", "td": ""}, {"th": "密码（至少 8 个字符）", "td": ""}]},
+          {"type": "p", "text": "设置完成后，您可以立即访问仪表板。"}
+        ]
+      },
+      "dashboard": {
+        "title": "2. 仪表板",
+        "content": [
+          {"type": "p", "text": "仪表板是 NextAccount 的主界面。您可以查看已注册的部门数、员工数和其他关键信息。"},
+          {"type": "h3", "text": "显示的信息"},
+          {"type": "table", "rows": [{"th": "组织信息", "td": ""}, {"th": "部门列表", "td": ""}, {"th": "员工信息", "td": ""}, {"th": "用户账户", "td": ""}]},
+          {"type": "p", "text": "您可以从每个部分查看详细信息。"}
+        ]
+      },
+      "receipt": {
+        "title": "3. 上传收据",
+        "content": [
+          {"type": "p", "text": "上传收据、发票和其他费用相关文件。"},
+          {"type": "h3", "text": "上传方法"},
+          {"type": "ul", "items": ["从仪表板点击「新建上传」", "选择文件或拖放上传", "内容将自动分析"]},
+          {"type": "p", "text": "支持的格式：PDF、PNG、JPG"}
+        ]
+      },
+      "slack": {
+        "title": "4. Slack 集成",
+        "content": [
+          {"type": "p", "text": "通过 Slack 接收费用审批通知。"},
+          {"type": "h3", "text": "设置步骤"},
+          {"type": "ol", "items": ["从仪表板进入设置", "点击「使用 Slack 授权」", "在 Slack 权限屏幕上点击「允许」"]},
+          {"type": "p", "text": "完成后，会自动创建 #expense-request 频道。"}
+        ]
+      },
+      "settings": {
+        "title": "5. 组织设置",
+        "content": [
+          {"type": "p", "text": "管理组织信息、部门和员工。"},
+          {"type": "h3", "text": "设置项"},
+          {"type": "ul", "items": ["编辑公司信息", "添加/编辑/删除部门", "管理员工", "设置用户账户权限"]},
+          {"type": "p", "text": "所有更改立即生效。"}
+        ]
+      },
+      "accounting": {
+        "title": "6. 会计软件",
+        "content": [
+          {"type": "p", "text": "自动与主要会计软件同步。"},
+          {"type": "h3", "text": "支持的软件"},
+          {"type": "ul", "items": ["弥生会计", "freee", "MF Cloud 会计", "JDL", "其他支持 CSV 的软件"]},
+          {"type": "p", "text": "有关详细设置，请参阅相应软件的集成指南。"}
+        ]
+      },
+      "faq": {
+        "title": "7. 常见问题",
+        "content": [
+          {"type": "h3", "text": "问：我的数据存储在哪里？"},
+          {"type": "p", "text": "答：所有数据都安全地以加密方式存储在日本的服务器上。"},
+          {"type": "h3", "text": "问：有支持吗？"},
+          {"type": "p", "text": "答：从「支持」页面与我们联系。"},
+          {"type": "h3", "text": "问：如何获得帮助？"},
+          {"type": "p", "text": "答：参考本指南或联系支持。"}
+        ]
+      }
+    }
+  }
+}

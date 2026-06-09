@@ -2,6 +2,7 @@
 .env
 *.json
 !config/.env.example
+!static/guide-content.json
 
 # Python
 __pycache__/
