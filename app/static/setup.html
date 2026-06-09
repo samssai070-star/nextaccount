@@ -311,7 +311,7 @@
                 <form id="step1Form">
                     <div class="form-group">
                         <label class="required">開始月を選択</label>
-                        <select id="startMonth" required>
+                        <select id="startMonth" required onchange="displayFiscalYear()">
                             <option value="">選択してください</option>
                             <option value="1">1月</option>
                             <option value="2">2月</option>
@@ -328,20 +328,9 @@
                         </select>
                     </div>
 
-                    <div class="form-group" style="margin-top: 20px;">
-                        <label style="margin-bottom: 15px;">一般的な会計年度:</label>
-                        <div class="radio-group" onclick="selectMonth(1)">
-                            <label>
-                                <input type="radio" name="preset" value="1">
-                                <span>1月～12月（暦年度）</span>
-                            </label>
-                        </div>
-                        <div class="radio-group" onclick="selectMonth(4)">
-                            <label>
-                                <input type="radio" name="preset" value="4">
-                                <span>4月～3月（日本標準）</span>
-                            </label>
-                        </div>
+                    <div class="form-group" style="margin-top: 30px; padding: 20px; background: #f5f7fa; border-radius: 8px; display: none;" id="fiscalYearDisplay">
+                        <label style="color: #666; font-size: 14px;">会計年度:</label>
+                        <div style="font-size: 18px; font-weight: 600; color: #0052cc; margin-top: 10px;" id="fiscalYearText"></div>
                     </div>
                 </form>
             </div>
@@ -493,8 +482,28 @@
             }
         }
 
+        function displayFiscalYear() {
+            const startMonth = parseInt(document.getElementById('startMonth').value);
+            if (!startMonth) {
+                document.getElementById('fiscalYearDisplay').style.display = 'none';
+                return;
+            }
+
+            const currentYear = new Date().getFullYear();
+            const endMonth = startMonth === 1 ? 12 : startMonth - 1;
+            const endYear = startMonth === 1 ? currentYear : currentYear + 1;
+
+            let startMonthStr = startMonth + '月';
+            let endMonthStr = endMonth + '月';
+
+            document.getElementById('fiscalYearText').textContent =
+                currentYear + '年' + startMonthStr + '～' + endYear + '年' + endMonthStr;
+            document.getElementById('fiscalYearDisplay').style.display = 'block';
+        }
+
         function selectMonth(month) {
             document.getElementById('startMonth').value = month;
+            displayFiscalYear();
         }
 
         function addDepartment() {
