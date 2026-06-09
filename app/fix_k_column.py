@@ -32,12 +32,14 @@ def infer_subsidiary(debit_account: str, counterparty: str) -> str:
     if debit_account == "旅費交通費":
         if any(k in cp for k in ["タクシー", "taxi", "go株式会社", "km", "国際自動車", "日本交通", "didi", "uber"]):
             return "タクシー代"
-        if any(k in cp for k in ["タイムズ", "パーク24", "times", "コインパーク", "三井リパーク", "駐車"]):
+        if any(k in cp for k in ["タイムズ", "パーク24", "times", "コインパーク", "三井リパーク", "駐車", "パーキング", "パーク", "parking"]):
             return "駐車場代"
         if any(k in cp for k in ["ホテル", "イン", "アパ", "コンフォート", "宿泊"]):
             return "宿泊費"
         if any(k in cp for k in ["航空", "ana", "jal", "peach", "skymark", "エアライン"]):
             return "航空券"
+        if any(k in cp for k in ["ビーチライン", "道路", "有料", "高速", "eneos", "ガソリン", "ss", "スタンド", "apollo", "エネオス", "出光", "コスモ"]):
+            return "駐車場代"  # 有料道路・ガソリンは旅費交通費の駐車場代に準じる
         if any(k in cp for k in ["バス"]):
             return "バス代"
         return "電車賃"
@@ -143,8 +145,8 @@ for i, row in enumerate(rows):
     if not debit_account:
         continue  # 借方科目が空なら対象外
 
-    if k_value:
-        continue  # 既に値あり → スキップ
+    if k_value and k_value != "'":
+        continue  # 既に値あり → スキップ（シングルクォートのみは空扱い）
 
     new_k = infer_subsidiary(debit_account, counterparty)
     if new_k:
