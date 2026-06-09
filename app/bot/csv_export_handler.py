@@ -64,18 +64,12 @@ def setup_csv_commands(app, get_tenant_fn, logger_obj):
                     {"type": "button", "text": {"type": "plain_text", "text": "📋 TKC"}, "action_id": "csv_tkc"},
                 ]
             },
-            {"type": "section", "text": {"type": "mrkdwn", "text": "*会計事務所向け:*"}},
+            {"type": "section", "text": {"type": "mrkdwn", "text": "*会計事務所向け / クラウド会計:*"}},
             {
                 "type": "actions",
                 "elements": [
                     {"type": "button", "text": {"type": "plain_text", "text": "🔵 JDL"}, "action_id": "csv_jdl"},
                     {"type": "button", "text": {"type": "plain_text", "text": "⚡ MJS"}, "action_id": "csv_mjs"},
-                ]
-            },
-            {"type": "section", "text": {"type": "mrkdwn", "text": "*クラウド会計:*"}},
-            {
-                "type": "actions",
-                "elements": [
                     {"type": "button", "text": {"type": "plain_text", "text": "🌐 クラウド円簿"}, "action_id": "csv_yenbo"},
                 ]
             }
