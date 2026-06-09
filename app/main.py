@@ -1,7 +1,9 @@
 from __future__ import annotations
-import os, sys, signal, threading, logging
+import os, sys, signal, threading, logging, smtplib
 from datetime import datetime
 from flask import Flask, jsonify, request, redirect, send_from_directory
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 logging.basicConfig(
     level=getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO),
@@ -222,6 +224,116 @@ def slack_oauth_callback():
     checkout_url = f"/checkout/{plan}?tenant_id={tenant['id']}&team_id={team_id}"
     return redirect(checkout_url)
 
+
+def send_email(to_email, subject, body, from_email=None, is_html=False):
+    """Send email using SMTP"""
+    smtp_server = os.environ.get("SMTP_SERVER")
+    smtp_port = int(os.environ.get("SMTP_PORT", 587))
+    smtp_user = os.environ.get("SMTP_USER")
+    smtp_password = os.environ.get("SMTP_PASSWORD")
+    from_email = from_email or os.environ.get("CONTACT_FROM_EMAIL", "noreply@nextaccount.jp")
+
+    if not smtp_server or not smtp_user or not smtp_password:
+        logger.warning("SMTP settings not configured, email not sent")
+        return False
+
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = from_email
+        msg['To'] = to_email
+
+        if is_html:
+            msg.attach(MIMEText(body, 'html', 'utf-8'))
+        else:
+            msg.attach(MIMEText(body, 'plain', 'utf-8'))
+
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+
+        logger.info(f"Email sent successfully to {to_email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send email to {to_email}: {e}")
+        return False
+
+
+@flask_app.route("/api/send-contact", methods=["POST"])
+def send_contact():
+    """Handle contact form submission"""
+    try:
+        data = request.get_json()
+        name = data.get("name", "").strip()
+        email = data.get("email", "").strip()
+        subject = data.get("subject", "").strip()
+        message = data.get("message", "").strip()
+
+        if not all([name, email, subject, message]):
+            return jsonify({"error": "すべてのフィールドが必須です"}), 400
+
+        # Validate email format
+        if "@" not in email:
+            return jsonify({"error": "有効なメールアドレスを入力してください"}), 400
+
+        # Send confirmation email to user
+        user_subject = "NextAccount - お問い合わせ確認"
+        user_body = f"""いつもNextAccountをご利用いただきありがとうございます。
+
+お問い合わせの内容を受け取りました。
+確認のため、ご送信いただいた内容を下記に記載します。
+
+【お名前】
+{name}
+
+【メールアドレス】
+{email}
+
+【件名】
+{subject}
+
+【メッセージ】
+{message}
+
+ご返答させていただくまでお待ちください。
+ご不明な点がございましたら、お気軽にお問い合わせください。
+
+---
+NextAccount サポートチーム
+support@nextaccount.jp
+"""
+        send_email(email, user_subject, user_body)
+
+        # Send notification email to support team
+        support_email = os.environ.get("SUPPORT_EMAIL", "support@nextaccount.jp")
+        support_subject = f"[NextAccount] 新しいお問い合わせ - {subject}"
+        support_body = f"""新しいお問い合わせを受け取りました。
+
+【送信者】
+{name} ({email})
+
+【件名】
+{subject}
+
+【メッセージ】
+{message}
+
+【受信時刻】
+{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        send_email(support_email, support_subject, support_body)
+
+        logger.info(f"Contact form submitted - Name: {name}, Email: {email}, Subject: {subject}")
+
+        return jsonify({
+            "success": True,
+            "message": "お問い合わせを送信しました"
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Contact form error: {e}", exc_info=True)
+        return jsonify({"error": "お問い合わせの送信に失敗しました"}), 500
 
 
 def _write_google_key_from_env():
