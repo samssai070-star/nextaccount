@@ -1297,6 +1297,8 @@ def _build_csv_menu_blocks(start: str, end: str) -> list:
                  "action_id": "csv_dl_jdl"},
                 {"type": "button", "text": {"type": "plain_text", "text": "⚡ MJS"},
                  "action_id": "csv_dl_mjs"},
+                {"type": "button", "text": {"type": "plain_text", "text": "🌐 クラウド円簿"},
+                 "action_id": "csv_dl_yenbo"},
             ],
         },
     ]
@@ -1385,6 +1387,7 @@ def handle_csv_download_action(ack, body, action, client, logger):
         "tkc":     ("TKC",             "tkc",     "utf-8-bom", "TKC → 仕訳インポート"),
         "jdl":     ("JDL",             "jdl",     "shift_jis", "JDL → 仕訳データインポート"),
         "mjs":     ("MJS",             "mjs",     "utf-8-bom", "MJS → 仕訳帳インポート"),
+        "yenbo":   ("クラウド円簿",    "yenbo",   "shift_jis", "クラウド円簿 → データ読み込み → 弥生インポート形式"),
     }
     fmt_label, prefix, _enc, fmt_note = fmt_map.get(fmt, ("汎用CSV", "journal", "utf-8-bom", ""))
 
@@ -1415,6 +1418,9 @@ def handle_csv_download_action(ack, body, action, client, logger):
     elif fmt == "mjs":
         from core.multi_software_export import build_mjs_csv
         csv_bytes = build_mjs_csv(events)
+    elif fmt == "yenbo":
+        from core.yayoi_export import build_yenbo_csv
+        csv_bytes = build_yenbo_csv(events)
     else:
         from core.csv_export import build_generic_csv
         csv_bytes = build_generic_csv(events)
