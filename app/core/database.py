@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS accounting_events (
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS debit_subsidiary VARCHAR(100) DEFAULT '';
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS purpose TEXT DEFAULT '';
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS timestamp_token TEXT DEFAULT NULL;
+ALTER TABLE accounting_events ALTER COLUMN timestamp_token TYPE TEXT;
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS timestamp_at TIMESTAMP;
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS timestamp_verified BOOLEAN DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS idx_ae_invoice   ON accounting_events(invoice_number);
