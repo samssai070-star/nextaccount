@@ -579,7 +579,7 @@
                 return;
             }
 
-            list.innerHTML = employees.map(e => `
+            const html = employees.map(e => `
                 <div class="employee-item">
                     <div>
                         <div class="name">${e.name}</div>
@@ -591,6 +591,8 @@
                     </div>
                 </div>
             `).join('');
+            console.log('HTML to render:', html);
+            list.innerHTML = html;
             console.log('renderEmployees done, HTML rendered');
         }
 
