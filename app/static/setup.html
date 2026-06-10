@@ -474,6 +474,10 @@
                 step.classList.remove('active');
                 if (idx === currentStep - 1) {
                     step.classList.add('active');
+                    // Load existing employees when entering step 3
+                    if (idx === 2) {
+                        loadExistingEmployees();
+                    }
                 }
             });
 
@@ -759,6 +763,38 @@
             setTimeout(() => {
                 alert.style.display = 'none';
             }, 5000);
+        }
+
+        async function loadExistingEmployees() {
+            const token = localStorage.getItem('authToken');
+            if (!token) return;
+
+            try {
+                const response = await fetch('/api/dashboard/employees', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (data.success && data.data && data.data.length > 0) {
+                    // Clear existing and load from API
+                    employees.length = 0;
+                    data.data.forEach(e => {
+                        employees.push({
+                            id: e.id,
+                            name: e.full_name,
+                            email: e.email,
+                            slack: e.slack_user_id || '',
+                            dept: e.department_id,
+                            deptName: e.department_name || '',
+                            permissions: []
+                        });
+                    });
+                    renderEmployees();
+                    console.log('Loaded existing employees:', employees);
+                }
+            } catch (error) {
+                console.log('No existing employees or API error:', error);
+            }
         }
 
         // Check authentication
