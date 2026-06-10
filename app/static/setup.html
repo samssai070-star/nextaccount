@@ -555,10 +555,13 @@
 
             const perms = Array.from(document.querySelectorAll('input[name="perm"]:checked')).map(p => p.value);
             const deptName = departments.find(d => d.id == dept)?.name || '';
-            employees.push({
+            const empObj = {
                 id: Date.now(),
                 name, email, slack, dept: parseInt(dept), deptName, permissions: perms
-            });
+            };
+            console.log('Adding employee:', empObj);
+            employees.push(empObj);
+            console.log('Employees array now:', employees);
 
             document.getElementById('empName').value = '';
             document.getElementById('empEmail').value = '';
@@ -570,6 +573,7 @@
 
         function renderEmployees() {
             const list = document.getElementById('empList');
+            console.log('renderEmployees called, employees:', employees);
             if (employees.length === 0) {
                 list.innerHTML = '<p style="color: #999; font-size: 14px;">従業員をまず追加してください</p>';
                 return;
@@ -587,6 +591,7 @@
                     </div>
                 </div>
             `).join('');
+            console.log('renderEmployees done, HTML rendered');
         }
 
         function removeEmployee(id) {
@@ -598,8 +603,13 @@
         }
 
         function editEmployee(id) {
+            console.log('editEmployee called with id:', id);
             const employee = employees.find(e => e.id === id);
-            if (!employee) return;
+            console.log('Found employee:', employee);
+            if (!employee) {
+                console.log('Employee not found!');
+                return;
+            }
 
             document.getElementById('empName').value = employee.name;
             document.getElementById('empEmail').value = employee.email;
@@ -613,6 +623,7 @@
 
             removeEmployee(id);
             document.getElementById('empName').focus();
+            console.log('editEmployee done');
         }
 
         function startSlackOAuth() {
