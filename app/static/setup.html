@@ -589,39 +589,29 @@
                 return;
             }
 
-            const html = employees.map(e => `
+            const html = employees.map((e, idx) => `
                 <div class="employee-item">
                     <div>
                         <div class="name">${e.name}</div>
                         <div style="font-size: 12px; color: #666;">${e.email} • ${e.deptName}</div>
                     </div>
                     <div class="actions" style="display: flex; gap: 10px;">
-                        <button type="button" class="btn-small edit" style="background: #4CAF50; color: white; padding: 6px 12px;" onclick="editEmployee(${e.id})">編集</button>
-                        <button type="button" class="btn-small delete" onclick="removeEmployee(${e.id})">削除</button>
+                        <button type="button" class="btn-small edit" style="background: #4CAF50; color: white; padding: 6px 12px; min-width: 50px;" onclick="editEmployee(${idx})">編集</button>
+                        <button type="button" class="btn-small delete" onclick="removeEmployee(${idx})">削除</button>
                     </div>
                 </div>
             `).join('');
-            console.log('HTML to render:', html);
             list.innerHTML = html;
-            console.log('renderEmployees done, HTML rendered');
         }
 
-        function removeEmployee(id) {
-            const idx = employees.findIndex(e => e.id === id);
-            if (idx !== -1) {
-                employees.splice(idx, 1);
-            }
+        function removeEmployee(idx) {
+            employees.splice(idx, 1);
             renderEmployees();
         }
 
-        function editEmployee(id) {
-            console.log('editEmployee called with id:', id);
-            const employee = employees.find(e => e.id === id);
-            console.log('Found employee:', employee);
-            if (!employee) {
-                console.log('Employee not found!');
-                return;
-            }
+        function editEmployee(idx) {
+            const employee = employees[idx];
+            if (!employee) return;
 
             document.getElementById('empName').value = employee.name;
             document.getElementById('empEmail').value = employee.email;
@@ -633,9 +623,8 @@
                 perm.checked = employee.permissions && employee.permissions.includes(perm.value);
             });
 
-            removeEmployee(id);
+            removeEmployee(idx);
             document.getElementById('empName').focus();
-            console.log('editEmployee done');
         }
 
         function startSlackOAuth() {
