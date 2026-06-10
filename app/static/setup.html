@@ -553,16 +553,18 @@
                 return;
             }
 
+            const perms = Array.from(document.querySelectorAll('input[name="perm"]:checked')).map(p => p.value);
             const deptName = departments.find(d => d.id == dept)?.name || '';
             employees.push({
                 id: Date.now(),
-                name, email, slack, dept: parseInt(dept), deptName
+                name, email, slack, dept: parseInt(dept), deptName, permissions: perms
             });
 
             document.getElementById('empName').value = '';
             document.getElementById('empEmail').value = '';
             document.getElementById('empSlack').value = '';
             document.getElementById('empDept').value = '';
+            document.querySelectorAll('input[name="perm"]').forEach(p => p.checked = p.value === 'upload_receipt');
             renderEmployees();
         }
 
@@ -580,6 +582,7 @@
                         <div style="font-size: 12px; color: #666;">${e.email} • ${e.deptName}</div>
                     </div>
                     <div class="actions">
+                        <button type="button" class="btn-small edit" onclick="editEmployee(${e.id})">編修</button>
                         <button type="button" class="btn-small delete" onclick="removeEmployee(${e.id})">削除</button>
                     </div>
                 </div>
@@ -592,6 +595,24 @@
                 employees.splice(idx, 1);
             }
             renderEmployees();
+        }
+
+        function editEmployee(id) {
+            const employee = employees.find(e => e.id === id);
+            if (!employee) return;
+
+            document.getElementById('empName').value = employee.name;
+            document.getElementById('empEmail').value = employee.email;
+            document.getElementById('empSlack').value = employee.slack;
+            document.getElementById('empDept').value = employee.dept;
+
+            const perms = document.querySelectorAll('input[name="perm"]');
+            perms.forEach(perm => {
+                perm.checked = employee.permissions && employee.permissions.includes(perm.value);
+            });
+
+            removeEmployee(id);
+            document.getElementById('empName').focus();
         }
 
         function startSlackOAuth() {
