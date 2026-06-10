@@ -462,7 +462,23 @@
         </div>
     </div>
 
+    <!-- Debug Panel -->
+    <div id="debugPanel" style="position: fixed; bottom: 20px; right: 20px; background: #222; color: #0f0; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 11px; max-width: 400px; max-height: 300px; overflow-y: auto; z-index: 999; border: 1px solid #0f0;">
+        <div style="margin-bottom: 10px; font-weight: bold;">DEBUG</div>
+        <div id="debugLog"></div>
+    </div>
+
     <script>
+        // Debug logging
+        function debugLog(msg) {
+            const log = document.getElementById('debugLog');
+            const line = document.createElement('div');
+            line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+            log.appendChild(line);
+            log.scrollTop = log.scrollHeight;
+            console.log(msg);
+        }
+
         let currentStep = 1;
         const departments = [];
         const employees = [];
@@ -766,25 +782,25 @@
         }
 
         async function loadExistingEmployees() {
-            console.log('loadExistingEmployees called');
+            debugLog('loadExistingEmployees called');
             const token = localStorage.getItem('authToken');
-            console.log('Token:', token ? 'Found' : 'Not found');
+            debugLog('Token: ' + (token ? 'Found' : 'Not found'));
             if (!token) {
-                console.log('No token, skipping load');
+                debugLog('No token, skipping load');
                 return;
             }
 
             try {
-                console.log('Fetching /api/dashboard/employees');
+                debugLog('Fetching /api/dashboard/employees');
                 const response = await fetch('/api/dashboard/employees', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                console.log('Response status:', response.status);
+                debugLog('Response status: ' + response.status);
                 const data = await response.json();
-                console.log('API Response:', data);
+                debugLog('API Response: ' + JSON.stringify(data).substring(0, 100));
 
                 if (data.success && data.data && data.data.length > 0) {
-                    console.log('Found employees, loading them');
+                    debugLog('Found ' + data.data.length + ' employees');
                     // Clear existing and load from API
                     employees.length = 0;
                     data.data.forEach(e => {
@@ -798,14 +814,14 @@
                             permissions: []
                         });
                     });
-                    console.log('Employees array updated:', employees);
+                    debugLog('Employees array: ' + employees.length + ' loaded');
                     renderEmployees();
-                    console.log('Rendered employees');
+                    debugLog('Rendered employees');
                 } else {
-                    console.log('No employees data or empty array');
+                    debugLog('No employees data or empty array');
                 }
             } catch (error) {
-                console.error('Error loading employees:', error);
+                debugLog('Error: ' + error.message);
             }
         }
 
