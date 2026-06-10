@@ -766,16 +766,25 @@
         }
 
         async function loadExistingEmployees() {
+            console.log('loadExistingEmployees called');
             const token = localStorage.getItem('authToken');
-            if (!token) return;
+            console.log('Token:', token ? 'Found' : 'Not found');
+            if (!token) {
+                console.log('No token, skipping load');
+                return;
+            }
 
             try {
+                console.log('Fetching /api/dashboard/employees');
                 const response = await fetch('/api/dashboard/employees', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+                console.log('Response status:', response.status);
                 const data = await response.json();
+                console.log('API Response:', data);
 
                 if (data.success && data.data && data.data.length > 0) {
+                    console.log('Found employees, loading them');
                     // Clear existing and load from API
                     employees.length = 0;
                     data.data.forEach(e => {
@@ -789,11 +798,14 @@
                             permissions: []
                         });
                     });
+                    console.log('Employees array updated:', employees);
                     renderEmployees();
-                    console.log('Loaded existing employees:', employees);
+                    console.log('Rendered employees');
+                } else {
+                    console.log('No employees data or empty array');
                 }
             } catch (error) {
-                console.log('No existing employees or API error:', error);
+                console.error('Error loading employees:', error);
             }
         }
 
