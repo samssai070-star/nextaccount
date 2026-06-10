@@ -737,11 +737,6 @@
                     if (!response.ok) throw new Error('STEP 3 に失敗しました');
 
                 } else if (currentStep === 4) {
-                    if (!slackConnected) {
-                        showError('Slack を接続してください');
-                        return;
-                    }
-
                     // セットアップ完了
                     window.location.href = '/dashboard.html';
                     return;
