@@ -782,26 +782,24 @@
         }
 
         async function loadExistingEmployees() {
-            debugLog('loadExistingEmployees called');
             const token = localStorage.getItem('authToken');
-            debugLog('Token: ' + (token ? 'Found' : 'Not found'));
-            if (!token) {
-                debugLog('No token, skipping load');
-                return;
-            }
+            if (!token) return;
 
             try {
-                debugLog('Fetching /api/dashboard/employees');
                 const response = await fetch('/api/dashboard/employees', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                debugLog('Response status: ' + response.status);
                 const data = await response.json();
-                debugLog('API Response: ' + JSON.stringify(data).substring(0, 100));
+
+                // Show raw response in debug panel
+                let debugMsg = '✓ API Response: ' + JSON.stringify(data);
+                if (debugMsg.length > 200) {
+                    debugMsg = debugMsg.substring(0, 200) + '...';
+                }
+                debugLog(debugMsg);
 
                 if (data.success && data.data && data.data.length > 0) {
-                    debugLog('Found ' + data.data.length + ' employees');
-                    // Clear existing and load from API
+                    debugLog('✓ Found ' + data.data.length + ' employees');
                     employees.length = 0;
                     data.data.forEach(e => {
                         employees.push({
@@ -814,14 +812,13 @@
                             permissions: []
                         });
                     });
-                    debugLog('Employees array: ' + employees.length + ' loaded');
                     renderEmployees();
-                    debugLog('Rendered employees');
+                    debugLog('✓ Rendered ' + employees.length + ' employees');
                 } else {
-                    debugLog('No employees data or empty array');
+                    debugLog('✗ No employees in response');
                 }
             } catch (error) {
-                debugLog('Error: ' + error.message);
+                debugLog('✗ Error: ' + error.message);
             }
         }
 
