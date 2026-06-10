@@ -1,0 +1,128 @@
+{
+  "ja": {
+    "label": "ガイド",
+    "title": "使い方ガイド",
+    "lastUpdate": "2026年6月10日",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "はじめに",
+        "content": "NextAccount は、Slack を利用した経費精算・自動仕訳 SaaS です。OCR と AI により領収書を自動分類し、会計ソフトへの CSV 出力に対応しています。"
+      },
+      {
+        "id": "setup",
+        "title": "セットアップ",
+        "content": "初回ログイン後、セットアップウィザードに従って企業情報、会計年度、部門、従業員を登録してください。所要時間は約 10～15 分です。"
+      },
+      {
+        "id": "dashboard",
+        "title": "ダッシュボード",
+        "content": "ダッシュボードでは、登録済みの部門数、従業員数、会計年度などの基本情報を確認できます。各セクションから詳細情報へアクセス可能です。"
+      },
+      {
+        "id": "receipt",
+        "title": "領収書のアップロード",
+        "content": "領収書、請求書などの経費関連書類を PDF・PNG・JPG 形式でアップロードしてください。自動的に内容が解析され、勘定科目が分類されます。"
+      },
+      {
+        "id": "slack",
+        "title": "Slack 連携",
+        "content": "設定画面から Slack を連携すると、経費申請の承認通知を Slack 上で受け取ることができます。#経費申請 チャンネルが自動作成されます。"
+      },
+      {
+        "id": "accounting",
+        "title": "会計ソフト連携",
+        "content": "弥生会計、freee、MF クラウド会計など主要会計ソフトへの CSV 出力に対応しています。詳細な設定方法は各ソフトの連携ガイドを参照してください。"
+      },
+      {
+        "id": "faq",
+        "title": "よくあるご質問",
+        "content": "ご不明な点がございましたら、「サポート」ページからお問い合わせください。24 時間以内にご返信いたします。"
+      }
+    ]
+  },
+  "en": {
+    "label": "Guide",
+    "title": "User Guide",
+    "lastUpdate": "June 10, 2026",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "Introduction",
+        "content": "NextAccount is an expense reimbursement and automatic journal entry SaaS using Slack. It automatically classifies receipts using OCR and AI, and supports CSV export to accounting software."
+      },
+      {
+        "id": "setup",
+        "title": "Setup",
+        "content": "After your first login, follow the setup wizard to register your company information, fiscal year, departments, and employees. It takes approximately 10-15 minutes."
+      },
+      {
+        "id": "dashboard",
+        "title": "Dashboard",
+        "content": "On the dashboard, you can view basic information such as the number of registered departments, employees, and the fiscal year. You can access detailed information from each section."
+      },
+      {
+        "id": "receipt",
+        "title": "Upload Receipts",
+        "content": "Upload expense-related documents such as receipts and invoices in PDF, PNG, or JPG format. The content will be automatically analyzed and classified by account."
+      },
+      {
+        "id": "slack",
+        "title": "Slack Integration",
+        "content": "When you integrate Slack from the settings screen, you can receive approval notifications for expense requests on Slack. The #expense-request channel is created automatically."
+      },
+      {
+        "id": "accounting",
+        "title": "Accounting Software Integration",
+        "content": "CSV export is supported for major accounting software such as Yayoi Accounting, freee, and MF Cloud Accounting. Please refer to each software's integration guide for detailed setup instructions."
+      },
+      {
+        "id": "faq",
+        "title": "FAQ",
+        "content": "If you have any questions, please contact us from the Support page. We will respond within 24 hours."
+      }
+    ]
+  },
+  "zh": {
+    "label": "指南",
+    "title": "使用指南",
+    "lastUpdate": "2026年6月10日",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "介绍",
+        "content": "NextAccount 是一个基于 Slack 的费用报销和自动记账 SaaS。它使用 OCR 和 AI 自动分类收据，支持导出到会计软件的 CSV 格式。"
+      },
+      {
+        "id": "setup",
+        "title": "设置",
+        "content": "首次登录后，请按照设置向导注册您的公司信息、会计年度、部门和员工。大约需要 10-15 分钟。"
+      },
+      {
+        "id": "dashboard",
+        "title": "仪表板",
+        "content": "在仪表板上，您可以查看已注册的部门数、员工数和会计年度等基本信息。您可以从每个部分访问详细信息。"
+      },
+      {
+        "id": "receipt",
+        "title": "上传收据",
+        "content": "以 PDF、PNG 或 JPG 格式上传费用相关文件，如收据和发票。内容将自动分析并按会计科目分类。"
+      },
+      {
+        "id": "slack",
+        "title": "Slack 集成",
+        "content": "从设置屏幕集成 Slack 后，您可以在 Slack 上接收费用申请的批准通知。#expense-request 频道将自动创建。"
+      },
+      {
+        "id": "accounting",
+        "title": "会计软件集成",
+        "content": "支持导出到弥生会计、freee 和 MF Cloud 会计等主流会计软件的 CSV 格式。有关详细的设置说明，请参阅各个软件的集成指南。"
+      },
+      {
+        "id": "faq",
+        "title": "常见问题",
+        "content": "如果您有任何疑问，请通过「支持」页面与我们联系。我们将在 24 小时内回复。"
+      }
+    ]
+  }
+}
