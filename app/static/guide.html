@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>使い方ガイド | NextAccount</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--ink:#0a0a0a;--paper:#f5f3ee;--accent:#1a5cff;--muted:#6b6b6b;--muted2:#9a9690;--border:#d8d4cc;--mono:'DM Mono',monospace;--sans:'Noto Sans JP',sans-serif;}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);line-height:1.8;font-size:14px;}
+.nav{position:sticky;top:0;z-index:100;background:rgba(245,243,238,0.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);}
+.nav-inner{max-width:1080px;margin:0 auto;padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;}
+.nav-logo{font-family:var(--mono);font-size:1rem;font-weight:500;letter-spacing:-0.03em;text-decoration:none;color:var(--ink);}
+.nav-logo .blue{color:var(--accent);}
+.nav-back{font-family:var(--mono);font-size:0.7rem;color:var(--muted);text-decoration:none;cursor:pointer;}
+.nav-back:hover{color:var(--accent);}
+.wrap{max-width:800px;margin:0 auto;padding:3rem 2rem;}
+.header{display:flex;align-items:flex-start;justify-content:space-between;gap:2rem;margin-bottom:3rem;}
+.header-content{flex:1;}
+.doc-label{font-family:var(--mono);font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted2);margin-bottom:0.5rem;}
+.doc-title{font-size:1.8rem;font-weight:700;letter-spacing:-0.03em;margin-bottom:0.5rem;}
+.doc-date{font-family:var(--mono);font-size:0.65rem;color:var(--muted2);margin-bottom:3rem;}
+.lang-buttons{display:flex;gap:0.5rem;flex-wrap:wrap;}
+.lang-btn{font-family:var(--mono);font-size:0.7rem;padding:0.5rem 0.8rem;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;border-radius:3px;transition:all 0.2s;text-transform:uppercase;letter-spacing:0.05em;}
+.lang-btn:hover{border-color:var(--accent);color:var(--accent);}
+.lang-btn.active{background:var(--accent);color:white;border-color:var(--accent);}
+h2{font-size:0.95rem;font-weight:700;margin:2.5rem 0 0.8rem;padding-left:0.8rem;border-left:2.5px solid var(--accent);}
+p{font-size:0.82rem;color:var(--muted);margin-bottom:0.8rem;line-height:1.9;}
+a{color:var(--accent);text-decoration:none;}
+.toc{background:rgba(26,92,255,0.03);padding:1.5rem;border-left:2.5px solid var(--accent);margin:2rem 0;border-radius:4px;}
+.toc h3{margin:0 0 1rem;color:var(--accent);font-size:0.85rem;}
+.toc ul{margin:0;padding-left:1.2rem;}
+.toc li{font-size:0.82rem;color:var(--muted);line-height:1.8;margin-bottom:0.4rem;}
+.toc a{color:var(--accent);}
+.toc a:hover{text-decoration:underline;}
+.divider{height:0.5px;background:var(--border);margin:2.5rem 0;}
+footer{padding:1.5rem 2rem;border-top:1px solid var(--border);text-align:center;}
+footer p{font-family:var(--mono);font-size:0.6rem;color:var(--muted2);}
+footer a{color:var(--accent);}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="/"><span class="blue">Next</span>Account</a>
+    <a class="nav-back" onclick="window.history.back()">← 戻る</a>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="header">
+    <div class="header-content">
+      <div class="doc-label" id="docLabel">// Guide</div>
+      <div class="doc-title" id="docTitle">使い方ガイド</div>
+      <div class="doc-date" id="docDate">最終更新日：2026年6月10日</div>
+    </div>
+    <div class="lang-buttons">
+      <button class="lang-btn active" data-lang="ja">日本語</button>
+      <button class="lang-btn" data-lang="en">English</button>
+      <button class="lang-btn" data-lang="zh">中文</button>
+    </div>
+  </div>
+
+  <div class="toc" id="tocContainer"></div>
+  <div id="contentContainer"></div>
+  <div class="divider"></div>
+</div>
+
+<footer>
+  <p><a href="/">NextAccount</a> · <a href="/docs/privacy_policy.html">プライバシーポリシー</a> · <a href="/docs/specified_commercial_transaction.html">利用規約</a> · © 2025 株式会社Ｋｉｒｅｉ</p>
+</footer>
+
+<script>
+const guideContent = {
+  ja: {
+    label: "ガイド",
+    title: "使い方ガイド",
+    date: "2026年6月10日",
+    toc: [
+      {id: "intro", label: "1. はじめに"},
+      {id: "setup", label: "2. セットアップ"},
+      {id: "dashboard", label: "3. ダッシュボード"},
+      {id: "receipt", label: "4. 領収書のアップロード"},
+      {id: "slack", label: "5. Slack連携"},
+      {id: "accounting", label: "6. 会計ソフト連携"},
+      {id: "faq", label: "7. よくあるご質問"}
+    ],
+    sections: {
+      intro: {title: "1. はじめに", content: "NextAccount は、Slack を利用した経費精算・自動仕訳 SaaS です。OCR と AI により領収書を自動分類し、会計ソフトへの CSV 出力に対応しています。"},
+      setup: {title: "2. セットアップ", content: "初回ログイン後、セットアップウィザードに従って企業情報、会計年度、部門、従業員を登録してください。所要時間は約 10～15 分です。"},
+      dashboard: {title: "3. ダッシュボード", content: "ダッシュボードでは、登録済みの部門数、従業員数、会計年度などの基本情報を確認できます。各セクションから詳細情報へアクセス可能です。"},
+      receipt: {title: "4. 領収書のアップロード", content: "領収書、請求書などの経費関連書類を PDF・PNG・JPG 形式でアップロードしてください。自動的に内容が解析され、勘定科目が分類されます。"},
+      slack: {title: "5. Slack連携", content: "設定画面から Slack を連携すると、経費申請の承認通知を Slack 上で受け取ることができます。#経費申請 チャンネルが自動作成されます。"},
+      accounting: {title: "6. 会計ソフト連携", content: "弥生会計、freee、MF クラウド会計など主要会計ソフトへの CSV 出力に対応しています。詳細な設定方法は各ソフトの連携ガイドを参照してください。"},
+      faq: {title: "7. よくあるご質問", content: "ご不明な点がございましたら、「サポート」ページからお問い合わせください。24 時間以内にご返信いたします。"}
+    }
+  },
+  en: {
+    label: "Guide",
+    title: "User Guide",
+    date: "June 10, 2026",
+    toc: [
+      {id: "intro", label: "1. Introduction"},
+      {id: "setup", label: "2. Setup"},
+      {id: "dashboard", label: "3. Dashboard"},
+      {id: "receipt", label: "4. Upload Receipts"},
+      {id: "slack", label: "5. Slack Integration"},
+      {id: "accounting", label: "6. Accounting Software"},
+      {id: "faq", label: "7. FAQ"}
+    ],
+    sections: {
+      intro: {title: "1. Introduction", content: "NextAccount is an expense reimbursement and automatic journal entry SaaS using Slack. It automatically classifies receipts using OCR and AI, and supports CSV export to accounting software."},
+      setup: {title: "2. Setup", content: "After your first login, follow the setup wizard to register your company information, fiscal year, departments, and employees. It takes approximately 10-15 minutes."},
+      dashboard: {title: "3. Dashboard", content: "On the dashboard, you can view basic information such as the number of registered departments, employees, and the fiscal year. You can access detailed information from each section."},
+      receipt: {title: "4. Upload Receipts", content: "Upload expense-related documents such as receipts and invoices in PDF, PNG, or JPG format. The content will be automatically analyzed and classified by account."},
+      slack: {title: "5. Slack Integration", content: "When you integrate Slack from the settings screen, you can receive approval notifications for expense requests on Slack. The #expense-request channel is created automatically."},
+      accounting: {title: "6. Accounting Software", content: "CSV export is supported for major accounting software such as Yayoi Accounting, freee, and MF Cloud Accounting. Please refer to each software's integration guide for detailed setup instructions."},
+      faq: {title: "7. FAQ", content: "If you have any questions, please contact us from the Support page. We will respond within 24 hours."}
+    }
+  },
+  zh: {
+    label: "指南",
+    title: "使用指南",
+    date: "2026年6月10日",
+    toc: [
+      {id: "intro", label: "1. 介绍"},
+      {id: "setup", label: "2. 设置"},
+      {id: "dashboard", label: "3. 仪表板"},
+      {id: "receipt", label: "4. 上传收据"},
+      {id: "slack", label: "5. Slack 集成"},
+      {id: "accounting", label: "6. 会计软件"},
+      {id: "faq", label: "7. 常见问题"}
+    ],
+    sections: {
+      intro: {title: "1. 介绍", content: "NextAccount 是一个基于 Slack 的费用报销和自动记账 SaaS。它使用 OCR 和 AI 自动分类收据，支持导出到会计软件的 CSV 格式。"},
+      setup: {title: "2. 设置", content: "首次登录后，请按照设置向导注册您的公司信息、会计年度、部门和员工。大约需要 10-15 分钟。"},
+      dashboard: {title: "3. 仪表板", content: "在仪表板上，您可以查看已注册的部门数、员工数和会计年度等基本信息。您可以从每个部分访问详细信息。"},
+      receipt: {title: "4. 上传收据", content: "以 PDF、PNG 或 JPG 格式上传费用相关文件，如收据和发票。内容将自动分析并按会计科目分类。"},
+      slack: {title: "5. Slack 集成", content: "从设置屏幕集成 Slack 后，您可以在 Slack 上接收费用申请的批准通知。#expense-request 频道将自动创建。"},
+      accounting: {title: "6. 会计软件", content: "支持导出到弥生会计、freee 和 MF Cloud 会计等主流会计软件的 CSV 格式。有关详细的设置说明，请参阅各个软件的集成指南。"},
+      faq: {title: "7. 常见问题", content: "如果您有任何疑问，请通过「支持」页面与我们联系。我们将在 24 小时内回复。"}
+    }
+  }
+};
+
+let currentLang = localStorage.getItem('guideLang') || 'ja';
+
+function render() {
+  const content = guideContent[currentLang];
+
+  document.getElementById('docLabel').textContent = `// ${content.label}`;
+  document.getElementById('docTitle').textContent = content.title;
+  document.getElementById('docDate').textContent = `最終更新日：${content.date}`;
+
+  const tocHtml = `<h3>${currentLang === 'ja' ? '目次' : currentLang === 'en' ? 'Contents' : '目录'}</h3><ul>${content.toc.map(t => `<li><a href="#${t.id}">${t.label}</a></li>`).join('')}</ul>`;
+  document.getElementById('tocContainer').innerHTML = tocHtml;
+
+  const contentHtml = content.toc.map(t => {
+    const section = content.sections[t.id];
+    return `<h2 id="${t.id}">${section.title}</h2><p>${section.content}</p>`;
+  }).join('');
+  document.getElementById('contentContainer').innerHTML = contentHtml;
+}
+
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentLang = btn.dataset.lang;
+    localStorage.setItem('guideLang', currentLang);
+    document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+    window.scrollTo(0, 0);
+  });
+});
+
+render();
+</script>
+</body>
+</html>
