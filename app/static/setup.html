@@ -462,21 +462,11 @@
         </div>
     </div>
 
-    <!-- Debug Panel -->
-    <div id="debugPanel" style="position: fixed; bottom: 20px; right: 20px; background: #222; color: #0f0; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 11px; max-width: 400px; max-height: 300px; overflow-y: auto; z-index: 999; border: 1px solid #0f0;">
-        <div style="margin-bottom: 10px; font-weight: bold;">DEBUG</div>
-        <div id="debugLog"></div>
-    </div>
-
     <script>
-        // Debug logging
+        // Debug logging - 直接在title显示
         function debugLog(msg) {
-            const log = document.getElementById('debugLog');
-            const line = document.createElement('div');
-            line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
-            log.appendChild(line);
-            log.scrollTop = log.scrollHeight;
             console.log(msg);
+            document.title = msg.substring(0, 50);
         }
 
         let currentStep = 1;
