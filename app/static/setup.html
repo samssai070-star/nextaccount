@@ -579,7 +579,39 @@
                 departments.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
         }
 
-        function addEmployee() {
+        async function saveEmployeeToServer(empId, name, email, slack, deptId) {
+            const token = localStorage.getItem('authToken');
+            if (!token) return false;
+
+            try {
+                const response = await fetch(`/api/dashboard/employees/${empId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        full_name: name,
+                        email: email,
+                        slack_user_id: slack || null,
+                        department_id: deptId
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || '従業員の保存に失敗しました');
+                }
+
+                showSuccess('従業員が保存されました');
+                return true;
+            } catch (e) {
+                showError('保存に失敗: ' + e.message);
+                return false;
+            }
+        }
+
+        async function addEmployee() {
             const name = document.getElementById('empName').value.trim();
             const email = document.getElementById('empEmail').value.trim();
             const slack = document.getElementById('empSlack').value.trim();
@@ -593,24 +625,27 @@
             const deptName = departments.find(d => d.id == dept)?.name || '';
 
             if (editingId !== null) {
-                employees.push({
-                    id: editingId,
-                    name, email, slack, dept: parseInt(dept), deptName
-                });
-                editingId = null;
-                document.getElementById('addEmpBtn').textContent = '従業員を追加';
+                const saved = await saveEmployeeToServer(editingId, name, email, slack, dept);
+                if (saved) {
+                    editingId = null;
+                    document.getElementById('addEmpBtn').textContent = '従業員を追加';
+                    document.getElementById('empName').value = '';
+                    document.getElementById('empEmail').value = '';
+                    document.getElementById('empSlack').value = '';
+                    document.getElementById('empDept').value = '';
+                }
             } else {
                 employees.push({
                     id: Date.now(),
                     name, email, slack, dept: parseInt(dept), deptName
                 });
-            }
 
-            document.getElementById('empName').value = '';
-            document.getElementById('empEmail').value = '';
-            document.getElementById('empSlack').value = '';
-            document.getElementById('empDept').value = '';
-            renderEmployees();
+                document.getElementById('empName').value = '';
+                document.getElementById('empEmail').value = '';
+                document.getElementById('empSlack').value = '';
+                document.getElementById('empDept').value = '';
+                renderEmployees();
+            }
         }
 
         function renderEmployees() {
@@ -787,10 +822,21 @@
         function showError(message) {
             const alert = document.getElementById('errorAlert');
             alert.textContent = message;
+            alert.style.color = '#d32f2f';
             alert.style.display = 'block';
             setTimeout(() => {
                 alert.style.display = 'none';
             }, 5000);
+        }
+
+        function showSuccess(message) {
+            const alert = document.getElementById('errorAlert');
+            alert.textContent = message;
+            alert.style.color = '#2e7d32';
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 3000);
         }
 
         async function loadExistingDepartments() {
