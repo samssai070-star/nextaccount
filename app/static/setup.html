@@ -633,6 +633,8 @@
                     document.getElementById('empEmail').value = '';
                     document.getElementById('empSlack').value = '';
                     document.getElementById('empDept').value = '';
+                    employees.length = 0;
+                    await loadExistingEmployees();
                 }
             } else {
                 employees.push({
