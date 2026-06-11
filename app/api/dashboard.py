@@ -183,7 +183,8 @@ def get_employees():
         cur = get_db_cursor(conn)
 
         cur.execute(
-            """SELECT e.id, e.full_name, e.email, e.slack_user_id, d.name as department_name
+            """SELECT e.id, e.full_name, e.email, e.slack_user_id,
+                      e.department_id, d.name as department_name
                FROM employees e
                LEFT JOIN departments d ON e.department_id = d.id
                WHERE e.organization_id=%s AND e.is_active=true
@@ -199,6 +200,7 @@ def get_employees():
                 "full_name": e["full_name"],
                 "email": e["email"],
                 "slack_user_id": e["slack_user_id"],
+                "department_id": e["department_id"],
                 "department_name": e["department_name"]
             }
             for e in employees

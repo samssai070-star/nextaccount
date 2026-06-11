@@ -904,14 +904,17 @@
                 if (data.success && data.data && data.data.length > 0) {
                     employees.length = 0;
                     data.data.forEach(e => {
-                        const currentDept = departments.find(d => d.name === e.department_name);
+                        // DBのdepartment_idが現在のアクティブ部門に存在するか確認
+                        const deptById = departments.find(d => d.id === e.department_id);
+                        const deptByName = departments.find(d => d.name === e.department_name);
+                        const resolvedDept = deptById || deptByName || null;
                         employees.push({
                             id: e.id,
                             name: e.full_name,
                             email: e.email,
                             slack: e.slack_user_id || '',
-                            dept: currentDept ? currentDept.id : e.department_id,
-                            deptName: e.department_name || '',
+                            dept: resolvedDept ? resolvedDept.id : null,
+                            deptName: resolvedDept ? resolvedDept.name : (e.department_name || ''),
                             permissions: []
                         });
                     });
