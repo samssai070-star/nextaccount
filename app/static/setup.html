@@ -474,6 +474,7 @@
                 step.classList.remove('active');
                 if (idx === currentStep - 1) {
                     step.classList.add('active');
+                    if (idx === 2) loadExistingEmployees();
                 }
             });
 
@@ -716,12 +717,7 @@
                     if (!response.ok) throw new Error('STEP 3 に失敗しました');
 
                 } else if (currentStep === 4) {
-                    if (!slackConnected) {
-                        showError('Slack を接続してください');
-                        return;
-                    }
-
-                    // セットアップ完了
+                    // セットアップ完了（Slack接続は任意）
                     window.location.href = '/dashboard.html';
                     return;
                 }
@@ -743,6 +739,35 @@
             setTimeout(() => {
                 alert.style.display = 'none';
             }, 5000);
+        }
+
+        async function loadExistingEmployees() {
+            const token = localStorage.getItem('authToken');
+            if (!token) return;
+            try {
+                const res = await fetch('/api/dashboard/employees', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.success && data.data && data.data.length > 0) {
+                    employees.length = 0;
+                    data.data.forEach(e => {
+                        employees.push({
+                            id: e.id,
+                            name: e.full_name,
+                            email: e.email,
+                            slack: e.slack_user_id || '',
+                            dept: e.department_id,
+                            deptName: e.department_name || '',
+                            permissions: []
+                        });
+                    });
+                    renderEmployees();
+                }
+            } catch (e) {
+                // silently fail
+            }
         }
 
         // Check authentication
