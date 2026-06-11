@@ -57,9 +57,14 @@ def root():
 def serve_static(filename):
     """Serve static HTML files"""
     static_dir = flask_app.static_folder
+    # Exact match (must end with .html)
     file_path = os.path.join(static_dir, filename)
     if os.path.isfile(file_path) and filename.endswith('.html'):
         return send_from_directory(static_dir, filename)
+    # Extensionless URL: /setup → setup.html, /dashboard → dashboard.html
+    html_path = os.path.join(static_dir, filename + '.html')
+    if os.path.isfile(html_path):
+        return send_from_directory(static_dir, filename + '.html')
     return jsonify({"error": "Not found"}), 404
 
 @flask_app.route("/webhook/stripe", methods=["POST"])
