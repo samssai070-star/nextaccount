@@ -573,25 +573,38 @@
                 return;
             }
 
-            list.innerHTML = employees.map(e => `
+            list.innerHTML = employees.map((e, idx) => `
                 <div class="employee-item">
                     <div>
                         <div class="name">${e.name}</div>
-                        <div style="font-size: 12px; color: #666;">${e.email} • ${e.deptName}</div>
+                        <div style="font-size: 12px; color: #666;">${e.email} • ${e.deptName || ''}</div>
                     </div>
-                    <div class="actions">
-                        <button type="button" class="btn-small delete" onclick="removeEmployee(${e.id})">削除</button>
+                    <div class="actions" style="display: flex; gap: 8px;">
+                        <button type="button" class="btn-small edit" onclick="editEmployee(${idx})">編集</button>
+                        <button type="button" class="btn-small delete" onclick="removeEmployee(${idx})">削除</button>
                     </div>
                 </div>
             `).join('');
         }
 
-        function removeEmployee(id) {
-            const idx = employees.findIndex(e => e.id === id);
-            if (idx !== -1) {
-                employees.splice(idx, 1);
-            }
+        function removeEmployee(idx) {
+            employees.splice(idx, 1);
             renderEmployees();
+        }
+
+        function editEmployee(idx) {
+            const e = employees[idx];
+            if (!e) return;
+            document.getElementById('empName').value = e.name;
+            document.getElementById('empEmail').value = e.email;
+            document.getElementById('empSlack').value = e.slack || '';
+            document.getElementById('empDept').value = e.dept || '';
+            document.querySelectorAll('input[name="perm"]').forEach(p => {
+                p.checked = e.permissions ? e.permissions.includes(p.value) : false;
+            });
+            employees.splice(idx, 1);
+            renderEmployees();
+            document.getElementById('empName').focus();
         }
 
         function startSlackOAuth() {
