@@ -110,19 +110,39 @@ def setup_step2():
         conn = get_db_connection()
         cur = get_db_cursor(conn)
 
-        # 既存部門を削除
-        cur.execute("DELETE FROM departments WHERE organization_id=%s", (org_id,))
+        submitted_names = [d.get("name", "").strip() for d in departments if d.get("name", "").strip()]
 
-        # 新部門を追加
+        # 既存部門をUPSERT（名前が一致すれば既存IDを保持、なければ新規INSERT）
         for dept in departments:
             name = dept.get("name", "").strip()
             if not name:
                 continue
 
             cur.execute(
-                "INSERT INTO departments (organization_id, name, code) VALUES (%s, %s, %s)",
-                (org_id, name, dept.get("code"))
+                "SELECT id FROM departments WHERE organization_id=%s AND name=%s",
+                (org_id, name)
             )
+            existing = cur.fetchone()
+
+            if existing:
+                cur.execute(
+                    "UPDATE departments SET is_active=true WHERE id=%s",
+                    (existing["id"],)
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO departments (organization_id, name, code, is_active) VALUES (%s, %s, %s, true)",
+                    (org_id, name, dept.get("code"))
+                )
+
+        # リストにない部門を削除
+        if submitted_names:
+            cur.execute(
+                "DELETE FROM departments WHERE organization_id=%s AND name != ALL(%s)",
+                (org_id, submitted_names)
+            )
+        else:
+            cur.execute("DELETE FROM departments WHERE organization_id=%s", (org_id,))
 
         # 進行状況を更新
         cur.execute(
