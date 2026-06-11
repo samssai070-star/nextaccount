@@ -874,6 +874,7 @@
                 if (response.ok) {
                     const data = await response.json();
                     if (data.success && data.data && Array.isArray(data.data)) {
+                        departments.length = 0;
                         data.data.forEach(dept => {
                             departments.push({
                                 id: dept.id,
