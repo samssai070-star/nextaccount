@@ -627,17 +627,12 @@
             if (editingId !== null) {
                 const saved = await saveEmployeeToServer(editingId, name, email, slack, dept);
                 if (saved) {
-                    employees.push({
-                        id: editingId,
-                        name, email, slack, dept: parseInt(dept), deptName
-                    });
                     editingId = null;
                     document.getElementById('addEmpBtn').textContent = '従業員を追加';
                     document.getElementById('empName').value = '';
                     document.getElementById('empEmail').value = '';
                     document.getElementById('empSlack').value = '';
                     document.getElementById('empDept').value = '';
-                    renderEmployees();
                 }
             } else {
                 employees.push({
