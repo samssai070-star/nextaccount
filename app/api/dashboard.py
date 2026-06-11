@@ -124,6 +124,46 @@ def get_departments():
         logger.error(f"Get departments error: {e}")
         return error_response(str(e)), 500
 
+@dashboard_bp.route("/employees/<int:emp_id>", methods=["PUT"])
+@require_auth
+def update_employee(emp_id):
+    """従業員情報を更新"""
+    try:
+        org_id = request.organization_id
+        data = request.get_json()
+
+        full_name = data.get("full_name", "").strip()
+        email = data.get("email", "").strip().lower()
+        slack_user_id = data.get("slack_user_id", "").strip()
+        department_id = data.get("department_id")
+
+        if not full_name or not email:
+            return error_response("氏名とメールアドレスは必須です"), 400
+
+        conn = get_db_connection()
+        cur = get_db_cursor(conn)
+
+        cur.execute(
+            """UPDATE employees
+               SET full_name=%s, email=%s, slack_user_id=%s, department_id=%s, updated_at=CURRENT_TIMESTAMP
+               WHERE id=%s AND organization_id=%s""",
+            (full_name, email, slack_user_id or None, department_id, emp_id, org_id)
+        )
+
+        if cur.rowcount == 0:
+            conn.close()
+            return error_response("従業員が見つかりません"), 404
+
+        conn.commit()
+        conn.close()
+
+        logger.info(f"Employee {emp_id} updated for org {org_id}")
+        return success_response({"id": emp_id, "full_name": full_name, "email": email})
+
+    except Exception as e:
+        logger.error(f"Update employee error: {e}")
+        return error_response(str(e)), 500
+
 @dashboard_bp.route("/employees", methods=["GET"])
 @require_auth
 def get_employees():

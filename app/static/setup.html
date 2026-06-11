@@ -417,7 +417,11 @@
                         </div>
                     </div>
 
-                    <button type="button" class="add-btn" onclick="addEmployee()">従業員を追加</button>
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button type="button" class="add-btn" id="addEmpBtn" onclick="addEmployee()" style="margin-top: 0;">従業員を追加</button>
+                        <button type="button" class="btn btn-primary" id="saveEmpBtn" onclick="saveEditEmployee()" style="display:none; padding: 10px 20px; font-size: 14px;">保存</button>
+                        <button type="button" class="btn btn-secondary" id="cancelEmpBtn" onclick="cancelEditEmployee()" style="display:none; padding: 10px 20px; font-size: 14px;">キャンセル</button>
+                    </div>
 
                     <div id="empList" style="margin-top: 20px;">
                         <p style="color: #999; font-size: 14px;">従業員をまず追加してください</p>
@@ -586,12 +590,70 @@
             `).join('');
         }
 
-        function removeEmployee(id) {
-            const idx = employees.findIndex(e => e.id === id);
-            if (idx !== -1) {
-                employees.splice(idx, 1);
-            }
+        let editingEmpDbId = null;
+
+        function removeEmployee(idx) {
+            employees.splice(idx, 1);
             renderEmployees();
+        }
+
+        function editEmployee(idx) {
+            const e = employees[idx];
+            if (!e) return;
+            document.getElementById('empName').value = e.name;
+            document.getElementById('empEmail').value = e.email;
+            document.getElementById('empSlack').value = e.slack || '';
+            document.getElementById('empDept').value = e.dept || '';
+            document.querySelectorAll('input[name="perm"]').forEach(p => {
+                p.checked = e.permissions ? e.permissions.includes(p.value) : false;
+            });
+            // DBに存在する員工（IDが小整数）→ 保存ボタン表示
+            if (e.dbId) {
+                editingEmpDbId = e.dbId;
+                document.getElementById('addEmpBtn').style.display = 'none';
+                document.getElementById('saveEmpBtn').style.display = 'inline-block';
+                document.getElementById('cancelEmpBtn').style.display = 'inline-block';
+            } else {
+                editingEmpDbId = null;
+            }
+            employees.splice(idx, 1);
+            renderEmployees();
+            document.getElementById('empName').focus();
+        }
+
+        async function saveEditEmployee() {
+            const token = localStorage.getItem('authToken');
+            const name = document.getElementById('empName').value.trim();
+            const email = document.getElementById('empEmail').value.trim();
+            const slack = document.getElementById('empSlack').value.trim();
+            const dept = document.getElementById('empDept').value;
+            if (!name || !email) { showError('氏名とメールアドレスは必須です'); return; }
+            try {
+                const res = await fetch(`/api/dashboard/employees/${editingEmpDbId}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ full_name: name, email: email, slack_user_id: slack, department_id: dept ? parseInt(dept) : null })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    cancelEditEmployee();
+                    await loadExistingEmployees();
+                } else {
+                    showError(data.error || '保存に失敗しました');
+                }
+            } catch (e) { showError('保存に失敗しました'); }
+        }
+
+        function cancelEditEmployee() {
+            editingEmpDbId = null;
+            document.getElementById('empName').value = '';
+            document.getElementById('empEmail').value = '';
+            document.getElementById('empSlack').value = '';
+            document.getElementById('empDept').value = '';
+            document.querySelectorAll('input[name="perm"]').forEach(p => p.checked = p.value === 'upload_receipt');
+            document.getElementById('addEmpBtn').style.display = 'inline-block';
+            document.getElementById('saveEmpBtn').style.display = 'none';
+            document.getElementById('cancelEmpBtn').style.display = 'none';
         }
 
         function startSlackOAuth() {
@@ -730,6 +792,34 @@
             setTimeout(() => {
                 alert.style.display = 'none';
             }, 5000);
+        }
+
+        async function loadExistingEmployees() {
+            const token = localStorage.getItem('authToken');
+            if (!token) return;
+            try {
+                const res = await fetch('/api/dashboard/employees', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.success && data.data && data.data.length > 0) {
+                    employees.length = 0;
+                    data.data.forEach(e => {
+                        employees.push({
+                            id: Date.now() + Math.random(),
+                            dbId: e.id,
+                            name: e.full_name,
+                            email: e.email,
+                            slack: e.slack_user_id || '',
+                            dept: e.department_id,
+                            deptName: e.department_name || '',
+                            permissions: []
+                        });
+                    });
+                    renderEmployees();
+                }
+            } catch (e) { /* silent */ }
         }
 
         // Check authentication
