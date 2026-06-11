@@ -31,11 +31,14 @@ try:
     from api.setup import setup_bp
     from api.slack_oauth import slack_bp
     from api.dashboard import dashboard_bp
+    from api.billing import billing_bp, ensure_billing_columns
 
     flask_app.register_blueprint(auth_bp)
     flask_app.register_blueprint(setup_bp)
     flask_app.register_blueprint(slack_bp)
     flask_app.register_blueprint(dashboard_bp)
+    flask_app.register_blueprint(billing_bp)
+    ensure_billing_columns()
     logger.info("API blueprints registered successfully")
 except ImportError as e:
     logger.warning(f"Failed to import API blueprints: {e}")
@@ -334,6 +337,65 @@ support@nextaccount.jp
     except Exception as e:
         logger.error(f"Contact form error: {e}", exc_info=True)
         return jsonify({"error": "お問い合わせの送信に失敗しました"}), 500
+
+
+@flask_app.route("/webhook/stripe", methods=["POST"])
+def stripe_webhook():
+    try:
+        payload = request.get_data()
+        sig_header = request.headers.get("Stripe-Signature", "")
+
+        from core.stripe_billing import handle_webhook
+        event = handle_webhook(payload, sig_header)
+
+        event_type = event.get("event_type", "")
+
+        if event_type == "checkout.session.completed":
+            try:
+                org_id = int(event.get("org_id", 0))
+            except (ValueError, TypeError):
+                org_id = 0
+            plan = event.get("plan", "")
+            customer_id = event.get("customer_id", "")
+            subscription_id = event.get("subscription_id", "")
+
+            if org_id:
+                from api.helpers import get_db_connection, get_db_cursor
+                conn = get_db_connection()
+                cur = get_db_cursor(conn)
+                cur.execute(
+                    """UPDATE organizations
+                       SET billing_status='active', billing_plan=%s,
+                           stripe_customer_id=%s, stripe_subscription_id=%s,
+                           updated_at=CURRENT_TIMESTAMP
+                       WHERE id=%s""",
+                    (plan, customer_id, subscription_id, org_id)
+                )
+                conn.commit()
+                conn.close()
+                logger.info(f"Stripe checkout completed: org_id={org_id} plan={plan}")
+
+        elif event_type == "customer.subscription.deleted":
+            subscription_id = event.get("subscription_id", "")
+            if subscription_id:
+                from api.helpers import get_db_connection, get_db_cursor
+                conn = get_db_connection()
+                cur = get_db_cursor(conn)
+                cur.execute(
+                    """UPDATE organizations
+                       SET billing_status='canceled', updated_at=CURRENT_TIMESTAMP
+                       WHERE stripe_subscription_id=%s""",
+                    (subscription_id,)
+                )
+                conn.commit()
+                conn.close()
+                logger.info(f"Subscription canceled: {subscription_id}")
+
+        return jsonify({"status": "ok"}), 200
+
+    except Exception as e:
+        logger.error(f"Stripe webhook error: {e}")
+        return jsonify({"error": str(e)}), 400
 
 
 def _write_google_key_from_env():

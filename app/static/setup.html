@@ -285,6 +285,59 @@
         .slack-connect-section .btn-slack:hover {
             background: #2fb5d0;
         }
+        .plan-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .plan-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            user-select: none;
+        }
+        .plan-card:hover {
+            border-color: #0052cc;
+            background: #f8faff;
+        }
+        .plan-card.selected {
+            border-color: #0052cc;
+            background: #eef3ff;
+        }
+        .plan-card .plan-name {
+            font-size: 15px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 6px;
+        }
+        .plan-card .plan-price {
+            font-size: 14px;
+            font-weight: 700;
+            color: #0052cc;
+            margin-bottom: 4px;
+        }
+        .plan-card .plan-users {
+            font-size: 11px;
+            color: #555;
+            margin-bottom: 4px;
+        }
+        .plan-card .plan-desc {
+            font-size: 11px;
+            color: #999;
+        }
+        .trial-badge {
+            background: #e8f5e9;
+            border: 1px solid #4caf50;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #2e7d32;
+        }
     </style>
 </head>
 <body>
@@ -450,6 +503,24 @@
                 </form>
             </div>
 
+            <!-- STEP 5: 課金プラン -->
+            <div class="step" id="step5">
+                <div class="step-title">課金プランを選択</div>
+                <div class="step-description">お客様の規模に合ったプランをお選びください</div>
+
+                <div class="trial-badge">
+                    <strong>✓ 30日間 無料トライアル</strong> — クレジットカード情報を入力しても、30日間は課金されません。いつでもキャンセル可能です。
+                </div>
+
+                <div class="plan-cards" id="planCards"></div>
+
+                <div style="text-align: center; margin-top: 4px;">
+                    <button type="button" onclick="skipBilling()" style="background: none; border: none; color: #888; font-size: 13px; cursor: pointer; text-decoration: underline; padding: 4px 0;">
+                        後で設定する（スキップ）
+                    </button>
+                </div>
+            </div>
+
             <div class="loading" id="loading">
                 <div class="spinner"></div>
                 <p>処理中...</p>
@@ -464,9 +535,43 @@
 
     <script>
         let currentStep = 1;
+        const TOTAL_STEPS = 5;
         const departments = [];
         const employees = [];
         let slackConnected = false;
+        let editingId = null;
+        let selectedPlan = null;
+
+        const PLANS = [
+            {id: 'micro',      name: 'Micro',      price: '¥2,980/月',  users: '最大3名',  desc: '小規模チーム向け'},
+            {id: 'starter',    name: 'Starter',    price: '¥5,980/月',  users: '最大5名',  desc: 'スタートアップ向け'},
+            {id: 'business',   name: 'Business',   price: '¥14,800/月', users: '最大15名', desc: '中小企業向け'},
+            {id: 'growth',     name: 'Growth',     price: '¥24,800/月', users: '最大25名', desc: '成長企業向け'},
+            {id: 'enterprise', name: 'Enterprise', price: '¥49,800/月', users: '無制限',   desc: '大企業向け'},
+        ];
+
+        function renderPlanCards() {
+            const container = document.getElementById('planCards');
+            if (!container) return;
+            container.innerHTML = PLANS.map(p => `
+                <div class="plan-card ${selectedPlan === p.id ? 'selected' : ''}" onclick="selectPlan('${p.id}')">
+                    <div class="plan-name">${p.name}</div>
+                    <div class="plan-price">${p.price}</div>
+                    <div class="plan-users">${p.users}</div>
+                    <div class="plan-desc">${p.desc}</div>
+                </div>
+            `).join('');
+        }
+
+        function selectPlan(planId) {
+            selectedPlan = planId;
+            renderPlanCards();
+            updateUI();
+        }
+
+        function skipBilling() {
+            window.location.href = '/dashboard.html';
+        }
 
         function updateUI() {
             // Update step visibility
@@ -475,20 +580,21 @@
                 if (idx === currentStep - 1) {
                     step.classList.add('active');
                     if (idx === 2) loadExistingEmployees();
+                    if (idx === 4) renderPlanCards();
                 }
             });
 
             // Update progress
-            const progress = (currentStep / 4) * 100;
+            const progress = (currentStep / TOTAL_STEPS) * 100;
             document.getElementById('progressFill').style.width = progress + '%';
-            document.getElementById('stepInfo').textContent = `STEP ${currentStep} / 4`;
+            document.getElementById('stepInfo').textContent = `STEP ${currentStep} / ${TOTAL_STEPS}`;
             document.getElementById('progressPercent').textContent = Math.round(progress) + '%';
 
             // Update buttons
             document.getElementById('prevBtn').style.display = currentStep === 1 ? 'none' : 'block';
             const nextBtn = document.getElementById('nextBtn');
-            if (currentStep === 4) {
-                nextBtn.textContent = 'セットアップ完了！';
+            if (currentStep === TOTAL_STEPS) {
+                nextBtn.textContent = selectedPlan ? '課金プランを設定して始める' : 'セットアップ完了！';
             } else {
                 nextBtn.textContent = '次へ';
             }
@@ -716,8 +822,30 @@
 
                     if (!response.ok) throw new Error('STEP 3 に失敗しました');
 
-                } else if (currentStep === 4) {
-                    // セットアップ完了（Slack接続は任意）
+                // step 4 (Slack) has no API call — falls through to currentStep++ below
+                }
+
+                // step 5: billing plan selection (final step)
+                if (currentStep === TOTAL_STEPS) {
+                    if (selectedPlan) {
+                        try {
+                            const resp = await fetch('/api/billing/create-checkout', {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${token}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ plan: selectedPlan })
+                            });
+                            const d = await resp.json();
+                            if (d.success && d.data && d.data.checkout_url) {
+                                window.location.href = d.data.checkout_url;
+                                return;
+                            }
+                        } catch (err) {
+                            // Stripe not configured or network error — proceed to dashboard
+                        }
+                    }
                     window.location.href = '/dashboard.html';
                     return;
                 }
@@ -775,7 +903,53 @@
             window.location.href = '/login.html';
         }
 
-        updateUI();
+        // Load existing data
+        async function initSetup() {
+            await loadExistingDepartments();
+            await loadExistingEmployees();
+
+            // Handle OAuth callback redirects (?step=4&success=true or ?error=xxx)
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlError = urlParams.get('error');
+            const urlStep = urlParams.get('step');
+            const urlSuccess = urlParams.get('success');
+
+            if (urlStep === '4' || urlError) {
+                currentStep = 4;
+            } else if (urlStep === '5') {
+                currentStep = 5;
+            }
+            updateUI();
+
+            if (urlSuccess === 'true') {
+                // Load Slack workspace info and show success
+                const token = localStorage.getItem('authToken');
+                fetch('/api/slack/workspace/info', { headers: { 'Authorization': `Bearer ${token}` } })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('slackWorkspaceName').textContent = data.data.workspace_name;
+                            document.getElementById('slackInfo').style.display = 'block';
+                        }
+                    }).catch(() => {});
+                showSuccess('Slack ワークスペースが接続されました');
+            } else if (urlError) {
+                const errorMessages = {
+                    'callback_error': 'Slack 連携中にエラーが発生しました。もう一度お試しください。',
+                    'missing_params': 'OAuth パラメーターが不足しています。',
+                    'missing_slack_data': 'Slack からの応答が不完全です。',
+                    'slack_access_denied': 'Slack の認可がキャンセルされました。',
+                };
+                showError(errorMessages[urlError] || `エラー: ${urlError}`);
+            }
+
+            // Clean URL
+            if (urlError || urlStep) {
+                history.replaceState(null, '', window.location.pathname);
+            }
+        }
+
+        initSetup();
     </script>
 </body>
 </html>

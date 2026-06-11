@@ -34,7 +34,7 @@ MAX_USERS = {
     "growth": 25, "enterprise": 999,
 }
 
-def create_checkout_session(plan: str, tenant_id: str, slack_team_id: str,
+def create_checkout_session(plan: str, org_id: int,
                              success_url: str, cancel_url: str) -> str:
     """
     Stripe Checkoutセッションを作成してURLを返す。
@@ -51,22 +51,20 @@ def create_checkout_session(plan: str, tenant_id: str, slack_team_id: str,
         subscription_data={
             "trial_period_days": 30,
             "metadata": {
-                "tenant_id": tenant_id,
-                "slack_team_id": slack_team_id,
+                "org_id": str(org_id),
                 "plan": plan,
             },
         },
         automatic_tax={"enabled": True},
         metadata={
-            "tenant_id": tenant_id,
-            "slack_team_id": slack_team_id,
+            "org_id": str(org_id),
             "plan": plan,
         },
-        success_url=success_url + "?session_id={CHECKOUT_SESSION_ID}",
+        success_url=success_url,
         cancel_url=cancel_url,
         locale="ja",
     )
-    logger.info(f"Checkoutセッション作成: {session.id} plan={plan} tenant={tenant_id}")
+    logger.info(f"Checkoutセッション作成: {session.id} plan={plan} org_id={org_id}")
     return session.url
 
 
@@ -92,8 +90,7 @@ def handle_webhook(payload: bytes, sig_header: str) -> dict:
     if event_type == "checkout.session.completed":
         session = event["data"]["object"]
         result.update({
-            "tenant_id": session["metadata"].get("tenant_id", ""),
-            "slack_team_id": session["metadata"].get("slack_team_id", ""),
+            "org_id": session["metadata"].get("org_id", ""),
             "plan": session["metadata"].get("plan", ""),
             "customer_id": session.get("customer", ""),
             "subscription_id": session.get("subscription", ""),
@@ -102,7 +99,7 @@ def handle_webhook(payload: bytes, sig_header: str) -> dict:
     elif event_type == "customer.subscription.deleted":
         sub = event["data"]["object"]
         result.update({
-            "tenant_id": sub["metadata"].get("tenant_id", ""),
+            "org_id": sub["metadata"].get("org_id", ""),
             "subscription_id": sub["id"],
             "status": "canceled",
         })
@@ -118,7 +115,7 @@ def handle_webhook(payload: bytes, sig_header: str) -> dict:
     elif event_type == "customer.subscription.trial_will_end":
         sub = event["data"]["object"]
         result.update({
-            "tenant_id": sub["metadata"].get("tenant_id", ""),
+            "org_id": sub["metadata"].get("org_id", ""),
             "subscription_id": sub["id"],
             "trial_end": sub.get("trial_end"),
         })
