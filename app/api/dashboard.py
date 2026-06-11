@@ -132,9 +132,9 @@ def update_employee(emp_id):
         org_id = request.organization_id
         data = request.get_json()
 
-        full_name = data.get("full_name", "").strip()
-        email = data.get("email", "").strip().lower()
-        slack_user_id = data.get("slack_user_id", "").strip()
+        full_name = (data.get("full_name") or "").strip()
+        email = (data.get("email") or "").strip().lower()
+        slack_user_id = (data.get("slack_user_id") or "").strip()
         department_id = data.get("department_id")
 
         if not full_name or not email:
