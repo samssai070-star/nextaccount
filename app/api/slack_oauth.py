@@ -101,12 +101,16 @@ def slack_oauth_callback():
             return redirect("https://nextaccount.jp/setup?error=missing_slack_data")
 
         # #経費申請 チャンネルを作成または取得
+        logger.info(f"Ensuring expense channel for org {org_id}...")
         channel_id, channel_name = _ensure_expense_channel(bot_token)
+        logger.info(f"Channel result: channel_id={channel_id}, channel_name={channel_name}")
 
+        logger.info(f"Connecting to database...")
         conn = get_db_connection()
         cur = get_db_cursor(conn)
 
         # Slack Workspaceを保存
+        logger.info(f"Inserting Slack workspace: org_id={org_id}, team_id={team_id}, bot_user_id={bot_user_id}")
         cur.execute(
             """INSERT INTO slack_workspaces
                (organization_id, workspace_id, workspace_name, bot_token, bot_user_id, channel_id, channel_name, is_connected)
@@ -120,6 +124,7 @@ def slack_oauth_callback():
             (org_id, team_id, team_name, bot_token, bot_user_id, channel_id, channel_name)
         )
 
+        logger.info(f"Committing transaction...")
         conn.commit()
         conn.close()
 
@@ -128,7 +133,9 @@ def slack_oauth_callback():
         return redirect("https://nextaccount.jp/setup?step=4&success=true")
 
     except Exception as e:
+        import traceback
         logger.error(f"OAuth callback error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return redirect(f"https://nextaccount.jp/setup?error=callback_error")
 
 @slack_bp.route("/workspace/info", methods=["GET"])
@@ -176,30 +183,39 @@ def _ensure_expense_channel(bot_token: str) -> tuple[str, str]:
             params={"types": "public_channel"}
         )
 
-        if not response.json().get("ok"):
-            logger.warning("Failed to list channels")
+        list_data = response.json()
+        if not list_data.get("ok"):
+            error_msg = list_data.get("error", "unknown_error")
+            logger.warning(f"Failed to list channels: {error_msg}")
             return None, "#経費申請"
 
-        channels = response.json().get("channels", [])
+        channels = list_data.get("channels", [])
         for channel in channels:
             if channel.get("name") == "経費申請":
-                return channel.get("id"), channel.get("name")
+                channel_id = channel.get("id")
+                logger.info(f"Found existing #経費申請 channel: {channel_id}")
+                return channel_id, channel.get("name")
 
         # チャンネルが存在しない場合は作成
+        logger.info("Creating #経費申請 channel...")
         response = requests.post(
             "https://slack.com/api/conversations.create",
             headers=headers,
             json={"name": "経費申請"}
         )
 
-        if response.json().get("ok"):
-            channel_id = response.json()["channel"]["id"]
+        create_data = response.json()
+        if create_data.get("ok"):
+            channel_id = create_data["channel"]["id"]
             logger.info(f"Created #経費申請 channel: {channel_id}")
             return channel_id, "経費申請"
 
-        logger.warning("Failed to create #経費申請 channel")
+        error_msg = create_data.get("error", "unknown_error")
+        logger.warning(f"Failed to create #経費申請 channel: {error_msg}")
         return None, "#経費申請"
 
     except Exception as e:
+        import traceback
         logger.error(f"Error ensuring expense channel: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return None, "#経費申請"

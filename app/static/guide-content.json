@@ -2,509 +2,127 @@
   "ja": {
     "label": "ガイド",
     "title": "使い方ガイド",
-    "description": "NextAccount の基本的な使い方から応用機能まで、わかりやすく解説します。",
-    "toc": [
-      {"id": "setup", "label": "1. はじめに"},
-      {"id": "dashboard", "label": "2. ダッシュボード"},
-      {"id": "receipt", "label": "3. 領収書のアップロード"},
-      {"id": "slack", "label": "4. Slack連携"},
-      {"id": "settings", "label": "5. 組織設定"},
-      {"id": "accounting", "label": "6. 会計ソフト連携"},
-      {"id": "faq", "label": "7. よくあるご質問"}
-    ],
-    "sections": {
-      "setup": {
-        "title": "1. はじめに",
-        "content": [
-          {"type": "h3", "text": "初期セットアップについて"},
-          {"type": "p", "text": "NextAccount をご利用いただく際は、初期セットアップウィザードにしたがって各種設定を行っていただきます。所要時間は約10〜15分です。"},
-          {"type": "h3", "text": "セットアップの流れ"},
-          {"type": "p", "text": "以下の情報を順番に入力していただきます："},
-          {"type": "h3", "text": "基本情報の登録"},
-          {"type": "table", "rows": [
-            {"th": "企業名および部門名", "td": ""},
-            {"th": "ご担当者のお名前", "td": ""},
-            {"th": "ログイン用メールアドレス", "td": ""},
-            {"th": "パスワード（8文字以上）", "td": ""}
-          ]},
-          {"type": "h3", "text": "会計設定"},
-          {"type": "p", "text": "貴社の会計年度を設定していただきます。日本国内の企業の場合、一般的には4月開始となります。決算月に合わせてカスタマイズすることも可能です。"},
-          {"type": "h3", "text": "部門・従業員の登録"},
-          {"type": "p", "text": "組織内の部門および従業員を登録します。後から追加・変更できますので、ここでは主な部門のみの登録で問題ございません。"},
-          {"type": "tip", "text": "部門コードは会計ソフト側の勘定科目コードと揃えておくと、自動仕訳の際に便利です。"}
-        ]
+    "lastUpdate": "2026年6月10日",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "はじめに",
+        "content": "NextAccount は、Slack を利用した経費精算・自動仕訳 SaaS です。OCR と AI により領収書を自動分類し、会計ソフトへの CSV 出力に対応しています。"
       },
-      "dashboard": {
-        "title": "2. ダッシュボード",
-        "content": [
-          {"type": "p", "text": "ダッシュボードは NextAccount のメイン画面です。登録済みの部門数、従業員数、会計年度などの基本情報を確認できます。"},
-          {"type": "h3", "text": "表示される情報"},
-          {"type": "table", "rows": [
-            {"th": "組織名および基本情報、メンバー数", "td": ""},
-            {"th": "登録済みの部門一覧", "td": ""},
-            {"th": "従業員情報", "td": ""},
-            {"th": "ユーザーアカウント一覧", "td": ""}
-          ]},
-          {"type": "h3", "text": "各種設定への遷移"},
-          {"type": "p", "text": "ダッシュボードの「設定」ボタンより、以下の項目について後から変更・追加が可能です："},
-          {"type": "ul", "items": [
-            "部門の追加・編集・削除",
-            "従業員情報の管理",
-            "会計年度の変更"
-          ]}
-        ]
+      {
+        "id": "setup",
+        "title": "セットアップ",
+        "content": "初回ログイン後、セットアップウィザードに従って企業情報、会計年度、部門、従業員を登録してください。所要時間は約 10～15 分です。"
       },
-      "receipt": {
-        "title": "3. 領収書のアップロード",
-        "content": [
-          {"type": "p", "text": "NextAccount では、領収書をアップロードすると最新の OCR 技術を用いて自動的に金額・日付・内容などを認識し、会計処理を行います。"},
-          {"type": "h3", "text": "アップロード方法"},
-          {"type": "p", "text": "Slack 経由：Slack の連携チャンネルにファイルを追加していただくと、自動的に処理が始まります。スマートフォンから外出先での報告も簡単です。"},
-          {"type": "p", "text": "ダッシュボード経由：ダッシュボード上の専用フォームからファイルを選択、またはドラッグ&ドロップでアップロードします。"},
-          {"type": "h3", "text": "処理の流れ"},
-          {"type": "ol", "items": [
-            "OCR 認識：領収書から日付・金額・店舗名などを自動抽出",
-            "AI 分類：経費科目を自動判定（交通費・食事代・消耗品など）",
-            "仕訳生成：会計仕訳を自動生成",
-            "承認：管理者の確認・承認を待機"
-          ]},
-          {"type": "tip", "text": "明るく、正面からの領収書写真が認識精度を高めます。スマートフォンのカメラで問題ございません。"}
-        ]
+      {
+        "id": "dashboard",
+        "title": "ダッシュボード",
+        "content": "ダッシュボードでは、登録済みの部門数、従業員数、会計年度などの基本情報を確認できます。各セクションから詳細情報へアクセス可能です。"
       },
-      "slack": {
-        "title": "4. Slack 連携",
-        "content": [
-          {"type": "p", "text": "Slack ワークスペースと連携することで、日常的なチームコミュニケーションの中で領収書の報告ができます。"},
-          {"type": "h3", "text": "連携のメリット"},
-          {"type": "ul", "items": [
-            "スマートフォンから簡単に領収書をアップロード",
-            "承認結果がリアルタイムで通知される",
-            "Slack を離れることなく経費処理が完結",
-            "チーム全体の経費状況を一元管理"
-          ]},
-          {"type": "h3", "text": "推奨チャンネル設定"},
-          {"type": "table", "rows": [
-            {"th": "#経費申請", "td": "（全従業員が領収書を送信）"},
-            {"th": "#経費承認", "td": "（経理担当者が承認結果を確認）"},
-            {"th": "#経費レポート", "td": "（月次集計を経営者と共有）"}
-          ]},
-          {"type": "h3", "text": "ボットコマンド"},
-          {"type": "code", "text": "/nextaccount help     ヘルプを表示\n/nextaccount status   処理状況を確認\n/nextaccount export   データをエクスポート"}
-        ]
+      {
+        "id": "receipt",
+        "title": "領収書のアップロード",
+        "content": "領収書、請求書などの経費関連書類を PDF・PNG・JPG 形式でアップロードしてください。自動的に内容が解析され、勘定科目が分類されます。"
       },
-      "settings": {
-        "title": "5. 組織設定",
-        "content": [
-          {"type": "p", "text": "ダッシュボードの「設定」より、組織の構成を変更・追加していただけます。"},
-          {"type": "h3", "text": "部門の管理"},
-          {"type": "p", "text": "以下の操作が可能です："},
-          {"type": "ul", "items": [
-            "新規部門の追加",
-            "既存部門の編集・削除",
-            "部門コードの設定（会計ソフト側と連動）"
-          ]},
-          {"type": "h3", "text": "従業員の管理"},
-          {"type": "p", "text": "組織の人事異動に合わせて従業員情報を更新できます："},
-          {"type": "ul", "items": [
-            "新入社員の登録",
-            "配置転換時の所属部門変更",
-            "退職者のアカウント無効化"
-          ]},
-          {"type": "h3", "text": "経費科目"},
-          {"type": "p", "text": "デフォルトでは以下の経費科目が用意されています："},
-          {"type": "ul", "items": [
-            "交通費・宿泊費",
-            "食事代・接待交際費",
-            "消耗品費",
-            "通信費",
-            "その他雑費"
-          ]}
-        ]
+      {
+        "id": "slack",
+        "title": "Slack 連携",
+        "content": "設定画面から Slack を連携すると、経費申請の承認通知を Slack 上で受け取ることができます。#経費申請 チャンネルが自動作成されます。"
       },
-      "accounting": {
-        "title": "6. 会計ソフト連携",
-        "content": [
-          {"type": "p", "text": "NextAccount は主要な会計ソフトと連携し、抽出した情報を自動的に仕訳として計上できます。手作業での二重入力が不要になります。"},
-          {"type": "h3", "text": "対応会計ソフト"},
-          {"type": "table", "rows": [
-            {"th": "freee", "td": "（クラウド会計の定番）"},
-            {"th": "MFクラウド会計", "td": "（中堅企業向け）"},
-            {"th": "弥生会計クラウド", "td": ""}
-          ]},
-          {"type": "h3", "text": "連携手順"},
-          {"type": "ol", "items": [
-            "ご利用の会計ソフトで API キーを取得",
-            "NextAccount の設定画面で API キーを入力",
-            "連携テストを実行して動作確認",
-            "以降、自動仕訳が開始されます"
-          ]},
-          {"type": "tip", "text": "部門コードと勘定科目を事前に統一しておくと、より精度の高い自動仕訳ができます。"}
-        ]
+      {
+        "id": "accounting",
+        "title": "会計ソフト連携",
+        "content": "弥生会計、freee、MF クラウド会計など主要会計ソフトへの CSV 出力に対応しています。詳細な設定方法は各ソフトの連携ガイドを参照してください。"
       },
-      "faq": {
-        "title": "7. よくあるご質問",
-        "content": [
-          {"type": "h3", "text": "OCR の認識精度について"},
-          {"type": "p", "text": "一般的な領収書で 95% 以上の精度で認識します。不鮮明な書類の場合は、確認画面で手動修正いただけます。"},
-          {"type": "h3", "text": "複数の会計ソフトへの対応"},
-          {"type": "p", "text": "はい、複数の会計ソフトに同時出力できます。グループ企業で異なるソフトを利用されている場合に便利です。"},
-          {"type": "h3", "text": "オフライン利用について"},
-          {"type": "p", "text": "NextAccount はクラウドサービスのため、基本的にはインターネット接続が必要です。Slack 経由では事前にファイルをダウンロードしておくことで、後からの報告が可能な場合もあります。"},
-          {"type": "h3", "text": "セキュリティ対策"},
-          {"type": "p", "text": "以下の対策を実施しております："},
-          {"type": "ul", "items": [
-            "AWS 日本リージョンでのデータ保管",
-            "定期的なセキュリティ監査",
-            "ISO 27001 準拠",
-            "24 時間監視体制"
-          ]},
-          {"type": "h3", "text": "ユーザー数に制限はあるか"},
-          {"type": "p", "text": "ユーザー数に上限はございません。組織の従業員数に応じた料金体系になっています。"},
-          {"type": "h3", "text": "領収書の保存期間"},
-          {"type": "p", "text": "日本の法定要件に従い、7 年間保存されます。必要に応じて PDF でのエクスポートも可能です。"},
-          {"type": "h3", "text": "サポート体制"},
-          {"type": "p", "text": "メール、チャット、電話でのサポートを提供しています。お問い合わせフォームからいつでもご連絡ください。"}
-        ]
+      {
+        "id": "faq",
+        "title": "よくあるご質問",
+        "content": "ご不明な点がございましたら、「サポート」ページからお問い合わせください。24 時間以内にご返信いたします。"
       }
-    }
+    ]
   },
   "en": {
     "label": "Guide",
     "title": "User Guide",
-    "description": "A comprehensive guide to using NextAccount, from basic setup to advanced features.",
-    "toc": [
-      {"id": "setup", "label": "1. Getting Started"},
-      {"id": "dashboard", "label": "2. Dashboard"},
-      {"id": "receipt", "label": "3. Receipt Upload"},
-      {"id": "slack", "label": "4. Slack Integration"},
-      {"id": "settings", "label": "5. Organization Settings"},
-      {"id": "accounting", "label": "6. Accounting Software Integration"},
-      {"id": "faq", "label": "7. Frequently Asked Questions"}
-    ],
-    "sections": {
-      "setup": {
-        "title": "1. Getting Started",
-        "content": [
-          {"type": "h3", "text": "About Initial Setup"},
-          {"type": "p", "text": "When using NextAccount, you will perform various settings by following the initial setup wizard. The setup takes approximately 10-15 minutes."},
-          {"type": "h3", "text": "Setup Flow"},
-          {"type": "p", "text": "You will input the following information in order:"},
-          {"type": "h3", "text": "Basic Information Registration"},
-          {"type": "table", "rows": [
-            {"th": "Company name and department", "td": ""},
-            {"th": "Contact person name", "td": ""},
-            {"th": "Login email address", "td": ""},
-            {"th": "Password (8 characters or more)", "td": ""}
-          ]},
-          {"type": "h3", "text": "Accounting Settings"},
-          {"type": "p", "text": "Set your organization's fiscal year. For companies in Japan, it typically starts in April. You can customize it to match your fiscal month."},
-          {"type": "h3", "text": "Department and Employee Registration"},
-          {"type": "p", "text": "Register departments and employees within your organization. You can add or modify them later, so you only need to register the main departments here."},
-          {"type": "tip", "text": "It is convenient to align department codes with the accounting software's account codes for automated journal entry."}
-        ]
+    "lastUpdate": "June 10, 2026",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "Introduction",
+        "content": "NextAccount is an expense reimbursement and automatic journal entry SaaS using Slack. It automatically classifies receipts using OCR and AI, and supports CSV export to accounting software."
       },
-      "dashboard": {
-        "title": "2. Dashboard",
-        "content": [
-          {"type": "p", "text": "The Dashboard is the main screen of NextAccount where you can view basic information such as registered departments, employee count, and fiscal year."},
-          {"type": "h3", "text": "Displayed Information"},
-          {"type": "table", "rows": [
-            {"th": "Organization name, basic info, and member count", "td": ""},
-            {"th": "List of registered departments", "td": ""},
-            {"th": "Employee information", "td": ""},
-            {"th": "User account list", "td": ""}
-          ]},
-          {"type": "h3", "text": "Settings Access"},
-          {"type": "p", "text": "From the 'Settings' button on the dashboard, you can later modify or add the following items:"},
-          {"type": "ul", "items": [
-            "Add, edit, or delete departments",
-            "Manage employee information",
-            "Change fiscal year"
-          ]}
-        ]
+      {
+        "id": "setup",
+        "title": "Setup",
+        "content": "After your first login, follow the setup wizard to register your company information, fiscal year, departments, and employees. It takes approximately 10-15 minutes."
       },
-      "receipt": {
-        "title": "3. Receipt Upload",
-        "content": [
-          {"type": "p", "text": "In NextAccount, when you upload a receipt, the latest OCR technology automatically recognizes the amount, date, content, and performs accounting processing."},
-          {"type": "h3", "text": "Upload Methods"},
-          {"type": "p", "text": "Via Slack: When you add a file to your linked Slack channel, processing starts automatically. Easy to report from the field using a smartphone."},
-          {"type": "p", "text": "Via Dashboard: Select a file from the dedicated form on the dashboard or upload via drag and drop."},
-          {"type": "h3", "text": "Processing Flow"},
-          {"type": "ol", "items": [
-            "OCR Recognition: Automatically extract date, amount, store name, etc. from the receipt",
-            "AI Classification: Automatically determine expense category (transportation, meals, supplies, etc.)",
-            "Journal Entry Generation: Automatically generate accounting entries",
-            "Approval: Awaiting manager confirmation and approval"
-          ]},
-          {"type": "tip", "text": "Bright, front-facing receipt photos enhance recognition accuracy. Smartphone cameras work fine."}
-        ]
+      {
+        "id": "dashboard",
+        "title": "Dashboard",
+        "content": "On the dashboard, you can view basic information such as the number of registered departments, employees, and the fiscal year. You can access detailed information from each section."
       },
-      "slack": {
-        "title": "4. Slack Integration",
-        "content": [
-          {"type": "p", "text": "By integrating with your Slack workspace, you can report receipts within your team's daily communication."},
-          {"type": "h3", "text": "Integration Benefits"},
-          {"type": "ul", "items": [
-            "Easily upload receipts from your smartphone",
-            "Approval results are notified in real-time",
-            "Complete expense processing without leaving Slack",
-            "Centralized management of team expenses"
-          ]},
-          {"type": "h3", "text": "Recommended Channel Setup"},
-          {"type": "table", "rows": [
-            {"th": "#expense-requests", "td": "(All employees submit receipts)"},
-            {"th": "#expense-approvals", "td": "(Accounting staff review approvals)"},
-            {"th": "#expense-reports", "td": "(Monthly summaries shared with leadership)"}
-          ]},
-          {"type": "h3", "text": "Bot Commands"},
-          {"type": "code", "text": "/nextaccount help     Show help\n/nextaccount status   Check processing status\n/nextaccount export   Export data"}
-        ]
+      {
+        "id": "receipt",
+        "title": "Upload Receipts",
+        "content": "Upload expense-related documents such as receipts and invoices in PDF, PNG, or JPG format. The content will be automatically analyzed and classified by account."
       },
-      "settings": {
-        "title": "5. Organization Settings",
-        "content": [
-          {"type": "p", "text": "From the 'Settings' on the dashboard, you can change and add to your organization's structure."},
-          {"type": "h3", "text": "Department Management"},
-          {"type": "p", "text": "You can perform the following operations:"},
-          {"type": "ul", "items": [
-            "Add new departments",
-            "Edit or delete existing departments",
-            "Set department codes (linked to accounting software)"
-          ]},
-          {"type": "h3", "text": "Employee Management"},
-          {"type": "p", "text": "Update employee information as your organization changes:"},
-          {"type": "ul", "items": [
-            "Register new employees",
-            "Change departments for transfers",
-            "Deactivate accounts for departing employees"
-          ]},
-          {"type": "h3", "text": "Expense Categories"},
-          {"type": "p", "text": "The following expense categories are provided by default:"},
-          {"type": "ul", "items": [
-            "Transportation and lodging",
-            "Meals and entertainment",
-            "Supplies",
-            "Communications",
-            "Miscellaneous"
-          ]}
-        ]
+      {
+        "id": "slack",
+        "title": "Slack Integration",
+        "content": "When you integrate Slack from the settings screen, you can receive approval notifications for expense requests on Slack. The #expense-request channel is created automatically."
       },
-      "accounting": {
-        "title": "6. Accounting Software Integration",
-        "content": [
-          {"type": "p", "text": "NextAccount integrates with major accounting software and can automatically post extracted information as journal entries. Eliminates manual duplicate entry."},
-          {"type": "h3", "text": "Supported Accounting Software"},
-          {"type": "table", "rows": [
-            {"th": "freee", "td": "(Popular cloud accounting software)"},
-            {"th": "MFクラウド会計", "td": "(For mid-sized companies)"},
-            {"th": "Yayoi Cloud Accounting", "td": ""}
-          ]},
-          {"type": "h3", "text": "Integration Steps"},
-          {"type": "ol", "items": [
-            "Obtain an API key from your accounting software",
-            "Enter the API key in NextAccount's settings",
-            "Run integration test to verify operation",
-            "Automated journal entries will begin"
-          ]},
-          {"type": "tip", "text": "Pre-aligning department codes and accounts improves the accuracy of automated journal entries."}
-        ]
+      {
+        "id": "accounting",
+        "title": "Accounting Software Integration",
+        "content": "CSV export is supported for major accounting software such as Yayoi Accounting, freee, and MF Cloud Accounting. Please refer to each software's integration guide for detailed setup instructions."
       },
-      "faq": {
-        "title": "7. Frequently Asked Questions",
-        "content": [
-          {"type": "h3", "text": "OCR Recognition Accuracy"},
-          {"type": "p", "text": "Common receipts are recognized with 95% or higher accuracy. For unclear documents, you can manually correct them on the confirmation screen."},
-          {"type": "h3", "text": "Support for Multiple Accounting Software"},
-          {"type": "p", "text": "Yes, we support simultaneous output to multiple accounting software. Convenient for group companies using different software."},
-          {"type": "h3", "text": "Offline Usage"},
-          {"type": "p", "text": "As a cloud service, NextAccount requires an internet connection. Via Slack, you can download files in advance and report later if needed."},
-          {"type": "h3", "text": "Security Measures"},
-          {"type": "p", "text": "We implement the following measures:"},
-          {"type": "ul", "items": [
-            "Data storage in AWS Japan region",
-            "Regular security audits",
-            "ISO 27001 compliant",
-            "24/7 monitoring"
-          ]},
-          {"type": "h3", "text": "Are there limits on user count?"},
-          {"type": "p", "text": "There is no limit on user count. Pricing is based on your organization's employee count."},
-          {"type": "h3", "text": "Receipt Retention Period"},
-          {"type": "p", "text": "In accordance with Japanese legal requirements, receipts are retained for 7 years. PDF export is available if needed."},
-          {"type": "h3", "text": "Support"},
-          {"type": "p", "text": "We provide support via email, chat, and phone. Feel free to contact us anytime through our contact form."}
-        ]
+      {
+        "id": "faq",
+        "title": "FAQ",
+        "content": "If you have any questions, please contact us from the Support page. We will respond within 24 hours."
       }
-    }
+    ]
   },
   "zh": {
     "label": "指南",
     "title": "使用指南",
-    "description": "从基础设置到高级功能，全面了解 NextAccount 的使用方法。",
-    "toc": [
-      {"id": "setup", "label": "1. 开始使用"},
-      {"id": "dashboard", "label": "2. 仪表板"},
-      {"id": "receipt", "label": "3. 收据上传"},
-      {"id": "slack", "label": "4. Slack 集成"},
-      {"id": "settings", "label": "5. 组织设置"},
-      {"id": "accounting", "label": "6. 会计软件集成"},
-      {"id": "faq", "label": "7. 常见问题"}
-    ],
-    "sections": {
-      "setup": {
-        "title": "1. 开始使用",
-        "content": [
-          {"type": "h3", "text": "初始设置说明"},
-          {"type": "p", "text": "使用 NextAccount 时，请按照初始设置向导进行各项配置。整个过程需要约 10-15 分钟。"},
-          {"type": "h3", "text": "设置流程"},
-          {"type": "p", "text": "请依次输入以下信息："},
-          {"type": "h3", "text": "基本信息注册"},
-          {"type": "table", "rows": [
-            {"th": "公司名称及部门", "td": ""},
-            {"th": "负责人姓名", "td": ""},
-            {"th": "登录邮箱地址", "td": ""},
-            {"th": "密码（8个字符或更多）", "td": ""}
-          ]},
-          {"type": "h3", "text": "会计设置"},
-          {"type": "p", "text": "设置您公司的会计年度。对于日本国内企业，通常从 4 月开始。您可以根据决算月进行自定义。"},
-          {"type": "h3", "text": "部门与员工注册"},
-          {"type": "p", "text": "注册您组织内的部门及员工。之后可以随时添加或修改，所以这里只需注册主要部门。"},
-          {"type": "tip", "text": "将部门代码与会计软件的科目代码保持一致，便于自动生成凭证。"}
-        ]
+    "lastUpdate": "2026年6月10日",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "介绍",
+        "content": "NextAccount 是一个基于 Slack 的费用报销和自动记账 SaaS。它使用 OCR 和 AI 自动分类收据，支持导出到会计软件的 CSV 格式。"
       },
-      "dashboard": {
-        "title": "2. 仪表板",
-        "content": [
-          {"type": "p", "text": "仪表板是 NextAccount 的主界面，您可以查看注册的部门数、员工数、会计年度等基本信息。"},
-          {"type": "h3", "text": "显示的信息"},
-          {"type": "table", "rows": [
-            {"th": "组织名称、基本信息及成员数", "td": ""},
-            {"th": "已注册部门列表", "td": ""},
-            {"th": "员工信息", "td": ""},
-            {"th": "用户账户列表", "td": ""}
-          ]},
-          {"type": "h3", "text": "设置访问"},
-          {"type": "p", "text": "通过仪表板上的「设置」按钮，您可以随后修改或添加以下项目："},
-          {"type": "ul", "items": [
-            "添加、编辑或删除部门",
-            "管理员工信息",
-            "修改会计年度"
-          ]}
-        ]
+      {
+        "id": "setup",
+        "title": "设置",
+        "content": "首次登录后，请按照设置向导注册您的公司信息、会计年度、部门和员工。大约需要 10-15 分钟。"
       },
-      "receipt": {
-        "title": "3. 收据上传",
-        "content": [
-          {"type": "p", "text": "在 NextAccount 中，上传收据后，最新的 OCR 技术会自动识别金额、日期、内容等信息，并进行会计处理。"},
-          {"type": "h3", "text": "上传方式"},
-          {"type": "p", "text": "通过 Slack：在已连接的 Slack 频道中添加文件，系统会自动开始处理。可以在外出时通过手机轻松报告。"},
-          {"type": "p", "text": "通过仪表板：在仪表板上的专用表单中选择文件，或通过拖拽上传。"},
-          {"type": "h3", "text": "处理流程"},
-          {"type": "ol", "items": [
-            "OCR 识别：自动提取收据上的日期、金额、店铺名等信息",
-            "AI 分类：自动判断费用科目（交通费、餐饮费、办公用品等）",
-            "凭证生成：自动生成会计凭证",
-            "审批：等待管理者确认和批准"
-          ]},
-          {"type": "tip", "text": "光线充足、正面拍摄的收据照片能提高识别精度。使用手机摄像头即可。"}
-        ]
+      {
+        "id": "dashboard",
+        "title": "仪表板",
+        "content": "在仪表板上，您可以查看已注册的部门数、员工数和会计年度等基本信息。您可以从每个部分访问详细信息。"
       },
-      "slack": {
-        "title": "4. Slack 集成",
-        "content": [
-          {"type": "p", "text": "通过与 Slack 工作区集成，您可以在日常团队沟通中报告收据。"},
-          {"type": "h3", "text": "集成优势"},
-          {"type": "ul", "items": [
-            "轻松从手机上传收据",
-            "审批结果实时通知",
-            "无需离开 Slack 即可完成费用处理",
-            "统一管理团队费用",
-            "集中化的费用状况追踪"
-          ]},
-          {"type": "h3", "text": "推荐频道设置"},
-          {"type": "table", "rows": [
-            {"th": "#费用申请", "td": "（所有员工提交收据）"},
-            {"th": "#费用审批", "td": "（会计人员查看审批结果）"},
-            {"th": "#费用报告", "td": "（月度汇总与管理层共享）"}
-          ]},
-          {"type": "h3", "text": "机器人命令"},
-          {"type": "code", "text": "/nextaccount help     显示帮助\n/nextaccount status   检查处理状态\n/nextaccount export   导出数据"}
-        ]
+      {
+        "id": "receipt",
+        "title": "上传收据",
+        "content": "以 PDF、PNG 或 JPG 格式上传费用相关文件，如收据和发票。内容将自动分析并按会计科目分类。"
       },
-      "settings": {
-        "title": "5. 组织设置",
-        "content": [
-          {"type": "p", "text": "通过仪表板上的「设置」，您可以修改和添加组织的结构。"},
-          {"type": "h3", "text": "部门管理"},
-          {"type": "p", "text": "您可以执行以下操作："},
-          {"type": "ul", "items": [
-            "添加新部门",
-            "编辑或删除现有部门",
-            "设置部门代码（与会计软件链接）"
-          ]},
-          {"type": "h3", "text": "员工管理"},
-          {"type": "p", "text": "随着组织变化更新员工信息："},
-          {"type": "ul", "items": [
-            "注册新员工",
-            "调动时更改部门",
-            "停用离职员工的账户"
-          ]},
-          {"type": "h3", "text": "费用科目"},
-          {"type": "p", "text": "默认提供以下费用科目："},
-          {"type": "ul", "items": [
-            "交通费及住宿费",
-            "餐饮费及招待费",
-            "办公用品费",
-            "通信费",
-            "其他杂费"
-          ]}
-        ]
+      {
+        "id": "slack",
+        "title": "Slack 集成",
+        "content": "从设置屏幕集成 Slack 后，您可以在 Slack 上接收费用申请的批准通知。#expense-request 频道将自动创建。"
       },
-      "accounting": {
-        "title": "6. 会计软件集成",
-        "content": [
-          {"type": "p", "text": "NextAccount 与主要会计软件集成，可自动将提取的信息作为凭证记录。消除手动重复输入。"},
-          {"type": "h3", "text": "支持的会计软件"},
-          {"type": "table", "rows": [
-            {"th": "freee", "td": "（流行的云会计软件）"},
-            {"th": "MF 云会计", "td": "（面向中型企业）"},
-            {"th": "弥生云会计", "td": ""}
-          ]},
-          {"type": "h3", "text": "集成步骤"},
-          {"type": "ol", "items": [
-            "从会计软件获取 API 密钥",
-            "在 NextAccount 设置中输入 API 密钥",
-            "运行集成测试验证操作",
-            "自动凭证生成将开始"
-          ]},
-          {"type": "tip", "text": "提前对齐部门代码和科目代码可提高自动凭证生成的准确性。"}
-        ]
+      {
+        "id": "accounting",
+        "title": "会计软件集成",
+        "content": "支持导出到弥生会计、freee 和 MF Cloud 会计等主流会计软件的 CSV 格式。有关详细的设置说明，请参阅各个软件的集成指南。"
       },
-      "faq": {
-        "title": "7. 常见问题",
-        "content": [
-          {"type": "h3", "text": "OCR 识别精度"},
-          {"type": "p", "text": "普通收据的识别精度达 95% 或更高。对于模糊不清的文件，您可以在确认界面进行手动修正。"},
-          {"type": "h3", "text": "多个会计软件支持"},
-          {"type": "p", "text": "是的，我们支持同时输出到多个会计软件。对于使用不同软件的集团公司很方便。"},
-          {"type": "h3", "text": "离线使用"},
-          {"type": "p", "text": "作为云服务，NextAccount 需要互联网连接。通过 Slack，您可以提前下载文件，如需要可稍后报告。"},
-          {"type": "h3", "text": "安全措施"},
-          {"type": "p", "text": "我们实施以下措施："},
-          {"type": "ul", "items": [
-            "数据存储在 AWS 日本地区",
-            "定期安全审计",
-            "ISO 27001 合规",
-            "24/7 监控"
-          ]},
-          {"type": "h3", "text": "用户数量有限制吗？"},
-          {"type": "p", "text": "用户数量没有限制。价格根据您组织的员工数量而定。"},
-          {"type": "h3", "text": "收据保存期限"},
-          {"type": "p", "text": "根据日本法律要求，收据保存 7 年。如需要，可进行 PDF 导出。"},
-          {"type": "h3", "text": "技术支持"},
-          {"type": "p", "text": "我们提供电子邮件、聊天和电话支持。随时可通过我们的联系表单与我们联系。"}
-        ]
+      {
+        "id": "faq",
+        "title": "常见问题",
+        "content": "如果您有任何疑问，请通过「支持」页面与我们联系。我们将在 24 小时内回复。"
       }
-    }
+    ]
   }
 }
