@@ -935,7 +935,44 @@
         async function initSetup() {
             await loadExistingDepartments();
             await loadExistingEmployees();
+
+            // Handle OAuth callback redirects (?step=4&success=true or ?error=xxx)
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlError = urlParams.get('error');
+            const urlStep = urlParams.get('step');
+            const urlSuccess = urlParams.get('success');
+
+            if (urlStep === '4' || urlError) {
+                currentStep = 4;
+            }
             updateUI();
+
+            if (urlSuccess === 'true') {
+                // Load Slack workspace info and show success
+                const token = localStorage.getItem('authToken');
+                fetch('/api/slack/workspace/info', { headers: { 'Authorization': `Bearer ${token}` } })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('slackWorkspaceName').textContent = data.data.workspace_name;
+                            document.getElementById('slackInfo').style.display = 'block';
+                        }
+                    }).catch(() => {});
+                showSuccess('Slack ワークスペースが接続されました');
+            } else if (urlError) {
+                const errorMessages = {
+                    'callback_error': 'Slack 連携中にエラーが発生しました。もう一度お試しください。',
+                    'missing_params': 'OAuth パラメーターが不足しています。',
+                    'missing_slack_data': 'Slack からの応答が不完全です。',
+                    'slack_access_denied': 'Slack の認可がキャンセルされました。',
+                };
+                showError(errorMessages[urlError] || `エラー: ${urlError}`);
+            }
+
+            // Clean URL
+            if (urlError || urlStep) {
+                history.replaceState(null, '', window.location.pathname);
+            }
         }
 
         initSetup();

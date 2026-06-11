@@ -121,7 +121,7 @@ def slack_oauth_callback():
                channel_id = EXCLUDED.channel_id,
                is_connected = true,
                connected_at = CURRENT_TIMESTAMP""",
-            (org_id, team_id, team_name, bot_token, bot_user_id, channel_id, channel_name)
+            (org_id, team_id, team_name, bot_token, bot_user_id, channel_id, channel_name, True)
         )
 
         logger.info(f"Committing transaction...")
