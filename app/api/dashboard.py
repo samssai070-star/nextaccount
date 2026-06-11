@@ -143,6 +143,8 @@ def update_employee(emp_id):
         if department_id is not None:
             try:
                 department_id = int(department_id)
+                if department_id <= 0 or department_id > 2147483647:
+                    return error_response("無効な部門IDです", 400)
             except (ValueError, TypeError):
                 department_id = None
 

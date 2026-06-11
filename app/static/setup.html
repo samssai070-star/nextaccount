@@ -541,7 +541,7 @@
                 return;
             }
 
-            departments.push({ name, id: Date.now() });
+            departments.push({ name, id: null });
             document.getElementById('deptName').value = '';
             renderDepartments();
             updateEmployeeSelectOptions();
@@ -582,6 +582,12 @@
         async function saveEmployeeToServer(empId, name, email, slack, deptId) {
             const token = localStorage.getItem('authToken');
             if (!token) return false;
+
+            const deptIdNum = parseInt(deptId);
+            if (!deptId || isNaN(deptIdNum) || deptIdNum > 2147483647 || deptIdNum <= 0) {
+                showError('有効な部門を選択してください');
+                return false;
+            }
 
             try {
                 const response = await fetch(`/api/dashboard/employees/${empId}`, {
