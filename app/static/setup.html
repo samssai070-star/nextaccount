@@ -432,7 +432,7 @@
                         </div>
                     </div>
 
-                    <button type="button" class="add-btn" onclick="addEmployee()">従業員を追加</button>
+                    <button type="button" id="addEmpBtn" class="add-btn" onclick="addEmployee()">従業員を追加</button>
 
                     <div id="empList" style="margin-top: 20px;">
                         <p style="color: #999; font-size: 14px;">従業員をまず追加してください</p>
@@ -598,7 +598,7 @@
                     name, email, slack, dept: parseInt(dept), deptName
                 });
                 editingId = null;
-                document.querySelector('.add-btn').textContent = '従業員を追加';
+                document.getElementById('addEmpBtn').textContent = '従業員を追加';
             } else {
                 employees.push({
                     id: Date.now(),
@@ -652,7 +652,7 @@
             });
             employees.splice(idx, 1);
             renderEmployees();
-            document.querySelector('.add-btn').textContent = '変更を保存';
+            document.getElementById('addEmpBtn').textContent = '変更を保存';
             document.getElementById('empName').focus();
         }
 
