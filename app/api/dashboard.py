@@ -138,7 +138,13 @@ def update_employee(emp_id):
         department_id = data.get("department_id")
 
         if not full_name or not email:
-            return error_response("氏名とメールアドレスは必須です"), 400
+            return error_response("氏名とメールアドレスは必須です", 400)
+
+        if department_id is not None:
+            try:
+                department_id = int(department_id)
+            except (ValueError, TypeError):
+                department_id = None
 
         conn = get_db_connection()
         cur = get_db_cursor(conn)
@@ -152,7 +158,7 @@ def update_employee(emp_id):
 
         if cur.rowcount == 0:
             conn.close()
-            return error_response("従業員が見つかりません"), 404
+            return error_response("従業員が見つかりません", 404)
 
         conn.commit()
         conn.close()
@@ -162,7 +168,7 @@ def update_employee(emp_id):
 
     except Exception as e:
         logger.error(f"Update employee error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @dashboard_bp.route("/employees", methods=["GET"])
 @require_auth

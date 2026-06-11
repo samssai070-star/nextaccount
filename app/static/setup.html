@@ -889,12 +889,13 @@
                 if (data.success && data.data && data.data.length > 0) {
                     employees.length = 0;
                     data.data.forEach(e => {
+                        const currentDept = departments.find(d => d.name === e.department_name);
                         employees.push({
                             id: e.id,
                             name: e.full_name,
                             email: e.email,
                             slack: e.slack_user_id || '',
-                            dept: e.department_id,
+                            dept: currentDept ? currentDept.id : e.department_id,
                             deptName: e.department_name || '',
                             permissions: []
                         });
