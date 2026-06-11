@@ -65,10 +65,10 @@ def slack_oauth_callback():
 
         if error:
             logger.error(f"Slack OAuth error: {error}")
-            return redirect(f"https://nextaccount.jp/setup?error=slack_{error}")
+            return redirect(f"https://nextaccount.jp/setup.html?error=slack_{error}")
 
         if not code or not state:
-            return redirect("https://nextaccount.jp/setup?error=missing_params")
+            return redirect("https://nextaccount.jp/setup.html?error=missing_params")
 
         org_id = int(state)
 
@@ -88,7 +88,7 @@ def slack_oauth_callback():
         if not data.get("ok"):
             error_msg = data.get("error", "unknown_error")
             logger.error(f"Slack token exchange failed: {error_msg}")
-            return redirect(f"https://nextaccount.jp/setup?error=slack_{error_msg}")
+            return redirect(f"https://nextaccount.jp/setup.html?error=slack_{error_msg}")
 
         # Slack情報を抽出
         bot_token = data.get("access_token")
@@ -98,7 +98,7 @@ def slack_oauth_callback():
 
         if not all([bot_token, bot_user_id, team_id]):
             logger.error("Missing required Slack data")
-            return redirect("https://nextaccount.jp/setup?error=missing_slack_data")
+            return redirect("https://nextaccount.jp/setup.html?error=missing_slack_data")
 
         # #経費申請 チャンネルを作成または取得
         logger.info(f"Ensuring expense channel for org {org_id}...")
@@ -130,13 +130,13 @@ def slack_oauth_callback():
 
         logger.info(f"Slack workspace {team_id} connected for org {org_id}")
 
-        return redirect("https://nextaccount.jp/setup?step=4&success=true")
+        return redirect("https://nextaccount.jp/setup.html?step=4&success=true")
 
     except Exception as e:
         import traceback
         logger.error(f"OAuth callback error: {e}")
         logger.error(f"Traceback: {traceback.format_exc()}")
-        return redirect(f"https://nextaccount.jp/setup?error=callback_error")
+        return redirect(f"https://nextaccount.jp/setup.html?error=callback_error")
 
 @slack_bp.route("/workspace/info", methods=["GET"])
 @require_auth
