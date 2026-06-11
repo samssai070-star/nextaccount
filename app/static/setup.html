@@ -684,7 +684,15 @@
             document.getElementById('empName').value = e.name;
             document.getElementById('empEmail').value = e.email;
             document.getElementById('empSlack').value = e.slack || '';
-            document.getElementById('empDept').value = e.dept || '';
+
+            const deptSelect = document.getElementById('empDept');
+            deptSelect.value = e.dept || '';
+            if (!deptSelect.value || deptSelect.selectedIndex < 1) {
+                for (const opt of deptSelect.options) {
+                    if (opt.text === e.deptName) { deptSelect.value = opt.value; break; }
+                }
+            }
+
             document.querySelectorAll('input[name="perm"]').forEach(p => {
                 p.checked = e.permissions ? e.permissions.includes(p.value) : false;
             });
