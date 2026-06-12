@@ -100,12 +100,14 @@ def manage_card():
         customer_id = org.get("stripe_customer_id") if org else None
 
         if customer_id:
-            # 登録済み → カスタマーポータルでカード管理
-            session = s.billing_portal.Session.create(
+            # 登録済み → Setup Checkout でカード追加／変更
+            session = s.checkout.Session.create(
+                mode="setup",
                 customer=customer_id,
-                return_url=f"{BASE_URL}/dashboard.html",
+                success_url=f"{BASE_URL}/dashboard.html?card=updated",
+                cancel_url=f"{BASE_URL}/dashboard.html",
+                locale="ja",
             )
-            return success_response({"url": session.url})
         else:
             # 未登録 → Customer を先に作成してから Setup Checkout
             customer = s.Customer.create(metadata={"org_id": str(org_id)})
@@ -125,7 +127,7 @@ def manage_card():
                 cancel_url=f"{BASE_URL}/dashboard.html",
                 locale="ja",
             )
-            return success_response({"url": session.url})
+        return success_response({"url": session.url})
 
     except RuntimeError as e:
         return error_response("Stripe 課金が設定されていません", 503)
