@@ -585,15 +585,15 @@
 
         async function manageStripe() {
             try {
-                const resp = await fetch('/api/billing/portal', {
+                const resp = await fetch('/api/billing/manage-card', {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                 });
                 const d = await resp.json();
-                if (d.success && d.data && d.data.portal_url) {
-                    window.location.href = d.data.portal_url;
+                if (d.success && d.data && d.data.url) {
+                    window.location.href = d.data.url;
                 } else {
-                    alert(d.error || 'Stripe ポータルを開けませんでした。');
+                    alert(d.error || '支払い方法の管理を開けませんでした。');
                 }
             } catch (err) {
                 alert('エラー: ' + err.message);

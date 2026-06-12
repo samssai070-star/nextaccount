@@ -183,22 +183,34 @@ def stripe_webhook():
             plan = event.get("plan", "")
             customer_id = event.get("customer_id", "")
             subscription_id = event.get("subscription_id", "")
+            mode = event.get("mode", "")
 
             if org_id:
                 from api.helpers import get_db_connection, get_db_cursor
                 conn = get_db_connection()
                 cur = get_db_cursor(conn)
-                cur.execute(
-                    """UPDATE organizations
-                       SET subscription_status='active', plan=%s,
-                           stripe_customer_id=%s, stripe_subscription_id=%s,
-                           updated_at=CURRENT_TIMESTAMP
-                       WHERE id=%s""",
-                    (plan, customer_id, subscription_id, org_id)
-                )
+                if mode == "setup":
+                    # カード登録のみ（プラン変更なし）
+                    cur.execute(
+                        """UPDATE organizations
+                           SET stripe_customer_id=%s, updated_at=CURRENT_TIMESTAMP
+                           WHERE id=%s""",
+                        (customer_id, org_id)
+                    )
+                    logger.info(f"Card registered: org_id={org_id} customer_id={customer_id}")
+                else:
+                    # サブスクリプション契約
+                    cur.execute(
+                        """UPDATE organizations
+                           SET subscription_status='active', plan=%s,
+                               stripe_customer_id=%s, stripe_subscription_id=%s,
+                               updated_at=CURRENT_TIMESTAMP
+                           WHERE id=%s""",
+                        (plan, customer_id, subscription_id, org_id)
+                    )
+                    logger.info(f"Stripe checkout completed: org_id={org_id} plan={plan}")
                 conn.commit()
                 conn.close()
-                logger.info(f"Stripe checkout completed: org_id={org_id} plan={plan}")
 
         elif event_type == "customer.subscription.deleted":
             subscription_id = event.get("subscription_id", "")

@@ -94,6 +94,7 @@ def handle_webhook(payload: bytes, sig_header: str) -> dict:
             "plan": session["metadata"].get("plan", ""),
             "customer_id": session.get("customer", ""),
             "subscription_id": session.get("subscription", ""),
+            "mode": session.get("mode", ""),
         })
 
     elif event_type == "customer.subscription.deleted":

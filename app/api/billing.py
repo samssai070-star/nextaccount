@@ -83,10 +83,10 @@ def create_checkout():
         return error_response(str(e), 500)
 
 
-@billing_bp.route("/portal", methods=["POST"])
+@billing_bp.route("/manage-card", methods=["POST"])
 @require_auth
-def create_portal():
-    """Stripe カスタマーポータルセッションを作成してURLを返す"""
+def manage_card():
+    """カード未登録 → Setup Checkout、登録済み → カスタマーポータル"""
     try:
         org_id = request.organization_id
         conn = get_db_connection()
@@ -95,21 +95,33 @@ def create_portal():
         org = cur.fetchone()
         conn.close()
 
-        if not org or not org.get("stripe_customer_id"):
-            return error_response("Stripe顧客情報が見つかりません。先にプランを選択してください。", 404)
-
         from core.stripe_billing import _get_stripe
         s = _get_stripe()
-        session = s.billing_portal.Session.create(
-            customer=org["stripe_customer_id"],
-            return_url=f"{BASE_URL}/dashboard.html",
-        )
-        return success_response({"portal_url": session.url})
+        customer_id = org.get("stripe_customer_id") if org else None
+
+        if customer_id:
+            # 登録済み → カスタマーポータルでカード管理
+            session = s.billing_portal.Session.create(
+                customer=customer_id,
+                return_url=f"{BASE_URL}/dashboard.html",
+            )
+            return success_response({"url": session.url})
+        else:
+            # 未登録 → Setup Checkout でカード登録（課金なし）
+            session = s.checkout.Session.create(
+                mode="setup",
+                customer_creation="always",
+                success_url=f"{BASE_URL}/dashboard.html?card=registered",
+                cancel_url=f"{BASE_URL}/dashboard.html",
+                metadata={"org_id": str(org_id)},
+                locale="ja",
+            )
+            return success_response({"url": session.url})
 
     except RuntimeError as e:
         return error_response("Stripe 課金が設定されていません", 503)
     except Exception as e:
-        logger.error(f"create_portal error: {e}")
+        logger.error(f"manage_card error: {e}")
         return error_response(str(e), 500)
 
 
