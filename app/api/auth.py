@@ -115,21 +115,95 @@ def login():
             (user["id"],)
         )
         conn.commit()
+
+        # ユーザーが属する organization/client を取得
+        cur.execute(
+            """SELECT id, name, org_type FROM organizations WHERE id=%s""",
+            (user["organization_id"],)
+        )
+        org_data = cur.fetchone()
+
+        # ユーザーが属しているクライアントを取得
+        cur.execute(
+            """SELECT id, name FROM clients WHERE org_id=%s AND id IN (
+                   SELECT client_id FROM users WHERE id=%s AND client_id IS NOT NULL
+               )""",
+            (user["organization_id"], user["id"])
+        )
+        user_clients = cur.fetchall() or []
+
         conn.close()
 
-        # トークン生成
-        token = generate_token(user["id"], user["organization_id"])
-
+        # トークンは未生成。select エンドポイントで生成する
         return success_response({
             "user_id": user["id"],
-            "organization_id": user["organization_id"],
             "email": email,
-            "token": token
+            "organization": {
+                "id": org_data["id"],
+                "name": org_data["name"],
+                "org_type": org_data.get("org_type") or "company"
+            },
+            "user_clients": [{"id": str(c["id"]), "name": c["name"]} for c in user_clients]
         })
 
     except Exception as e:
         logger.error(f"Login error: {e}")
         return error_response(str(e)), 500
+
+@auth_bp.route("/select", methods=["POST"])
+def select_organization():
+    """organization/client を選択してトークンを取得"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get("user_id")
+        org_id = data.get("organization_id")
+        client_id = data.get("client_id")  # Optional
+
+        if not user_id or not org_id:
+            return error_response("user_id and organization_id required", 400)
+
+        conn = get_db_connection()
+        cur = get_db_cursor(conn)
+
+        # ユーザー確認
+        cur.execute(
+            "SELECT id, organization_id FROM users WHERE id=%s AND organization_id=%s",
+            (user_id, org_id)
+        )
+        user = cur.fetchone()
+        if not user:
+            conn.close()
+            return error_response("Invalid user or organization"), 401
+
+        # client_id が指定されている場合、ユーザーがそのclientに属するか確認
+        if client_id:
+            cur.execute(
+                """SELECT id FROM clients
+                   WHERE id=%s AND org_id=%s AND id IN (
+                       SELECT client_id FROM users WHERE id=%s
+                   )""",
+                (client_id, org_id, user_id)
+            )
+            if not cur.fetchone():
+                conn.close()
+                return error_response("User does not belong to this client", 403)
+
+        conn.close()
+
+        # トークン生成（client_id は後で別途保存）
+        token = generate_token(user_id, org_id)
+
+        return success_response({
+            "token": token,
+            "user_id": user_id,
+            "organization_id": org_id,
+            "client_id": client_id
+        })
+
+    except Exception as e:
+        logger.error(f"Select organization error: {e}")
+        return error_response(str(e)), 500
+
 
 @auth_bp.route("/me", methods=["GET"])
 @require_auth
