@@ -24,7 +24,7 @@ _VALID_PLANS = {p["id"] for p in PLAN_INFO}
 
 
 def ensure_billing_columns():
-    """organizations テーブルに課金カラムを追加（冪等）"""
+    """organizations テーブルに課金カラムを追加（冪等・既存カラムはスキップ）"""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -32,8 +32,8 @@ def ensure_billing_columns():
             ALTER TABLE organizations
             ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255),
             ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS billing_status VARCHAR(50) DEFAULT 'trial',
-            ADD COLUMN IF NOT EXISTS billing_plan VARCHAR(50),
+            ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(50) DEFAULT 'trial',
+            ADD COLUMN IF NOT EXISTS plan VARCHAR(50),
             ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP
         """)
         conn.commit()
@@ -87,7 +87,7 @@ def get_billing_status():
         cur = get_db_cursor(conn)
 
         cur.execute(
-            """SELECT billing_status, billing_plan, trial_ends_at,
+            """SELECT subscription_status, plan, trial_ends_at,
                       stripe_customer_id, stripe_subscription_id
                FROM organizations WHERE id=%s""",
             (org_id,)
@@ -99,8 +99,8 @@ def get_billing_status():
             return error_response("Organization not found"), 404
 
         return success_response({
-            "billing_status": org.get("billing_status") or "trial",
-            "billing_plan": org.get("billing_plan"),
+            "billing_status": org.get("subscription_status") or "trial",
+            "billing_plan": org.get("plan"),
             "trial_ends_at": org["trial_ends_at"].isoformat() if org.get("trial_ends_at") else None,
             "has_subscription": bool(org.get("stripe_subscription_id")),
         })
