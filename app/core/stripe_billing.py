@@ -59,6 +59,7 @@ def create_checkout_session(plan: str, org_id: int,
     if existing_customer_id:
         # 既存顧客 → 登録済みカードを使用、トライアルなし
         params["customer"] = existing_customer_id
+        params["customer_update"] = {"address": "auto"}
     else:
         # 新規顧客 → 30日トライアル付き
         params["subscription_data"]["trial_period_days"] = 30
