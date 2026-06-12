@@ -14,7 +14,7 @@ BASE_URL = os.environ.get("BASE_URL", "https://nextaccount.jp")
 
 PLAN_INFO = [
     {"id": "starter",  "name": "Starter",  "price_jpy": 980,  "receipts": 30,  "description": "30枚/月・人数無制限"},
-    {"id": "standard", "name": "Standard", "price_jpy": 1980, "receipts": 100, "description": "100枚/月・人数無制限"},
+    {"id": "growth",   "name": "Growth",   "price_jpy": 1980, "receipts": 100, "description": "100枚/月・人数無制限"},
     {"id": "business", "name": "Business", "price_jpy": 5980, "receipts": -1,  "description": "枚数無制限・人数無制限"},
 ]
 

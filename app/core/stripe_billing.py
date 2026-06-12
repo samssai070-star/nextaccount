@@ -14,14 +14,14 @@ def _get_stripe():
     return stripe
 
 PRICE_MAP = {
-    "starter":  os.environ.get("STRIPE_PRICE_STARTER",  ""),
-    "standard": os.environ.get("STRIPE_PRICE_STANDARD", ""),
-    "business": os.environ.get("STRIPE_PRICE_BUSINESS", ""),
+    "starter":  os.environ.get("STRIPE_PRICE_STARTER",  "price_1TJxjv2OmS24DsZ6cl61EvrQ"),
+    "growth":   os.environ.get("STRIPE_PRICE_GROWTH",   "price_1TJxm32OmS24DsZ6oscLLktA"),
+    "business": os.environ.get("STRIPE_PRICE_BUSINESS", "price_1TJxko2OmS24DsZ6yCeNpOPI"),
 }
 
 PLAN_NAMES = {
     "starter":  "Starter スタータープラン",
-    "standard": "Standard スタンダードプラン",
+    "growth":   "Growth グロースプラン",
     "business": "Business ビジネスプラン",
 }
 
