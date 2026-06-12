@@ -139,6 +139,57 @@
         .signup-link a:hover {
             text-decoration: underline;
         }
+        .org-selector {
+            display: none;
+        }
+        .org-selector h2 {
+            margin-bottom: 20px;
+        }
+        .org-list {
+            margin-bottom: 20px;
+        }
+        .org-item {
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .org-item:hover {
+            border-color: #0052cc;
+            background: #f8faff;
+        }
+        .org-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        .org-type {
+            font-size: 12px;
+            color: #999;
+        }
+        .client-list {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .client-item {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .client-item:hover {
+            border-color: #0052cc;
+            background: #f8faff;
+        }
+        .client-item.selected {
+            border-color: #0052cc;
+            background: #eef3ff;
+        }
         .alert {
             padding: 12px;
             border-radius: 4px;
@@ -211,6 +262,13 @@
             <p>ログイン中...</p>
         </div>
 
+        <div class="org-selector" id="orgSelector">
+            <h2>組織を選択</h2>
+            <div id="orgListContainer"></div>
+            <button type="button" class="btn btn-primary" onclick="proceedWithSelection()">進む</button>
+            <button type="button" class="btn btn-primary" style="background:#999" onclick="backToLogin()">戻る</button>
+        </div>
+
         <div class="links">
             <a href="#">パスワードをお忘れですか？</a>
         </div>
@@ -230,6 +288,12 @@
         const submitBtn = document.getElementById('submitBtn');
         const loading = document.getElementById('loading');
         const errorAlert = document.getElementById('errorAlert');
+        const orgSelector = document.getElementById('orgSelector');
+        const loginFormDiv = document.getElementById('loginForm').parentElement.parentElement;
+
+        let currentUser = null;
+        let selectedOrg = null;
+        let selectedClient = null;
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -260,14 +324,13 @@
                     throw new Error(result.error || 'ログインに失敗しました');
                 }
 
-                // Save token
-                const token = result.data.token;
-                localStorage.setItem('authToken', token);
-                localStorage.setItem('userId', result.data.user_id);
-                localStorage.setItem('organizationId', result.data.organization_id);
-
-                // Redirect to dashboard
-                window.location.href = '/dashboard.html';
+                currentUser = result.data;
+                loading.style.display = 'none';
+                form.style.display = 'none';
+                document.querySelector('.links').style.display = 'none';
+                document.querySelector('.signup-link').style.display = 'none';
+                document.querySelector('h2').style.display = 'none';
+                showOrgSelector();
 
             } catch (error) {
                 showError(error.message);
@@ -275,6 +338,93 @@
                 loading.style.display = 'none';
             }
         });
+
+        function showOrgSelector() {
+            const container = document.getElementById('orgListContainer');
+            const org = currentUser.organization;
+            let html = `
+                <div class="org-item" onclick="selectOrg('${org.id}', '${org.name}', '${org.org_type}')">
+                    <div class="org-name">${org.name}</div>
+                    <div class="org-type">${org.org_type === 'firm' ? '会計事務所' : '一般企業'}</div>
+            `;
+
+            if (currentUser.user_clients && currentUser.user_clients.length > 0) {
+                html += '<div class="client-list"><strong>顧問先:</strong>';
+                currentUser.user_clients.forEach(c => {
+                    html += `<div class="client-item" onclick="selectClient(event, '${c.id}')">${c.name}</div>`;
+                });
+                html += '</div>';
+            }
+            html += '</div>';
+
+            container.innerHTML = html;
+            orgSelector.style.display = 'block';
+        }
+
+        function selectOrg(id, name, orgType) {
+            selectedOrg = { id, name, orgType };
+            selectedClient = null;
+            document.querySelectorAll('.client-item').forEach(el => el.classList.remove('selected'));
+        }
+
+        function selectClient(event, clientId) {
+            event.stopPropagation();
+            document.querySelectorAll('.client-item').forEach(el => el.classList.remove('selected'));
+            event.target.closest('.client-item').classList.add('selected');
+            selectedClient = clientId;
+        }
+
+        async function proceedWithSelection() {
+            if (!selectedOrg) {
+                alert('組織を選択してください');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/auth/select', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: currentUser.user_id,
+                        organization_id: selectedOrg.id,
+                        client_id: selectedClient
+                    })
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.error || '選択に失敗しました');
+                }
+
+                // Save token
+                localStorage.setItem('authToken', result.data.token);
+                localStorage.setItem('userId', result.data.user_id);
+                localStorage.setItem('organizationId', result.data.organization_id);
+                if (result.data.client_id) {
+                    localStorage.setItem('clientId', result.data.client_id);
+                }
+
+                // Redirect to dashboard
+                window.location.href = '/dashboard.html';
+
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        function backToLogin() {
+            currentUser = null;
+            selectedOrg = null;
+            selectedClient = null;
+            form.style.display = 'block';
+            document.querySelector('.links').style.display = 'flex';
+            document.querySelector('.signup-link').style.display = 'block';
+            document.querySelector('h2').style.display = 'block';
+            orgSelector.style.display = 'none';
+            submitBtn.disabled = false;
+            document.getElementById('email').value = '';
+            document.getElementById('password').value = '';
+        }
 
         function showError(message) {
             errorAlert.textContent = message;
