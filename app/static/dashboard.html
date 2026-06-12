@@ -523,6 +523,7 @@
 
         let orgType = 'company';
         let editingClientId = null;
+        let editingClientData = null;
         let currentPlanId = null;
         const PLANS = [
             {id: 'starter',  name: 'Starter',  price: '¥980/月',   receipts: '30枚/月',  desc: 'OCR+AI分類・Slack承認・Google Sheets連携'},
@@ -788,7 +789,7 @@
                     <table class="clients-table">
                         <thead><tr><th>顧問先名</th><th>法人番号</th><th>電話</th><th>業種</th><th>状態</th><th></th></tr></thead>
                         <tbody>
-                            ${data.data.map(c => `
+                            ${data.data.map((c, idx) => `
                                 <tr>
                                     <td><strong>${c.name}</strong><br><span style="color:#999;font-size:12px">${c.address||'住所未設定'}</span></td>
                                     <td style="font-size:13px">${c.corporate_number || '-'}</td>
@@ -796,15 +797,26 @@
                                     <td style="font-size:13px">${c.industry || '-'}</td>
                                     <td><span class="${c.is_active ? 'badge-active' : 'badge-inactive'}">${c.is_active ? '有効' : '無効'}</span></td>
                                     <td style="text-align:right; white-space:nowrap;">
-                                        <button class="btn-link" onclick="openClientModal('${c.id}',${JSON.stringify(c).replace(/'/g,"&#39;")})">編集</button>
-                                        ${c.is_active ? `<button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deactivateClient('${c.id}')">無効化</button>` : ''}
+                                        <button class="btn-link" onclick="editClient('${c.id}')">編集</button>
+                                        ${c.is_active ? `<button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deactivateClient('${c.id}')">無効化</button>` : `<button class="btn-link" style="color:#2da44e;margin-left:8px" onclick="reactivateClient('${c.id}')">再有効化</button>`}
+                                        <button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deleteClient('${c.id}')">削除</button>
                                     </td>
                                 </tr>`).join('')}
                         </tbody>
                     </table>`;
+                // Store data for editing
+                window.clientsData = data.data;
             } catch (e) {
                 document.getElementById('clientsList').innerHTML = '<p style="color:#e53e3e;padding:12px">読み込みに失敗しました</p>';
             }
+        }
+
+        function editClient(id) {
+            const clientData = window.clientsData.find(c => c.id === id);
+            if (!clientData) { alert('データが見つかりません'); return; }
+            editingClientId = id;
+            editingClientData = clientData;
+            openClientModal(id, clientData);
         }
 
         function openClientModal(id, data) {
@@ -892,11 +904,39 @@
             if (!confirm('この顧問先を無効化しますか？')) return;
             try {
                 const res = await fetch(`/api/clients/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: false })
+                });
+                const data = await res.json();
+                if (!data.success) { alert(data.error || '失敗しました'); return; }
+                loadClients();
+            } catch (e) { alert('エラー: ' + e.message); }
+        }
+
+        async function reactivateClient(id) {
+            if (!confirm('この顧問先を再有効化しますか？')) return;
+            try {
+                const res = await fetch(`/api/clients/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: true })
+                });
+                const data = await res.json();
+                if (!data.success) { alert(data.error || '失敗しました'); return; }
+                loadClients();
+            } catch (e) { alert('エラー: ' + e.message); }
+        }
+
+        async function deleteClient(id) {
+            if (!confirm('この顧問先を完全に削除しますか？（この操作は取り消せません）')) return;
+            try {
+                const res = await fetch(`/api/clients/${id}`, {
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await res.json();
-                if (!data.success) { alert(data.error || '失敗しました'); return; }
+                if (!data.success) { alert(data.error || '削除に失敗しました'); return; }
                 loadClients();
             } catch (e) { alert('エラー: ' + e.message); }
         }

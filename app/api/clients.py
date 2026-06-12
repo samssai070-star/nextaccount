@@ -190,13 +190,13 @@ def update_client(client_id):
 @clients_bp.route("/<client_id>", methods=["DELETE"])
 @require_auth
 def delete_client(client_id):
-    """顧問先を無効化（ソフトデリート）"""
+    """顧問先を完全削除（ハードデリート）"""
     try:
         org_id = request.organization_id
         conn = get_db_connection()
         cur = get_db_cursor(conn)
         cur.execute(
-            "UPDATE clients SET is_active=FALSE, updated_at=NOW() WHERE id=%s AND org_id=%s RETURNING id",
+            "DELETE FROM clients WHERE id=%s AND org_id=%s RETURNING id",
             (client_id, org_id)
         )
         if not cur.fetchone():
@@ -204,6 +204,7 @@ def delete_client(client_id):
             return error_response("顧問先が見つかりません", 404)
         conn.commit()
         conn.close()
+        logger.info(f"Client deleted: {client_id} (org: {org_id})")
         return success_response({"deleted": True})
     except Exception as e:
         logger.error(f"delete_client error: {e}")
