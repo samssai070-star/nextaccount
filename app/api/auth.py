@@ -144,7 +144,8 @@ def get_current_user():
 
         # ユーザー情報取得
         cur.execute(
-            """SELECT u.id, u.email, u.full_name, u.is_admin, o.name as organization_name
+            """SELECT u.id, u.email, u.full_name, u.is_admin,
+                      o.name as organization_name, o.org_type
                FROM users u
                JOIN organizations o ON u.organization_id = o.id
                WHERE u.id=%s AND u.organization_id=%s""",
@@ -162,7 +163,8 @@ def get_current_user():
             "full_name": user["full_name"],
             "organization_id": org_id,
             "organization_name": user["organization_name"],
-            "is_admin": user["is_admin"]
+            "is_admin": user["is_admin"],
+            "org_type": user.get("org_type") or "company",
         })
 
     except Exception as e:

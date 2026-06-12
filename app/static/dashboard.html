@@ -238,6 +238,27 @@
             gap: 10px;
         }
         .billing-btns { display: flex; gap: 8px; flex-shrink: 0; }
+        .clients-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .clients-table th { text-align: left; padding: 8px 12px; background: #f5f7fa; color: #666; font-size: 12px; text-transform: uppercase; border-bottom: 1px solid #e0e0e0; }
+        .clients-table td { padding: 12px; border-bottom: 1px solid #f0f0f0; color: #333; }
+        .clients-table tr:last-child td { border-bottom: none; }
+        .badge-active { background: #d4edda; color: #155724; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .badge-inactive { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #e0e0e0; }
+        .section-header h2 { margin: 0; border: none; padding: 0; font-size: 18px; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-overlay.open { display: flex; }
+        .modal { background: white; border-radius: 8px; padding: 24px; width: 100%; max-width: 440px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
+        .modal h3 { font-size: 16px; margin-bottom: 16px; color: #333; }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 13px; color: #555; margin-bottom: 4px; font-weight: 500; }
+        .form-group input, .form-group textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .form-group textarea { resize: vertical; min-height: 70px; }
+        .modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+        .btn-sm { padding: 6px 12px; font-size: 13px; }
+        .btn-danger { background: #e53e3e; color: white; border: none; border-radius: 4px; cursor: pointer; padding: 6px 12px; font-size: 13px; }
+        .btn-danger:hover { background: #c53030; }
+        .btn-link { background: none; border: none; color: #0052cc; cursor: pointer; font-size: 13px; text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -356,6 +377,36 @@
                 </div>
             </div>
 
+            <!-- Clients (firm only) -->
+            <div class="section" id="clientsSection" style="display:none;">
+                <div class="section-header">
+                    <h2>顧問先管理</h2>
+                    <button class="btn btn-sm" onclick="openClientModal()">+ 顧問先を追加</button>
+                </div>
+                <div id="clientsList">
+                    <div class="loading"><div class="spinner"></div><p>読み込み中...</p></div>
+                </div>
+            </div>
+
+            <!-- Add/Edit Client Modal -->
+            <div class="modal-overlay" id="clientModal">
+                <div class="modal">
+                    <h3 id="clientModalTitle">顧問先を追加</h3>
+                    <div class="form-group">
+                        <label>顧問先名 <span style="color:#e53e3e">*</span></label>
+                        <input type="text" id="clientName" placeholder="例：株式会社山田商事">
+                    </div>
+                    <div class="form-group">
+                        <label>備考</label>
+                        <textarea id="clientDesc" placeholder="担当者名・メモなど（任意）"></textarea>
+                    </div>
+                    <div class="modal-btns">
+                        <button class="btn btn-secondary btn-sm" onclick="closeClientModal()">キャンセル</button>
+                        <button class="btn btn-sm" onclick="saveClient()">保存</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Actions -->
             <div class="section">
                 <h2>クイックアクション</h2>
@@ -373,6 +424,8 @@
         const userId = localStorage.getItem('userId');
         const orgId = localStorage.getItem('organizationId');
 
+        let orgType = 'company';
+        let editingClientId = null;
         let currentPlanId = null;
         const PLANS = [
             {id: 'starter',  name: 'Starter',  price: '¥980/月',   receipts: '30枚/月',  desc: 'OCR+AI分類・Slack承認・Google Sheets連携'},
@@ -403,6 +456,11 @@
                     document.getElementById('userName').textContent = user.full_name;
                     document.getElementById('orgName').textContent = user.organization_name;
                     document.getElementById('displayOrgName').textContent = user.organization_name;
+                    orgType = user.org_type || 'company';
+                    if (orgType === 'firm') {
+                        document.getElementById('clientsSection').style.display = 'block';
+                        loadClients();
+                    }
                 }
 
                 // Load summary
@@ -613,6 +671,84 @@
 
         function contactSupport() {
             window.location.href = 'mailto:support@nextaccount.jp';
+        }
+
+        // ── 顧問先管理 ──────────────────────────────
+        async function loadClients() {
+            try {
+                const res = await fetch('/api/clients', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                const el = document.getElementById('clientsList');
+                if (!data.success || data.data.length === 0) {
+                    el.innerHTML = '<div class="empty-state"><div class="icon">🏢</div><p>顧問先がまだ登録されていません</p></div>';
+                    return;
+                }
+                el.innerHTML = `
+                    <table class="clients-table">
+                        <thead><tr><th>顧問先名</th><th>備考</th><th>状態</th><th></th></tr></thead>
+                        <tbody>
+                            ${data.data.map(c => `
+                                <tr>
+                                    <td><strong>${c.name}</strong></td>
+                                    <td style="color:#666">${c.description || '-'}</td>
+                                    <td><span class="${c.is_active ? 'badge-active' : 'badge-inactive'}">${c.is_active ? '有効' : '無効'}</span></td>
+                                    <td style="text-align:right; white-space:nowrap;">
+                                        <button class="btn-link" onclick="openClientModal('${c.id}','${c.name.replace(/'/g,"\\'")}','${(c.description||'').replace(/'/g,"\\'")}')">編集</button>
+                                        ${c.is_active ? `<button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deactivateClient('${c.id}')">無効化</button>` : ''}
+                                    </td>
+                                </tr>`).join('')}
+                        </tbody>
+                    </table>`;
+            } catch (e) {
+                document.getElementById('clientsList').innerHTML = '<p style="color:#e53e3e;padding:12px">読み込みに失敗しました</p>';
+            }
+        }
+
+        function openClientModal(id, name, desc) {
+            editingClientId = id || null;
+            document.getElementById('clientModalTitle').textContent = id ? '顧問先を編集' : '顧問先を追加';
+            document.getElementById('clientName').value = name || '';
+            document.getElementById('clientDesc').value = desc || '';
+            document.getElementById('clientModal').classList.add('open');
+        }
+
+        function closeClientModal() {
+            document.getElementById('clientModal').classList.remove('open');
+            editingClientId = null;
+        }
+
+        async function saveClient() {
+            const name = document.getElementById('clientName').value.trim();
+            if (!name) { alert('顧問先名を入力してください'); return; }
+            const body = { name, description: document.getElementById('clientDesc').value.trim() };
+            try {
+                const url = editingClientId ? `/api/clients/${editingClientId}` : '/api/clients';
+                const method = editingClientId ? 'PATCH' : 'POST';
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (!data.success) { alert(data.error || '保存に失敗しました'); return; }
+                closeClientModal();
+                loadClients();
+            } catch (e) { alert('エラー: ' + e.message); }
+        }
+
+        async function deactivateClient(id) {
+            if (!confirm('この顧問先を無効化しますか？')) return;
+            try {
+                const res = await fetch(`/api/clients/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (!data.success) { alert(data.error || '失敗しました'); return; }
+                loadClients();
+            } catch (e) { alert('エラー: ' + e.message); }
         }
 
         loadDashboard();

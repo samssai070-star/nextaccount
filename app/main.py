@@ -24,12 +24,14 @@ try:
     from api.slack_oauth import slack_bp
     from api.dashboard import dashboard_bp
     from api.billing import billing_bp, ensure_billing_columns
+    from api.clients import clients_bp
 
     flask_app.register_blueprint(auth_bp)
     flask_app.register_blueprint(setup_bp)
     flask_app.register_blueprint(slack_bp)
     flask_app.register_blueprint(dashboard_bp)
     flask_app.register_blueprint(billing_bp)
+    flask_app.register_blueprint(clients_bp)
     ensure_billing_columns()
     logger.info("API blueprints registered successfully")
 except ImportError as e:
