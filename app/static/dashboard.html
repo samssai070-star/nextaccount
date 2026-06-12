@@ -197,6 +197,44 @@
         .action-buttons .btn {
             flex: 1;
         }
+        .plan-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .plan-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 14px 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .plan-card:hover { border-color: #0052cc; background: #f8faff; }
+        .plan-card.selected { border-color: #0052cc; background: #eef3ff; }
+        .plan-card .plan-name { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 5px; }
+        .plan-card .plan-price { font-size: 13px; font-weight: 700; color: #0052cc; margin-bottom: 3px; }
+        .plan-card .plan-users { font-size: 11px; color: #555; margin-bottom: 3px; }
+        .plan-card .plan-desc { font-size: 10px; color: #999; }
+        .plan-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .plan-badge.trial { background: #fff3cd; color: #856404; }
+        .plan-badge.active { background: #d4edda; color: #155724; }
+        .plan-badge.canceled { background: #f8d7da; color: #721c24; }
+        .billing-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .billing-btns { display: flex; gap: 8px; flex-shrink: 0; }
     </style>
 </head>
 <body>
@@ -239,6 +277,32 @@
                     <div class="value" style="font-size: 16px; color: #27ae60;">
                         <span id="slackStatus">✓</span>
                     </div>
+                </div>
+            </div>
+
+            <!-- Billing Plan -->
+            <div class="section" id="billingSection">
+                <div class="billing-header">
+                    <div>
+                        <h2 style="margin-bottom: 5px;">課金プラン</h2>
+                        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                            <span style="font-size: 18px; font-weight: 700; color: #333;" id="currentPlanName">-</span>
+                            <span id="billingStatusBadge"></span>
+                            <span style="font-size: 12px; color: #888;" id="trialEndText"></span>
+                        </div>
+                    </div>
+                    <div class="billing-btns">
+                        <button class="btn" onclick="togglePlanSelector()">プランを変更</button>
+                        <button class="btn btn-secondary" onclick="manageStripe()">Stripe 管理</button>
+                    </div>
+                </div>
+
+                <div id="planSelector" style="display: none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+                    <div style="padding: 10px 14px; background: #e8f5e9; border-radius: 6px; margin-bottom: 12px; font-size: 13px; color: #2e7d32;">
+                        <strong>✓ 30日間 無料トライアル</strong> — 初回は30日間無料。クレジットカード登録後すぐに使えます。
+                    </div>
+                    <div class="plan-cards" id="planCards"></div>
+                    <button class="btn btn-secondary" onclick="togglePlanSelector()" style="margin-top: 12px; font-size: 13px; padding: 7px 14px;">キャンセル</button>
                 </div>
             </div>
 
@@ -308,6 +372,16 @@
         const token = localStorage.getItem('authToken');
         const userId = localStorage.getItem('userId');
         const orgId = localStorage.getItem('organizationId');
+
+        const PLANS = [
+            {id: 'micro',      name: 'Micro',      price: '¥2,980/月',  users: '最大3名',  desc: '小規模チーム向け'},
+            {id: 'starter',    name: 'Starter',    price: '¥5,980/月',  users: '最大5名',  desc: 'スタートアップ向け'},
+            {id: 'business',   name: 'Business',   price: '¥14,800/月', users: '最大15名', desc: '中小企業向け'},
+            {id: 'growth',     name: 'Growth',     price: '¥24,800/月', users: '最大25名', desc: '成長企業向け'},
+            {id: 'enterprise', name: 'Enterprise', price: '¥49,800/月', users: '無制限',   desc: '大企業向け'},
+        ];
+        let selectedPlan = null;
+        let planSelectorOpen = false;
 
         async function loadDashboard() {
             if (!token) {
@@ -397,6 +471,9 @@
                         '</ul>';
                 }
 
+                // Load billing status
+                loadBillingStatus(headers);
+
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('content').style.display = 'block';
 
@@ -406,6 +483,75 @@
                     '<p style="color: #e74c3c;">データを読み込めませんでした。<br>' +
                     '<a href="/login.html" style="color: #0052cc;">ログインに戻る</a></p>';
             }
+        }
+
+        async function loadBillingStatus(hdrs) {
+            try {
+                const res = await fetch('/api/billing/status', { headers: hdrs });
+                const data = await res.json();
+                if (!data.success) return;
+                const b = data.data;
+
+                const planObj = PLANS.find(p => p.id === b.billing_plan);
+                document.getElementById('currentPlanName').textContent =
+                    planObj ? planObj.name : (b.billing_plan || 'プラン未設定');
+
+                const badgeEl = document.getElementById('billingStatusBadge');
+                const status = b.billing_status || 'trial';
+                const labels = { trial: '無料トライアル中', active: '有効', canceled: 'キャンセル済み' };
+                badgeEl.innerHTML = `<span class="plan-badge ${status}">${labels[status] || status}</span>`;
+
+                if (b.trial_ends_at) {
+                    const d = new Date(b.trial_ends_at);
+                    document.getElementById('trialEndText').textContent =
+                        `トライアル終了: ${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+                }
+            } catch (e) {
+                console.error('billing status error:', e);
+            }
+        }
+
+        function togglePlanSelector() {
+            planSelectorOpen = !planSelectorOpen;
+            document.getElementById('planSelector').style.display = planSelectorOpen ? 'block' : 'none';
+            if (planSelectorOpen) renderPlanCards();
+        }
+
+        function renderPlanCards() {
+            const container = document.getElementById('planCards');
+            if (!container) return;
+            container.innerHTML = PLANS.map(p => `
+                <div class="plan-card ${selectedPlan === p.id ? 'selected' : ''}" onclick="startCheckout('${p.id}')">
+                    <div class="plan-name">${p.name}</div>
+                    <div class="plan-price">${p.price}</div>
+                    <div class="plan-users">${p.users}</div>
+                    <div class="plan-desc">${p.desc}</div>
+                </div>
+            `).join('');
+        }
+
+        async function startCheckout(planId) {
+            selectedPlan = planId;
+            renderPlanCards();
+            try {
+                const resp = await fetch('/api/billing/create-checkout', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan: planId })
+                });
+                const d = await resp.json();
+                if (d.success && d.data && d.data.checkout_url) {
+                    window.location.href = d.data.checkout_url;
+                } else {
+                    alert('Stripe が設定されていません。管理者にお問い合わせください。');
+                }
+            } catch (err) {
+                alert('エラー: ' + err.message);
+            }
+        }
+
+        function manageStripe() {
+            alert('Stripe カスタマーポータルは準備中です。');
         }
 
         function logout() {
