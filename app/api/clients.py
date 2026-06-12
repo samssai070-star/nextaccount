@@ -78,7 +78,7 @@ def create_client():
             "description": row.get("description") or "",
             "is_active": row["is_active"],
             "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
-        }), 201
+        }, 201)
     except Exception as e:
         logger.error(f"create_client error: {e}")
         return error_response(str(e), 500)
