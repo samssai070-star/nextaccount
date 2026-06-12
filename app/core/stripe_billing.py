@@ -14,24 +14,15 @@ def _get_stripe():
     return stripe
 
 PRICE_MAP = {
-    "micro":      os.environ.get("STRIPE_PRICE_MICRO", "price_1TJW8y2OmS24DsZ65PWRvxSF"),
-    "starter":    os.environ.get("STRIPE_PRICE_STARTER", "price_1TJWDT2OmS24DsZ6K1vEYfxk"),
-    "business":   os.environ.get("STRIPE_PRICE_BUSINESS", "price_1TJWEE2OmS24DsZ64PaJH0Zc"),
-    "growth":     os.environ.get("STRIPE_PRICE_GROWTH", "price_1TJWEr2OmS24DsZ6DfdOFO8I"),
-    "enterprise": os.environ.get("STRIPE_PRICE_ENTERPRISE", "price_1TJWFU2OmS24DsZ6T29SAmAM"),
+    "starter":  os.environ.get("STRIPE_PRICE_STARTER",  ""),
+    "standard": os.environ.get("STRIPE_PRICE_STANDARD", ""),
+    "business": os.environ.get("STRIPE_PRICE_BUSINESS", ""),
 }
 
 PLAN_NAMES = {
-    "micro":      "Micro マイクロプラン",
-    "starter":    "Starter スタータープラン",
-    "business":   "Business ビジネスプラン",
-    "growth":     "Growth グロースプラン",
-    "enterprise": "Enterprise エンタープライズプラン",
-}
-
-MAX_USERS = {
-    "micro": 3, "starter": 5, "business": 15,
-    "growth": 25, "enterprise": 999,
+    "starter":  "Starter スタータープラン",
+    "standard": "Standard スタンダードプラン",
+    "business": "Business ビジネスプラン",
 }
 
 def create_checkout_session(plan: str, org_id: int,

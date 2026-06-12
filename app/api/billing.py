@@ -13,11 +13,9 @@ billing_bp = Blueprint("billing", __name__, url_prefix="/api/billing")
 BASE_URL = os.environ.get("BASE_URL", "https://nextaccount.jp")
 
 PLAN_INFO = [
-    {"id": "micro",      "name": "Micro",      "price_jpy": 2980,  "users": 3,   "description": "小規模チーム向け（最大3名）"},
-    {"id": "starter",    "name": "Starter",    "price_jpy": 5980,  "users": 5,   "description": "スタートアップ向け（最大5名）"},
-    {"id": "business",   "name": "Business",   "price_jpy": 14800, "users": 15,  "description": "中小企業向け（最大15名）"},
-    {"id": "growth",     "name": "Growth",     "price_jpy": 24800, "users": 25,  "description": "成長企業向け（最大25名）"},
-    {"id": "enterprise", "name": "Enterprise", "price_jpy": 49800, "users": 999, "description": "大企業向け（無制限）"},
+    {"id": "starter",  "name": "Starter",  "price_jpy": 980,  "receipts": 30,  "description": "30枚/月・人数無制限"},
+    {"id": "standard", "name": "Standard", "price_jpy": 1980, "receipts": 100, "description": "100枚/月・人数無制限"},
+    {"id": "business", "name": "Business", "price_jpy": 5980, "receipts": -1,  "description": "枚数無制限・人数無制限"},
 ]
 
 _VALID_PLANS = {p["id"] for p in PLAN_INFO}
