@@ -127,6 +127,8 @@ def handle_webhook(payload: bytes, sig_header: str) -> dict:
             "customer_id": invoice.get("customer", ""),
             "subscription_id": invoice.get("subscription", ""),
             "amount_paid": invoice.get("amount_paid", 0),
+            "invoice_pdf": invoice.get("invoice_pdf", ""),
+            "invoice_url": invoice.get("hosted_invoice_url", ""),
             "status": "paid",
         })
 

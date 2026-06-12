@@ -164,6 +164,17 @@ support@nextaccount.jp
         return jsonify({"error": "お問い合わせの送信に失敗しました"}), 500
 
 
+def _get_org_admin_email(conn, org_id: int):
+    """組織の管理者メールアドレスを取得"""
+    from api.helpers import get_db_cursor
+    cur = get_db_cursor(conn)
+    cur.execute(
+        "SELECT email, full_name FROM users WHERE organization_id=%s AND is_admin=TRUE LIMIT 1",
+        (org_id,)
+    )
+    return cur.fetchone()
+
+
 @flask_app.route("/webhook/stripe", methods=["POST"])
 def stripe_webhook():
     try:
@@ -186,20 +197,24 @@ def stripe_webhook():
             mode = event.get("mode", "")
 
             if org_id:
-                from api.helpers import get_db_connection, get_db_cursor
+                from api.helpers import get_db_connection
                 conn = get_db_connection()
+                user = _get_org_admin_email(conn, org_id)
+                from api.helpers import get_db_cursor
                 cur = get_db_cursor(conn)
                 if mode == "setup":
-                    # カード登録のみ（プラン変更なし）
                     cur.execute(
                         """UPDATE organizations
                            SET stripe_customer_id=%s, updated_at=CURRENT_TIMESTAMP
                            WHERE id=%s""",
                         (customer_id, org_id)
                     )
-                    logger.info(f"Card registered: org_id={org_id} customer_id={customer_id}")
+                    conn.commit()
+                    conn.close()
+                    logger.info(f"Card registered: org_id={org_id}")
+                    if user:
+                        _send_card_registered_email(user["email"], user["full_name"])
                 else:
-                    # サブスクリプション契約
                     cur.execute(
                         """UPDATE organizations
                            SET subscription_status='active', plan=%s,
@@ -208,9 +223,33 @@ def stripe_webhook():
                            WHERE id=%s""",
                         (plan, customer_id, subscription_id, org_id)
                     )
+                    conn.commit()
+                    conn.close()
                     logger.info(f"Stripe checkout completed: org_id={org_id} plan={plan}")
-                conn.commit()
+
+        elif event_type == "invoice.payment_succeeded":
+            subscription_id = event.get("subscription_id", "")
+            invoice_pdf = event.get("invoice_pdf", "")
+            invoice_url = event.get("invoice_url", "")
+            amount_paid = event.get("amount_paid", 0)
+            if subscription_id and invoice_pdf:
+                from api.helpers import get_db_connection, get_db_cursor
+                conn = get_db_connection()
+                cur = get_db_cursor(conn)
+                cur.execute(
+                    """SELECT o.id, u.email, u.full_name, o.plan
+                       FROM organizations o
+                       JOIN users u ON u.organization_id = o.id AND u.is_admin = TRUE
+                       WHERE o.stripe_subscription_id=%s LIMIT 1""",
+                    (subscription_id,)
+                )
+                row = cur.fetchone()
                 conn.close()
+                if row:
+                    _send_invoice_email(
+                        row["email"], row["full_name"],
+                        row["plan"], amount_paid, invoice_pdf, invoice_url
+                    )
 
         elif event_type == "customer.subscription.deleted":
             subscription_id = event.get("subscription_id", "")
@@ -233,6 +272,56 @@ def stripe_webhook():
     except Exception as e:
         logger.error(f"Stripe webhook error: {e}")
         return jsonify({"error": str(e)}), 400
+
+
+def _send_card_registered_email(to_email: str, full_name: str):
+    subject = "【NextAccount】支払い方法の登録が完了しました"
+    body = f"""{full_name} 様
+
+NextAccount をご利用いただきありがとうございます。
+
+クレジットカードの登録が正常に完了しました。
+今後のプラン変更時にカード情報の再入力は不要です。
+
+ご不明な点がございましたら、サポートまでお問い合わせください。
+
+---
+NextAccount サポートチーム
+support@nextaccount.jp
+"""
+    send_email(to_email, subject, body)
+    logger.info(f"Card registration email sent to {to_email}")
+
+
+def _send_invoice_email(to_email: str, full_name: str, plan: str,
+                        amount_paid: int, invoice_pdf: str, invoice_url: str):
+    plan_names = {"starter": "Starter", "standard": "Standard", "business": "Business"}
+    plan_label = plan_names.get(plan, plan)
+    amount_str = f"¥{amount_paid // 100:,}" if amount_paid else ""
+    subject = f"【NextAccount】{datetime.now().strftime('%Y年%m月')}分の請求書"
+    body = f"""{full_name} 様
+
+いつも NextAccount をご利用いただきありがとうございます。
+
+今月分の請求書が発行されました。
+
+【プラン】{plan_label}
+【金額】{amount_str}
+
+▼ 請求書PDF をダウンロード
+{invoice_pdf}
+
+▼ 請求書をブラウザで確認
+{invoice_url}
+
+---
+NextAccount サポートチーム
+support@nextaccount.jp
+"""
+    send_email(to_email, subject, body)
+    logger.info(f"Invoice email sent to {to_email}")
+
+
 
 
 def _write_google_key_from_env():
