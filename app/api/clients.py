@@ -18,11 +18,18 @@ def _org_is_firm(conn, org_id: int) -> bool:
 @clients_bp.route("", methods=["GET"])
 @require_auth
 def list_clients():
-    """顧問先一覧を取得"""
+    """顧問先一覧を取得（firm のみ）"""
     try:
         org_id = request.organization_id
         conn = get_db_connection()
         cur = get_db_cursor(conn)
+
+        # org_type チェック
+        cur.execute("SELECT org_type FROM organizations WHERE id=%s", (org_id,))
+        org = cur.fetchone()
+        if not org or org.get("org_type") != "firm":
+            conn.close()
+            return error_response("この機能は会計事務所プランのみ利用できます", 403)
         cur.execute(
             """SELECT id, name, description, corporate_number, address, phone, industry,
                       employee_count, contact_person, is_active, created_at
@@ -56,7 +63,7 @@ def list_clients():
 @clients_bp.route("", methods=["POST"])
 @require_auth
 def create_client():
-    """顧問先を新規登録"""
+    """顧問先を新規登録（firm のみ）"""
     try:
         org_id = request.organization_id
         data = request.get_json() or {}
@@ -71,7 +78,10 @@ def create_client():
                 return error_response(f"{field} は必須です", 400)
 
         conn = get_db_connection()
-        if not _org_is_firm(conn, org_id):
+        cur = get_db_cursor(conn)
+        cur.execute("SELECT org_type FROM organizations WHERE id=%s", (org_id,))
+        org = cur.fetchone()
+        if not org or org.get("org_type") != "firm":
             conn.close()
             return error_response("この機能は会計事務所プランのみ利用できます", 403)
 
@@ -124,12 +134,19 @@ def create_client():
 @clients_bp.route("/<client_id>", methods=["PATCH"])
 @require_auth
 def update_client(client_id):
-    """顧問先情報を更新"""
+    """顧問先情報を更新（firm のみ）"""
     try:
         org_id = request.organization_id
         data = request.get_json() or {}
         conn = get_db_connection()
         cur = get_db_cursor(conn)
+
+        # org_type チェック
+        cur.execute("SELECT org_type FROM organizations WHERE id=%s", (org_id,))
+        org = cur.fetchone()
+        if not org or org.get("org_type") != "firm":
+            conn.close()
+            return error_response("この機能は会計事務所プランのみ利用できます", 403)
 
         updates = []
         values = []
@@ -190,11 +207,18 @@ def update_client(client_id):
 @clients_bp.route("/<client_id>", methods=["DELETE"])
 @require_auth
 def delete_client(client_id):
-    """顧問先を完全削除（ハードデリート）"""
+    """顧問先を完全削除（ハードデリート）（firm のみ）"""
     try:
         org_id = request.organization_id
         conn = get_db_connection()
         cur = get_db_cursor(conn)
+
+        # org_type チェック
+        cur.execute("SELECT org_type FROM organizations WHERE id=%s", (org_id,))
+        org = cur.fetchone()
+        if not org or org.get("org_type") != "firm":
+            conn.close()
+            return error_response("この機能は会計事務所プランのみ利用できます", 403)
         cur.execute(
             "DELETE FROM clients WHERE id=%s AND org_id=%s RETURNING id",
             (client_id, org_id)

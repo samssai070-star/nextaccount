@@ -46,9 +46,9 @@ def register():
         # ユーザーを作成
         password_hash = hash_password(password)
         cur.execute(
-            """INSERT INTO users (organization_id, email, password_hash, full_name, is_admin)
-               VALUES (%s, %s, %s, %s, %s) RETURNING id""",
-            (org_id, email, password_hash, user_name, True)
+            """INSERT INTO users (organization_id, email, password_hash, full_name, is_admin, role, client_id)
+               VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+            (org_id, email, password_hash, user_name, True, 'admin', None)
         )
         user_id = cur.fetchone()["id"]
 
@@ -144,7 +144,7 @@ def get_current_user():
 
         # ユーザー情報取得
         cur.execute(
-            """SELECT u.id, u.email, u.full_name, u.is_admin,
+            """SELECT u.id, u.email, u.full_name, u.is_admin, u.role, u.client_id,
                       o.name as organization_name, o.org_type
                FROM users u
                JOIN organizations o ON u.organization_id = o.id
@@ -164,6 +164,8 @@ def get_current_user():
             "organization_id": org_id,
             "organization_name": user["organization_name"],
             "is_admin": user["is_admin"],
+            "role": user.get("role") or "staff",
+            "client_id": user.get("client_id"),
             "org_type": user.get("org_type") or "company",
         })
 
