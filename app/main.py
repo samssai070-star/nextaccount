@@ -52,6 +52,11 @@ def root():
     return send_from_directory(flask_app.static_folder, "index.html")
 
 
+@flask_app.route("/favicon.svg")
+def favicon():
+    return send_from_directory(flask_app.static_folder, "favicon.svg")
+
+
 STATIC_EXTENSIONS = {'.html', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.css', '.js', '.woff', '.woff2', '.ttf'}
 
 @flask_app.route("/<path:filename>", methods=["GET"])
