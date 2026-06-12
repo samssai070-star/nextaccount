@@ -213,10 +213,13 @@
         }
         .plan-card:hover { border-color: #0052cc; background: #f8faff; }
         .plan-card.selected { border-color: #0052cc; background: #eef3ff; }
+        .plan-card.current-plan { border-color: #2da44e; background: #f0faf3; cursor: default; }
+        .plan-card.current-plan:hover { border-color: #2da44e; background: #f0faf3; }
         .plan-card .plan-name { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 5px; }
         .plan-card .plan-price { font-size: 13px; font-weight: 700; color: #0052cc; margin-bottom: 3px; }
         .plan-card .plan-users { font-size: 11px; color: #555; margin-bottom: 3px; }
         .plan-card .plan-desc { font-size: 10px; color: #999; }
+        .current-plan-label { font-size: 10px; font-weight: 700; color: #2da44e; margin-bottom: 4px; }
         .plan-badge {
             display: inline-block;
             padding: 3px 10px;
@@ -373,6 +376,7 @@
         const userId = localStorage.getItem('userId');
         const orgId = localStorage.getItem('organizationId');
 
+        let currentPlanId = null;
         const PLANS = [
             {id: 'starter',  name: 'Starter',  price: '¥980/月',   receipts: '30枚/月',  desc: 'OCR+AI分類・Slack承認・Google Sheets連携'},
             {id: 'standard', name: 'Standard', price: '¥1,980/月', receipts: '100枚/月', desc: 'T番号照合・消費税自動区分・RFC3161タイムスタンプ'},
@@ -490,9 +494,10 @@
                 if (!data.success) return;
                 const b = data.data;
 
-                const planObj = PLANS.find(p => p.id === b.billing_plan);
+                currentPlanId = b.billing_plan || null;
+                const planObj = PLANS.find(p => p.id === currentPlanId);
                 document.getElementById('currentPlanName').textContent =
-                    planObj ? planObj.name : (b.billing_plan || 'プラン未設定');
+                    planObj ? planObj.name : (currentPlanId || 'プラン未設定');
 
                 const badgeEl = document.getElementById('billingStatusBadge');
                 const status = b.billing_status || 'trial';
@@ -518,14 +523,20 @@
         function renderPlanCards() {
             const container = document.getElementById('planCards');
             if (!container) return;
-            container.innerHTML = PLANS.map(p => `
-                <div class="plan-card ${selectedPlan === p.id ? 'selected' : ''}" onclick="startCheckout('${p.id}')">
+            container.innerHTML = PLANS.map(p => {
+                const isCurrent = p.id === currentPlanId;
+                const isSelected = p.id === selectedPlan;
+                const cls = isCurrent ? 'current-plan' : (isSelected ? 'selected' : '');
+                const onclick = isCurrent ? '' : `onclick="startCheckout('${p.id}')"`;
+                return `
+                <div class="plan-card ${cls}" ${onclick}>
+                    ${isCurrent ? '<div class="current-plan-label">✓ 現在のプラン</div>' : ''}
                     <div class="plan-name">${p.name}</div>
                     <div class="plan-price">${p.price}</div>
                     <div class="plan-users">${p.receipts}</div>
                     <div class="plan-desc">${p.desc}</div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         }
 
         async function startCheckout(planId) {
