@@ -294,9 +294,8 @@
                             <span style="font-size: 12px; color: #888;" id="trialEndText"></span>
                         </div>
                     </div>
-                    <div class="billing-btns">
-                        <button class="btn" onclick="togglePlanSelector()">プランを変更</button>
-                        <button class="btn btn-secondary" onclick="manageStripe()">Stripe 管理</button>
+                    <div class="billing-btns" id="billingBtns">
+                        <!-- JS で動的に生成 -->
                     </div>
                 </div>
 
@@ -493,19 +492,33 @@
                 const b = data.data;
 
                 currentPlanId = b.billing_plan || null;
+                const status = b.billing_status || 'trial';
                 const planObj = PLANS.find(p => p.id === currentPlanId);
+
                 document.getElementById('currentPlanName').textContent =
                     planObj ? planObj.name : (currentPlanId || 'プラン未設定');
 
-                const badgeEl = document.getElementById('billingStatusBadge');
-                const status = b.billing_status || 'trial';
                 const labels = { trial: '無料トライアル中', active: '有効', canceled: 'キャンセル済み' };
-                badgeEl.innerHTML = `<span class="plan-badge ${status}">${labels[status] || status}</span>`;
+                document.getElementById('billingStatusBadge').innerHTML =
+                    `<span class="plan-badge ${status}">${labels[status] || status}</span>`;
 
                 if (b.trial_ends_at) {
                     const d = new Date(b.trial_ends_at);
                     document.getElementById('trialEndText').textContent =
                         `トライアル終了: ${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+                }
+
+                // ボタンをステータスに応じて生成
+                const btns = document.getElementById('billingBtns');
+                if (status === 'trial' && !currentPlanId) {
+                    btns.innerHTML = `<button class="btn" onclick="togglePlanSelector()">プランを選択してカードを登録</button>`;
+                } else if (status === 'canceled') {
+                    btns.innerHTML = `<button class="btn" onclick="togglePlanSelector()">プランを再登録</button>`;
+                } else {
+                    btns.innerHTML = `
+                        <button class="btn" onclick="togglePlanSelector()">プランを変更</button>
+                        ${b.has_subscription ? '<button class="btn btn-secondary" onclick="manageStripe()">💳 支払い方法を管理</button>' : ''}
+                    `;
                 }
             } catch (e) {
                 console.error('billing status error:', e);

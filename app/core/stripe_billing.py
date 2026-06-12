@@ -26,21 +26,21 @@ PLAN_NAMES = {
 }
 
 def create_checkout_session(plan: str, org_id: int,
-                             success_url: str, cancel_url: str) -> str:
+                             success_url: str, cancel_url: str,
+                             existing_customer_id: str | None = None) -> str:
     """
     Stripe Checkoutセッションを作成してURLを返す。
-    30日間の無料トライアル付き。
+    既存顧客がいればカード再入力なし。初回のみ30日間トライアル付き。
     """
     s = _get_stripe()
     price_id = PRICE_MAP.get(plan.lower())
     if not price_id:
         raise ValueError(f"不明なプラン: {plan}")
 
-    session = s.checkout.Session.create(
+    params = dict(
         mode="subscription",
         line_items=[{"price": price_id, "quantity": 1}],
         subscription_data={
-            "trial_period_days": 30,
             "metadata": {
                 "org_id": str(org_id),
                 "plan": plan,
@@ -55,6 +55,15 @@ def create_checkout_session(plan: str, org_id: int,
         cancel_url=cancel_url,
         locale="ja",
     )
+
+    if existing_customer_id:
+        # 既存顧客 → 登録済みカードを使用、トライアルなし
+        params["customer"] = existing_customer_id
+    else:
+        # 新規顧客 → 30日トライアル付き
+        params["subscription_data"]["trial_period_days"] = 30
+
+    session = s.checkout.Session.create(**params)
     logger.info(f"Checkoutセッション作成: {session.id} plan={plan} org_id={org_id}")
     return session.url
 

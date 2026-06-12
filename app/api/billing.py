@@ -60,10 +60,18 @@ def create_checkout():
 
         org_id = request.organization_id
         success_url = f"{BASE_URL}/dashboard.html"
-        cancel_url = f"{BASE_URL}/setup.html?step=5"
+        cancel_url = f"{BASE_URL}/dashboard.html"
+
+        # 既存の Stripe 顧客 ID を取得（あればカード再入力不要）
+        conn = get_db_connection()
+        cur = get_db_cursor(conn)
+        cur.execute("SELECT stripe_customer_id FROM organizations WHERE id=%s", (org_id,))
+        org = cur.fetchone()
+        conn.close()
+        existing_customer_id = org.get("stripe_customer_id") if org else None
 
         from core.stripe_billing import create_checkout_session
-        checkout_url = create_checkout_session(plan, org_id, success_url, cancel_url)
+        checkout_url = create_checkout_session(plan, org_id, success_url, cancel_url, existing_customer_id)
 
         return success_response({"checkout_url": checkout_url})
 
