@@ -104,6 +104,7 @@ def manage_card():
             session = s.checkout.Session.create(
                 mode="setup",
                 customer=customer_id,
+                payment_method_types=["card"],
                 success_url=f"{BASE_URL}/dashboard.html?card=updated",
                 cancel_url=f"{BASE_URL}/dashboard.html",
                 locale="ja",
