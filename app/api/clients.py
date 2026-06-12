@@ -24,7 +24,8 @@ def list_clients():
         conn = get_db_connection()
         cur = get_db_cursor(conn)
         cur.execute(
-            """SELECT id, name, description, is_active, created_at
+            """SELECT id, name, description, corporate_number, address, phone, industry,
+                      employee_count, contact_person, is_active, created_at
                FROM clients WHERE org_id=%s ORDER BY name""",
             (org_id,)
         )
@@ -35,6 +36,12 @@ def list_clients():
                 "id": str(r["id"]),
                 "name": r["name"],
                 "description": r.get("description") or "",
+                "corporate_number": r.get("corporate_number") or "",
+                "address": r.get("address") or "",
+                "phone": r.get("phone") or "",
+                "industry": r.get("industry") or "",
+                "employee_count": r.get("employee_count"),
+                "contact_person": r.get("contact_person") or "",
                 "is_active": r["is_active"],
                 "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
             }
@@ -57,6 +64,12 @@ def create_client():
         if not name:
             return error_response("顧問先名は必須です", 400)
 
+        # 必須フィールド確認
+        required = ["corporate_number", "address", "phone", "industry", "employee_count", "contact_person"]
+        for field in required:
+            if not data.get(field):
+                return error_response(f"{field} は必須です", 400)
+
         conn = get_db_connection()
         if not _org_is_firm(conn, org_id):
             conn.close()
@@ -64,10 +77,28 @@ def create_client():
 
         cur = get_db_cursor(conn)
         cur.execute(
-            """INSERT INTO clients (org_id, name, description)
-               VALUES (%s, %s, %s)
-               RETURNING id, name, description, is_active, created_at""",
-            (org_id, name, (data.get("description") or "").strip())
+            """INSERT INTO clients
+               (org_id, name, description, corporate_number, address, phone, industry,
+                employee_count, contact_person, fiscal_month, tax_type, contract_start_date,
+                accountant_name, monthly_fee, bank_name, representative_name, contact_email)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               RETURNING id, name, description, corporate_number, address, phone, industry,
+                         employee_count, contact_person, is_active, created_at""",
+            (org_id, name, (data.get("description") or "").strip(),
+             (data.get("corporate_number") or "").strip(),
+             (data.get("address") or "").strip(),
+             (data.get("phone") or "").strip(),
+             (data.get("industry") or "").strip(),
+             int(data.get("employee_count") or 0),
+             (data.get("contact_person") or "").strip(),
+             int(data.get("fiscal_month") or 0) or None,
+             (data.get("tax_type") or "").strip() or None,
+             data.get("contract_start_date") or None,
+             (data.get("accountant_name") or "").strip() or None,
+             int(data.get("monthly_fee") or 0) or None,
+             (data.get("bank_name") or "").strip() or None,
+             (data.get("representative_name") or "").strip() or None,
+             (data.get("contact_email") or "").strip() or None)
         )
         row = cur.fetchone()
         conn.commit()
@@ -76,6 +107,12 @@ def create_client():
             "id": str(row["id"]),
             "name": row["name"],
             "description": row.get("description") or "",
+            "corporate_number": row.get("corporate_number") or "",
+            "address": row.get("address") or "",
+            "phone": row.get("phone") or "",
+            "industry": row.get("industry") or "",
+            "employee_count": row.get("employee_count"),
+            "contact_person": row.get("contact_person") or "",
             "is_active": row["is_active"],
             "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
         }, 201)
@@ -96,19 +133,38 @@ def update_client(client_id):
 
         updates = []
         values = []
-        if "name" in data:
-            name = data["name"].strip()
-            if not name:
-                conn.close()
-                return error_response("顧問先名は必須です", 400)
-            updates.append("name=%s")
-            values.append(name)
-        if "description" in data:
-            updates.append("description=%s")
-            values.append((data["description"] or "").strip())
-        if "is_active" in data:
-            updates.append("is_active=%s")
-            values.append(bool(data["is_active"]))
+        field_map = {
+            "name": ("name", str),
+            "description": ("description", str),
+            "corporate_number": ("corporate_number", str),
+            "address": ("address", str),
+            "phone": ("phone", str),
+            "industry": ("industry", str),
+            "employee_count": ("employee_count", int),
+            "contact_person": ("contact_person", str),
+            "fiscal_month": ("fiscal_month", int),
+            "tax_type": ("tax_type", str),
+            "contract_start_date": ("contract_start_date", str),
+            "accountant_name": ("accountant_name", str),
+            "monthly_fee": ("monthly_fee", int),
+            "bank_name": ("bank_name", str),
+            "representative_name": ("representative_name", str),
+            "contact_email": ("contact_email", str),
+            "is_active": ("is_active", bool),
+        }
+
+        for key, (col, typ) in field_map.items():
+            if key in data:
+                val = data[key]
+                if key == "name" and not (val or "").strip():
+                    conn.close()
+                    return error_response("顧問先名は必須です", 400)
+                if typ == int:
+                    val = int(val) if val else None
+                elif typ == str:
+                    val = (val or "").strip() or None
+                updates.append(f"{col}=%s")
+                values.append(val)
 
         if not updates:
             conn.close()

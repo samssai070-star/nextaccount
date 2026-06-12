@@ -388,7 +388,7 @@
             <div class="section" id="clientsSection" style="display:none;">
                 <div class="section-header">
                     <h2>顧問先管理</h2>
-                    <button class="btn btn-sm" onclick="openClientModal()">+ 顧問先を追加</button>
+                    <button class="btn btn-sm" onclick="openClientModal(null, null)">+ 顧問先を追加</button>
                 </div>
                 <div id="clientsList">
                     <div class="loading"><div class="spinner"></div><p>読み込み中...</p></div>
@@ -397,16 +397,106 @@
 
             <!-- Add/Edit Client Modal -->
             <div class="modal-overlay" id="clientModal">
-                <div class="modal">
+                <div class="modal" style="max-width:620px;max-height:85vh;overflow-y:auto">
                     <h3 id="clientModalTitle">顧問先を追加</h3>
-                    <div class="form-group">
-                        <label>顧問先名 <span style="color:#e53e3e">*</span></label>
-                        <input type="text" id="clientName" placeholder="例：株式会社山田商事">
+
+                    <!-- 基本情報 -->
+                    <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #e0e0e0">
+                        <h4 style="font-size:13px;font-weight:700;color:#333;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">基本情報</h4>
+                        <div class="form-group">
+                            <label>顧問先名 <span style="color:#e53e3e">*</span></label>
+                            <input type="text" id="clientName" placeholder="例：株式会社山田商事">
+                        </div>
+                        <div class="form-group">
+                            <label>法人番号 <span style="color:#e53e3e">*</span></label>
+                            <input type="text" id="clientCorporate" placeholder="13桁の番号">
+                        </div>
+                        <div class="form-group">
+                            <label>住所 <span style="color:#e53e3e">*</span></label>
+                            <input type="text" id="clientAddress" placeholder="例：東京都渋谷区">
+                        </div>
+                        <div class="form-group">
+                            <label>電話番号 <span style="color:#e53e3e">*</span></label>
+                            <input type="tel" id="clientPhone" placeholder="例：090-1234-5678">
+                        </div>
+                        <div class="form-group">
+                            <label>業種 <span style="color:#e53e3e">*</span></label>
+                            <input type="text" id="clientIndustry" placeholder="例：製造業・卸売業">
+                        </div>
+                        <div class="form-group">
+                            <label>従業員数 <span style="color:#e53e3e">*</span></label>
+                            <input type="number" id="clientEmployees" placeholder="例：10">
+                        </div>
+                        <div class="form-group">
+                            <label>担当者 <span style="color:#e53e3e">*</span></label>
+                            <input type="text" id="clientContact" placeholder="例：山田太郎">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>備考</label>
-                        <textarea id="clientDesc" placeholder="担当者名・メモなど（任意）"></textarea>
+
+                    <!-- 税務情報 -->
+                    <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #e0e0e0">
+                        <h4 style="font-size:13px;font-weight:700;color:#333;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">税務情報</h4>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                            <div class="form-group" style="margin-bottom:0">
+                                <label>決算月</label>
+                                <select id="clientFiscal" style="padding:8px 10px;border:1px solid #ddd;border-radius:4px;width:100%">
+                                    <option value="">選択</option>
+                                    <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+                                    <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+                                    <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+                                    <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom:0">
+                                <label>消費税区分</label>
+                                <select id="clientTaxType" style="padding:8px 10px;border:1px solid #ddd;border-radius:4px;width:100%">
+                                    <option value="">選択</option>
+                                    <option value="taxable">課税</option>
+                                    <option value="exempt">免税</option>
+                                    <option value="simple">簡易</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- 契約情報 -->
+                    <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #e0e0e0">
+                        <h4 style="font-size:13px;font-weight:700;color:#333;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">契約情報</h4>
+                        <div class="form-group">
+                            <label>契約開始日</label>
+                            <input type="date" id="clientContractDate">
+                        </div>
+                        <div class="form-group">
+                            <label>担当税理士名</label>
+                            <input type="text" id="clientAccountant" placeholder="例：田中花子">
+                        </div>
+                        <div class="form-group">
+                            <label>顧問料（月額）</label>
+                            <input type="number" id="clientFee" placeholder="例：20000">
+                        </div>
+                    </div>
+
+                    <!-- その他 -->
+                    <div style="margin-bottom:20px">
+                        <h4 style="font-size:13px;font-weight:700;color:#333;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">その他</h4>
+                        <div class="form-group">
+                            <label>代表者名</label>
+                            <input type="text" id="clientRep" placeholder="例：山田太郎">
+                        </div>
+                        <div class="form-group">
+                            <label>メールアドレス</label>
+                            <input type="email" id="clientEmail" placeholder="例：info@example.jp">
+                        </div>
+                        <div class="form-group">
+                            <label>銀行情報</label>
+                            <input type="text" id="clientBank" placeholder="例：XXX銀行 XX支店">
+                        </div>
+                        <div class="form-group">
+                            <label>備考</label>
+                            <textarea id="clientDesc" placeholder="その他メモ（任意）"></textarea>
+                        </div>
+                    </div>
+
                     <div class="modal-btns">
                         <button class="btn btn-secondary btn-sm" onclick="closeClientModal()">キャンセル</button>
                         <button class="btn btn-sm" onclick="saveClient()">保存</button>
@@ -696,15 +786,17 @@
                 }
                 el.innerHTML = `
                     <table class="clients-table">
-                        <thead><tr><th>顧問先名</th><th>備考</th><th>状態</th><th></th></tr></thead>
+                        <thead><tr><th>顧問先名</th><th>法人番号</th><th>電話</th><th>業種</th><th>状態</th><th></th></tr></thead>
                         <tbody>
                             ${data.data.map(c => `
                                 <tr>
-                                    <td><strong>${c.name}</strong></td>
-                                    <td style="color:#666">${c.description || '-'}</td>
+                                    <td><strong>${c.name}</strong><br><span style="color:#999;font-size:12px">${c.address||'住所未設定'}</span></td>
+                                    <td style="font-size:13px">${c.corporate_number || '-'}</td>
+                                    <td style="font-size:13px">${c.phone || '-'}</td>
+                                    <td style="font-size:13px">${c.industry || '-'}</td>
                                     <td><span class="${c.is_active ? 'badge-active' : 'badge-inactive'}">${c.is_active ? '有効' : '無効'}</span></td>
                                     <td style="text-align:right; white-space:nowrap;">
-                                        <button class="btn-link" onclick="openClientModal('${c.id}','${c.name.replace(/'/g,"\\'")}','${(c.description||'').replace(/'/g,"\\'")}')">編集</button>
+                                        <button class="btn-link" onclick="openClientModal('${c.id}',${JSON.stringify(c).replace(/'/g,"&#39;")})">編集</button>
                                         ${c.is_active ? `<button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deactivateClient('${c.id}')">無効化</button>` : ''}
                                     </td>
                                 </tr>`).join('')}
@@ -715,11 +807,38 @@
             }
         }
 
-        function openClientModal(id, name, desc) {
+        function openClientModal(id, data) {
             editingClientId = id || null;
             document.getElementById('clientModalTitle').textContent = id ? '顧問先を編集' : '顧問先を追加';
-            document.getElementById('clientName').value = name || '';
-            document.getElementById('clientDesc').value = desc || '';
+            if (data && typeof data === 'object') {
+                document.getElementById('clientName').value = data.name || '';
+                document.getElementById('clientCorporate').value = data.corporate_number || '';
+                document.getElementById('clientAddress').value = data.address || '';
+                document.getElementById('clientPhone').value = data.phone || '';
+                document.getElementById('clientIndustry').value = data.industry || '';
+                document.getElementById('clientEmployees').value = data.employee_count || '';
+                document.getElementById('clientContact').value = data.contact_person || '';
+                document.getElementById('clientFiscal').value = data.fiscal_month || '';
+                document.getElementById('clientTaxType').value = data.tax_type || '';
+                document.getElementById('clientContractDate').value = data.contract_start_date || '';
+                document.getElementById('clientAccountant').value = data.accountant_name || '';
+                document.getElementById('clientFee').value = data.monthly_fee || '';
+                document.getElementById('clientRep').value = data.representative_name || '';
+                document.getElementById('clientEmail').value = data.contact_email || '';
+                document.getElementById('clientBank').value = data.bank_name || '';
+                document.getElementById('clientDesc').value = data.description || '';
+            } else {
+                ['clientName','clientCorporate','clientAddress','clientPhone','clientIndustry','clientEmployees',
+                 'clientContact','clientFiscal','clientTaxType','clientContractDate','clientAccountant','clientFee',
+                 'clientRep','clientEmail','clientBank','clientDesc'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el.tagName === 'TEXTAREA' || el.type === 'text' || el.type === 'email' || el.type === 'tel' || el.type === 'number' || el.type === 'date') {
+                        el.value = '';
+                    } else if (el.tagName === 'SELECT') {
+                        el.value = '';
+                    }
+                });
+            }
             document.getElementById('clientModal').classList.add('open');
         }
 
@@ -731,7 +850,29 @@
         async function saveClient() {
             const name = document.getElementById('clientName').value.trim();
             if (!name) { alert('顧問先名を入力してください'); return; }
-            const body = { name, description: document.getElementById('clientDesc').value.trim() };
+            const corporate = document.getElementById('clientCorporate').value.trim();
+            const address = document.getElementById('clientAddress').value.trim();
+            const phone = document.getElementById('clientPhone').value.trim();
+            const industry = document.getElementById('clientIndustry').value.trim();
+            const employees = document.getElementById('clientEmployees').value.trim();
+            const contact = document.getElementById('clientContact').value.trim();
+            if (!corporate || !address || !phone || !industry || !employees || !contact) {
+                alert('必須項目（法人番号、住所、電話、業種、従業員数、担当者）をすべて入力してください');
+                return;
+            }
+            const body = {
+                name, corporate_number: corporate, address, phone, industry,
+                employee_count: parseInt(employees) || 0, contact_person: contact,
+                description: document.getElementById('clientDesc').value.trim(),
+                fiscal_month: document.getElementById('clientFiscal').value || null,
+                tax_type: document.getElementById('clientTaxType').value || null,
+                contract_start_date: document.getElementById('clientContractDate').value || null,
+                accountant_name: document.getElementById('clientAccountant').value.trim() || null,
+                monthly_fee: document.getElementById('clientFee').value || null,
+                representative_name: document.getElementById('clientRep').value.trim() || null,
+                contact_email: document.getElementById('clientEmail').value.trim() || null,
+                bank_name: document.getElementById('clientBank').value.trim() || null
+            };
             try {
                 const url = editingClientId ? `/api/clients/${editingClientId}` : '/api/clients';
                 const method = editingClientId ? 'PATCH' : 'POST';
