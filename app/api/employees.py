@@ -33,7 +33,8 @@ def list_employees():
 
         # client 配下の従業員を取得
         cur.execute(
-            """SELECT id, email, full_name, role, is_active, created_at
+            """SELECT id, email, full_name, role, is_active, created_at,
+                      department, subdepartment, slack_user_id
                FROM users
                WHERE client_id=%s AND organization_id=%s
                ORDER BY full_name""",
@@ -49,6 +50,9 @@ def list_employees():
                 "full_name": r["full_name"],
                 "role": r.get("role") or "staff",
                 "is_active": r.get("is_active", True),
+                "department": r.get("department") or "",
+                "subdepartment": r.get("subdepartment") or "",
+                "slack_user_id": r.get("slack_user_id") or "",
                 "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
             }
             for r in rows
@@ -102,12 +106,18 @@ def create_employee():
         # 従業員を作成（password_hash は仮置き）
         from .helpers import hash_password
         password_hash = hash_password("temp_password_123")  # 仮パスワード
+        department = (data.get("department") or "").strip()
+        subdepartment = (data.get("subdepartment") or "").strip()
+        slack_user_id = (data.get("slack_user_id") or "").strip()
+
         cur.execute(
             """INSERT INTO users
-               (organization_id, client_id, email, full_name, password_hash, role, is_active)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)
-               RETURNING id, email, full_name, role, is_active, created_at""",
-            (org_id, client_id, email, full_name, password_hash, role, True)
+               (organization_id, client_id, email, full_name, password_hash, role, is_active,
+                department, subdepartment, slack_user_id)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               RETURNING id, email, full_name, role, is_active, created_at, department, subdepartment, slack_user_id""",
+            (org_id, client_id, email, full_name, password_hash, role, True,
+             department, subdepartment, slack_user_id)
         )
         row = cur.fetchone()
         conn.commit()
@@ -119,6 +129,9 @@ def create_employee():
             "full_name": row["full_name"],
             "role": row["role"],
             "is_active": row["is_active"],
+            "department": row.get("department") or "",
+            "subdepartment": row.get("subdepartment") or "",
+            "slack_user_id": row.get("slack_user_id") or "",
             "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
         }, 201)
 
@@ -165,6 +178,18 @@ def update_employee(user_id):
         if "is_active" in data:
             updates.append("is_active=%s")
             values.append(bool(data["is_active"]))
+
+        if "department" in data:
+            updates.append("department=%s")
+            values.append((data["department"] or "").strip())
+
+        if "subdepartment" in data:
+            updates.append("subdepartment=%s")
+            values.append((data["subdepartment"] or "").strip())
+
+        if "slack_user_id" in data:
+            updates.append("slack_user_id=%s")
+            values.append((data["slack_user_id"] or "").strip())
 
         if not updates:
             conn.close()

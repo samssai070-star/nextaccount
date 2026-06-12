@@ -411,7 +411,7 @@
 
             <!-- Add/Edit Employee Modal -->
             <div class="modal-overlay" id="employeeModal">
-                <div class="modal">
+                <div class="modal" style="max-width:540px;max-height:85vh;overflow-y:auto">
                     <h3 id="employeeModalTitle">従業員を追加</h3>
                     <div class="form-group">
                         <label>メールアドレス <span style="color:#e53e3e">*</span></label>
@@ -421,8 +421,22 @@
                         <label>氏名 <span style="color:#e53e3e">*</span></label>
                         <input type="text" id="employeeName" placeholder="山田太郎">
                     </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                        <div class="form-group" style="margin-bottom:0">
+                            <label>部門</label>
+                            <input type="text" id="employeeDepartment" placeholder="営業部">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0">
+                            <label>サブ部門</label>
+                            <input type="text" id="employeeSubdepartment" placeholder="営業第1課">
+                        </div>
+                    </div>
                     <div class="form-group">
-                        <label>ロール</label>
+                        <label>Slack ユーザー ID</label>
+                        <input type="text" id="employeeSlackId" placeholder="U123ABC456DEF">
+                    </div>
+                    <div class="form-group">
+                        <label>権限（ロール）</label>
                         <select id="employeeRole" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:4px">
                             <option value="staff">スタッフ</option>
                             <option value="accountant">経理担当</option>
@@ -1048,13 +1062,19 @@
             if (id && window.employeesData) {
                 const emp = window.employeesData.find(e => e.id === id);
                 if (emp) {
-                    document.getElementById('employeeEmail').value = emp.email;
-                    document.getElementById('employeeName').value = emp.full_name;
-                    document.getElementById('employeeRole').value = emp.role;
+                    document.getElementById('employeeEmail').value = emp.email || '';
+                    document.getElementById('employeeName').value = emp.full_name || '';
+                    document.getElementById('employeeDepartment').value = emp.department || '';
+                    document.getElementById('employeeSubdepartment').value = emp.subdepartment || '';
+                    document.getElementById('employeeSlackId').value = emp.slack_user_id || '';
+                    document.getElementById('employeeRole').value = emp.role || 'staff';
                 }
             } else {
                 document.getElementById('employeeEmail').value = '';
                 document.getElementById('employeeName').value = '';
+                document.getElementById('employeeDepartment').value = '';
+                document.getElementById('employeeSubdepartment').value = '';
+                document.getElementById('employeeSlackId').value = '';
                 document.getElementById('employeeRole').value = 'staff';
             }
             document.getElementById('employeeModal').classList.add('open');
@@ -1068,6 +1088,9 @@
         async function saveEmployee() {
             const email = document.getElementById('employeeEmail').value.trim();
             const name = document.getElementById('employeeName').value.trim();
+            const department = document.getElementById('employeeDepartment').value.trim();
+            const subdepartment = document.getElementById('employeeSubdepartment').value.trim();
+            const slackId = document.getElementById('employeeSlackId').value.trim();
             const role = document.getElementById('employeeRole').value;
             if (!email || !name) { alert('メールアドレスと氏名は必須です'); return; }
             if (!selectedClientId) { alert('顧問先を選択してください'); return; }
@@ -1076,8 +1099,8 @@
                 const url = editingEmployeeId ? `/api/employees/${editingEmployeeId}` : '/api/employees';
                 const method = editingEmployeeId ? 'PATCH' : 'POST';
                 const body = editingEmployeeId ?
-                    { full_name: name, role } :
-                    { email, full_name: name, role, client_id: selectedClientId };
+                    { full_name: name, role, department, subdepartment, slack_user_id: slackId } :
+                    { email, full_name: name, role, department, subdepartment, slack_user_id: slackId, client_id: selectedClientId };
                 const res = await fetch(url, {
                     method,
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },

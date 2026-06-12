@@ -159,3 +159,8 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(i
 
 -- accounting_events: 顧問先紐付け
 ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id);
+
+-- users テーブル: 拡張カラム（従業員情報）
+ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100) DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS subdepartment VARCHAR(100) DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS slack_user_id VARCHAR(50) DEFAULT '';
