@@ -23,9 +23,28 @@
             margin-bottom: 30px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
+        .header-top {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .back-btn {
+            background: none;
+            border: none;
+            color: #0052cc;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 0;
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+        .back-btn:hover {
+            opacity: 0.7;
+        }
         header h1 {
             font-size: 24px;
-            margin-bottom: 10px;
+            margin-bottom: 0;
         }
         header .progress-info {
             display: flex;
@@ -285,65 +304,15 @@
         .slack-connect-section .btn-slack:hover {
             background: #2fb5d0;
         }
-        .plan-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        .plan-card {
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 16px 10px;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-align: center;
-            user-select: none;
-        }
-        .plan-card:hover {
-            border-color: #0052cc;
-            background: #f8faff;
-        }
-        .plan-card.selected {
-            border-color: #0052cc;
-            background: #eef3ff;
-        }
-        .plan-card .plan-name {
-            font-size: 15px;
-            font-weight: 700;
-            color: #333;
-            margin-bottom: 6px;
-        }
-        .plan-card .plan-price {
-            font-size: 14px;
-            font-weight: 700;
-            color: #0052cc;
-            margin-bottom: 4px;
-        }
-        .plan-card .plan-users {
-            font-size: 11px;
-            color: #555;
-            margin-bottom: 4px;
-        }
-        .plan-card .plan-desc {
-            font-size: 11px;
-            color: #999;
-        }
-        .trial-badge {
-            background: #e8f5e9;
-            border: 1px solid #4caf50;
-            border-radius: 6px;
-            padding: 10px 14px;
-            margin-bottom: 20px;
-            font-size: 13px;
-            color: #2e7d32;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>NextAccount セットアップ</h1>
+            <div class="header-top">
+                <button class="back-btn" onclick="window.history.back()">← 戻る</button>
+                <h1>NextAccount セットアップ</h1>
+            </div>
             <div class="progress-info">
                 <span id="stepInfo">STEP 1 / 4</span>
                 <span id="progressPercent">25%</span>
@@ -364,7 +333,7 @@
                 <form id="step1Form">
                     <div class="form-group">
                         <label class="required">開始月を選択</label>
-                        <select id="startMonth" required>
+                        <select id="startMonth" required onchange="displayFiscalYear()">
                             <option value="">選択してください</option>
                             <option value="1">1月</option>
                             <option value="2">2月</option>
@@ -381,20 +350,9 @@
                         </select>
                     </div>
 
-                    <div class="form-group" style="margin-top: 20px;">
-                        <label style="margin-bottom: 15px;">一般的な会計年度:</label>
-                        <div class="radio-group" onclick="selectMonth(1)">
-                            <label>
-                                <input type="radio" name="preset" value="1">
-                                <span>1月～12月（暦年度）</span>
-                            </label>
-                        </div>
-                        <div class="radio-group" onclick="selectMonth(4)">
-                            <label>
-                                <input type="radio" name="preset" value="4">
-                                <span>4月～3月（日本標準）</span>
-                            </label>
-                        </div>
+                    <div class="form-group" style="margin-top: 30px; padding: 20px; background: #f5f7fa; border-radius: 8px; display: none;" id="fiscalYearDisplay">
+                        <label style="color: #666; font-size: 14px;">会計年度:</label>
+                        <div style="font-size: 18px; font-weight: 600; color: #0052cc; margin-top: 10px;" id="fiscalYearText"></div>
                     </div>
                 </form>
             </div>
@@ -423,6 +381,10 @@
             <div class="step" id="step3">
                 <div class="step-title">従業員の管理</div>
                 <div class="step-description">従業員を登録してください</div>
+
+                <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 12px 15px; margin-bottom: 20px; font-size: 13px; color: #856404;">
+                    <strong>⚠️ 注意:</strong> 従業員情報を新規追加した場合、最終的に保存されるのはセットアップが完了（STEP 4完了）した後です。
+                </div>
 
                 <form id="step3Form">
                     <div class="form-group">
@@ -470,7 +432,7 @@
                         </div>
                     </div>
 
-                    <button type="button" class="add-btn" onclick="addEmployee()">従業員を追加</button>
+                    <button type="button" id="addEmpBtn" class="add-btn" onclick="addEmployee()">従業員を追加</button>
 
                     <div id="empList" style="margin-top: 20px;">
                         <p style="color: #999; font-size: 14px;">従業員をまず追加してください</p>
@@ -503,24 +465,6 @@
                 </form>
             </div>
 
-            <!-- STEP 5: 課金プラン -->
-            <div class="step" id="step5">
-                <div class="step-title">課金プランを選択</div>
-                <div class="step-description">お客様の規模に合ったプランをお選びください</div>
-
-                <div class="trial-badge">
-                    <strong>✓ 30日間 無料トライアル</strong> — クレジットカード情報を入力しても、30日間は課金されません。いつでもキャンセル可能です。
-                </div>
-
-                <div class="plan-cards" id="planCards"></div>
-
-                <div style="text-align: center; margin-top: 4px;">
-                    <button type="button" onclick="skipBilling()" style="background: none; border: none; color: #888; font-size: 13px; cursor: pointer; text-decoration: underline; padding: 4px 0;">
-                        後で設定する（スキップ）
-                    </button>
-                </div>
-            </div>
-
             <div class="loading" id="loading">
                 <div class="spinner"></div>
                 <p>処理中...</p>
@@ -535,43 +479,10 @@
 
     <script>
         let currentStep = 1;
-        const TOTAL_STEPS = 5;
         const departments = [];
         const employees = [];
         let slackConnected = false;
         let editingId = null;
-        let selectedPlan = null;
-
-        const PLANS = [
-            {id: 'micro',      name: 'Micro',      price: '¥2,980/月',  users: '最大3名',  desc: '小規模チーム向け'},
-            {id: 'starter',    name: 'Starter',    price: '¥5,980/月',  users: '最大5名',  desc: 'スタートアップ向け'},
-            {id: 'business',   name: 'Business',   price: '¥14,800/月', users: '最大15名', desc: '中小企業向け'},
-            {id: 'growth',     name: 'Growth',     price: '¥24,800/月', users: '最大25名', desc: '成長企業向け'},
-            {id: 'enterprise', name: 'Enterprise', price: '¥49,800/月', users: '無制限',   desc: '大企業向け'},
-        ];
-
-        function renderPlanCards() {
-            const container = document.getElementById('planCards');
-            if (!container) return;
-            container.innerHTML = PLANS.map(p => `
-                <div class="plan-card ${selectedPlan === p.id ? 'selected' : ''}" onclick="selectPlan('${p.id}')">
-                    <div class="plan-name">${p.name}</div>
-                    <div class="plan-price">${p.price}</div>
-                    <div class="plan-users">${p.users}</div>
-                    <div class="plan-desc">${p.desc}</div>
-                </div>
-            `).join('');
-        }
-
-        function selectPlan(planId) {
-            selectedPlan = planId;
-            renderPlanCards();
-            updateUI();
-        }
-
-        function skipBilling() {
-            window.location.href = '/dashboard.html';
-        }
 
         function updateUI() {
             // Update step visibility
@@ -580,28 +491,47 @@
                 if (idx === currentStep - 1) {
                     step.classList.add('active');
                     if (idx === 2) loadExistingEmployees();
-                    if (idx === 4) renderPlanCards();
                 }
             });
 
             // Update progress
-            const progress = (currentStep / TOTAL_STEPS) * 100;
+            const progress = (currentStep / 4) * 100;
             document.getElementById('progressFill').style.width = progress + '%';
-            document.getElementById('stepInfo').textContent = `STEP ${currentStep} / ${TOTAL_STEPS}`;
+            document.getElementById('stepInfo').textContent = `STEP ${currentStep} / 4`;
             document.getElementById('progressPercent').textContent = Math.round(progress) + '%';
 
             // Update buttons
             document.getElementById('prevBtn').style.display = currentStep === 1 ? 'none' : 'block';
             const nextBtn = document.getElementById('nextBtn');
-            if (currentStep === TOTAL_STEPS) {
-                nextBtn.textContent = selectedPlan ? '課金プランを設定して始める' : 'セットアップ完了！';
+            if (currentStep === 4) {
+                nextBtn.textContent = 'セットアップ完了！';
             } else {
                 nextBtn.textContent = '次へ';
             }
         }
 
+        function displayFiscalYear() {
+            const startMonth = parseInt(document.getElementById('startMonth').value);
+            if (!startMonth) {
+                document.getElementById('fiscalYearDisplay').style.display = 'none';
+                return;
+            }
+
+            const currentYear = new Date().getFullYear();
+            const endMonth = startMonth === 1 ? 12 : startMonth - 1;
+            const endYear = startMonth === 1 ? currentYear : currentYear + 1;
+
+            let startMonthStr = startMonth + '月';
+            let endMonthStr = endMonth + '月';
+
+            document.getElementById('fiscalYearText').textContent =
+                currentYear + '年' + startMonthStr + '～' + endYear + '年' + endMonthStr;
+            document.getElementById('fiscalYearDisplay').style.display = 'block';
+        }
+
         function selectMonth(month) {
             document.getElementById('startMonth').value = month;
+            displayFiscalYear();
         }
 
         function addDepartment() {
@@ -611,7 +541,7 @@
                 return;
             }
 
-            departments.push({ name, id: Date.now() });
+            departments.push({ name, id: null });
             document.getElementById('deptName').value = '';
             renderDepartments();
             updateEmployeeSelectOptions();
@@ -649,28 +579,82 @@
                 departments.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
         }
 
-        function addEmployee() {
+        async function saveEmployeeToServer(empId, name, email, slack, deptId) {
+            const token = localStorage.getItem('authToken');
+            if (!token) return false;
+
+            const deptIdNum = parseInt(deptId);
+            if (!deptId || isNaN(deptIdNum) || deptIdNum > 2147483647 || deptIdNum <= 0) {
+                showError('有効な部門を選択してください');
+                return false;
+            }
+
+            try {
+                const response = await fetch(`/api/dashboard/employees/${empId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        full_name: name,
+                        email: email,
+                        slack_user_id: slack || null,
+                        department_id: deptId
+                    })
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    const json = text.startsWith('{') ? JSON.parse(text) : null;
+                    throw new Error((json && json.error) || `HTTP ${response.status}: ${response.url}`);
+                }
+
+                showSuccess('従業員が保存されました');
+                return true;
+            } catch (e) {
+                showError('保存に失敗: ' + e.message);
+                return false;
+            }
+        }
+
+        async function addEmployee() {
             const name = document.getElementById('empName').value.trim();
             const email = document.getElementById('empEmail').value.trim();
             const slack = document.getElementById('empSlack').value.trim();
             const dept = document.getElementById('empDept').value;
 
-            if (!name || !email || !slack || !dept) {
-                showError('すべての項目を入力してください');
+            if (!name || !email || !dept) {
+                showError('氏名・メールアドレス・部門は必須です');
                 return;
             }
 
             const deptName = departments.find(d => d.id == dept)?.name || '';
-            employees.push({
-                id: Date.now(),
-                name, email, slack, dept: parseInt(dept), deptName
-            });
 
-            document.getElementById('empName').value = '';
-            document.getElementById('empEmail').value = '';
-            document.getElementById('empSlack').value = '';
-            document.getElementById('empDept').value = '';
-            renderEmployees();
+            if (editingId !== null) {
+                const saved = await saveEmployeeToServer(editingId, name, email, slack, dept);
+                if (saved) {
+                    editingId = null;
+                    document.getElementById('addEmpBtn').textContent = '従業員を追加';
+                    document.getElementById('empName').value = '';
+                    document.getElementById('empEmail').value = '';
+                    document.getElementById('empSlack').value = '';
+                    document.getElementById('empDept').value = '';
+                    employees.length = 0;
+                    await loadExistingEmployees();
+                }
+            } else {
+                employees.push({
+                    id: Date.now(),
+                    name, email, slack, dept: parseInt(dept), deptName
+                });
+
+                document.getElementById('empName').value = '';
+                document.getElementById('empEmail').value = '';
+                document.getElementById('empSlack').value = '';
+                document.getElementById('empDept').value = '';
+                renderEmployees();
+            }
         }
 
         function renderEmployees() {
@@ -684,7 +668,7 @@
                 <div class="employee-item">
                     <div>
                         <div class="name">${e.name}</div>
-                        <div style="font-size: 12px; color: #666;">${e.email} • ${e.deptName || ''}</div>
+                        <div style="font-size: 12px; color: #666;">${e.email} • ${e.deptName || '-'}</div>
                     </div>
                     <div class="actions" style="display: flex; gap: 8px;">
                         <button type="button" class="btn-small edit" onclick="editEmployee(${idx})">編集</button>
@@ -702,15 +686,25 @@
         function editEmployee(idx) {
             const e = employees[idx];
             if (!e) return;
+            editingId = e.id;
             document.getElementById('empName').value = e.name;
             document.getElementById('empEmail').value = e.email;
             document.getElementById('empSlack').value = e.slack || '';
-            document.getElementById('empDept').value = e.dept || '';
+
+            const deptSelect = document.getElementById('empDept');
+            deptSelect.value = e.dept || '';
+            if (!deptSelect.value || deptSelect.selectedIndex < 1) {
+                for (const opt of deptSelect.options) {
+                    if (opt.text === e.deptName) { deptSelect.value = opt.value; break; }
+                }
+            }
+
             document.querySelectorAll('input[name="perm"]').forEach(p => {
                 p.checked = e.permissions ? e.permissions.includes(p.value) : false;
             });
             employees.splice(idx, 1);
             renderEmployees();
+            document.getElementById('addEmpBtn').textContent = '変更を保存';
             document.getElementById('empName').focus();
         }
 
@@ -796,6 +790,7 @@
                                 departments[idx].id = serverDept.id;
                             }
                         });
+                        updateEmployeeSelectOptions();
                     }
 
                 } else if (currentStep === 3) {
@@ -820,32 +815,14 @@
                         })
                     });
 
-                    if (!response.ok) throw new Error('STEP 3 に失敗しました');
-
-                // step 4 (Slack) has no API call — falls through to currentStep++ below
-                }
-
-                // step 5: billing plan selection (final step)
-                if (currentStep === TOTAL_STEPS) {
-                    if (selectedPlan) {
-                        try {
-                            const resp = await fetch('/api/billing/create-checkout', {
-                                method: 'POST',
-                                headers: {
-                                    'Authorization': `Bearer ${token}`,
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({ plan: selectedPlan })
-                            });
-                            const d = await resp.json();
-                            if (d.success && d.data && d.data.checkout_url) {
-                                window.location.href = d.data.checkout_url;
-                                return;
-                            }
-                        } catch (err) {
-                            // Stripe not configured or network error — proceed to dashboard
-                        }
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        const errorMsg = errorData.error || 'STEP 3 に失敗しました';
+                        throw new Error(errorMsg);
                     }
+
+                } else if (currentStep === 4) {
+                    // セットアップ完了（Slack接続は任意）
                     window.location.href = '/dashboard.html';
                     return;
                 }
@@ -863,10 +840,57 @@
         function showError(message) {
             const alert = document.getElementById('errorAlert');
             alert.textContent = message;
+            alert.style.color = '#d32f2f';
             alert.style.display = 'block';
             setTimeout(() => {
                 alert.style.display = 'none';
             }, 5000);
+        }
+
+        function showSuccess(message) {
+            const alert = document.getElementById('errorAlert');
+            alert.textContent = message;
+            alert.style.color = '#2e7d32';
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 3000);
+        }
+
+        async function loadExistingDepartments() {
+            const token = localStorage.getItem('authToken');
+            const orgId = localStorage.getItem('organizationId');
+
+            if (!token || !orgId) return;
+
+            try {
+                const response = await fetch('/api/dashboard/departments', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.data && Array.isArray(data.data)) {
+                        departments.length = 0;
+                        data.data.forEach(dept => {
+                            departments.push({
+                                id: dept.id,
+                                name: dept.name,
+                                code: dept.code
+                            });
+                        });
+                        if (departments.length > 0) {
+                            renderDepartments();
+                            updateEmployeeSelectOptions();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load departments:', error);
+            }
         }
 
         async function loadExistingEmployees() {
@@ -881,13 +905,17 @@
                 if (data.success && data.data && data.data.length > 0) {
                     employees.length = 0;
                     data.data.forEach(e => {
+                        // DBのdepartment_idが現在のアクティブ部門に存在するか確認
+                        const deptById = departments.find(d => d.id === e.department_id);
+                        const deptByName = departments.find(d => d.name === e.department_name);
+                        const resolvedDept = deptById || deptByName || null;
                         employees.push({
                             id: e.id,
                             name: e.full_name,
                             email: e.email,
                             slack: e.slack_user_id || '',
-                            dept: e.department_id,
-                            deptName: e.department_name || '',
+                            dept: resolvedDept ? resolvedDept.id : null,
+                            deptName: resolvedDept ? resolvedDept.name : (e.department_name || ''),
                             permissions: []
                         });
                     });
@@ -916,8 +944,6 @@
 
             if (urlStep === '4' || urlError) {
                 currentStep = 4;
-            } else if (urlStep === '5') {
-                currentStep = 5;
             }
             updateUI();
 
