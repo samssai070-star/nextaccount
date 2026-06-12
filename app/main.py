@@ -1,6 +1,6 @@
 from __future__ import annotations
-import os, sys, threading, logging, smtplib
-from datetime import datetime
+import os, sys, threading, logging, smtplib, time
+from datetime import datetime, timedelta, timezone
 from flask import Flask, jsonify, request, send_from_directory
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -251,6 +251,22 @@ def stripe_webhook():
                         row["plan"], amount_paid, invoice_pdf, invoice_url
                     )
 
+        elif event_type == "customer.subscription.trial_will_end":
+            org_id_str = event.get("org_id", "")
+            trial_end_ts = event.get("trial_end")
+            try:
+                org_id = int(org_id_str)
+            except (ValueError, TypeError):
+                org_id = 0
+            if org_id and trial_end_ts:
+                from api.helpers import get_db_connection
+                conn = get_db_connection()
+                user = _get_org_admin_email(conn, org_id)
+                conn.close()
+                if user:
+                    trial_end_dt = datetime.fromtimestamp(trial_end_ts)
+                    _send_trial_ending_email(user["email"], user["full_name"], trial_end_dt, days_left=7)
+
         elif event_type == "customer.subscription.deleted":
             subscription_id = event.get("subscription_id", "")
             if subscription_id:
@@ -322,6 +338,93 @@ support@nextaccount.jp
     logger.info(f"Invoice email sent to {to_email}")
 
 
+def _send_trial_ending_email(to_email: str, full_name: str, trial_end_dt: datetime, days_left: int):
+    base_url = os.environ.get("BASE_URL", "https://nextaccount.jp")
+    end_str = trial_end_dt.strftime("%Y年%m月%d日")
+    data_expiry = (trial_end_dt + timedelta(days=30)).strftime("%Y年%m月%d日")
+
+    if days_left == 1:
+        subject = "【NextAccount】無料トライアルが明日終了します"
+        body = f"""{full_name} 様
+
+明日（{end_str}）をもって、NextAccount の無料トライアルが終了します。
+
+【ご注意】
+・トライアル終了後はダッシュボードへのアクセスができなくなります。
+・入力済みのデータはトライアル終了後 30日間（{data_expiry}まで）保持されます。
+・30日以内にプランを登録すると、全データに引き続きアクセスできます。
+
+▼ プランを登録する（30日間無料トライアル付き）
+{base_url}/dashboard.html
+
+引き続きご利用いただける場合は、ダッシュボードからプランをお選びください。
+
+---
+NextAccount サポートチーム
+support@nextaccount.jp
+"""
+    else:
+        subject = f"【NextAccount】無料トライアルが{days_left}日後に終了します"
+        body = f"""{full_name} 様
+
+NextAccount の無料トライアルは {end_str} に終了します。
+
+引き続きご利用いただく場合は、ダッシュボードからプランをお選びください。
+プランは月額¥980（Starter）からご用意しています。
+
+▼ プランを選択する
+{base_url}/dashboard.html
+
+【プラン一覧】
+・Starter  ¥980/月  — 30枚/月
+・Standard ¥1,980/月 — 100枚/月
+・Business ¥5,980/月 — 枚数無制限
+
+---
+NextAccount サポートチーム
+support@nextaccount.jp
+"""
+    send_email(to_email, subject, body)
+    logger.info(f"Trial ending email ({days_left}d) sent to {to_email}")
+
+
+def _check_trial_ending_tomorrow():
+    """毎日実行：翌日トライアル終了の組織に1日前メールを送信"""
+    try:
+        from api.helpers import get_db_connection, get_db_cursor
+        conn = get_db_connection()
+        cur = get_db_cursor(conn)
+        now = datetime.now(timezone.utc)
+        tomorrow_start = now + timedelta(days=1)
+        tomorrow_end = now + timedelta(days=2)
+        cur.execute(
+            """SELECT o.id, o.trial_ends_at, u.email, u.full_name
+               FROM organizations o
+               JOIN users u ON u.organization_id = o.id AND u.is_admin = TRUE
+               WHERE o.subscription_status = 'trial'
+                 AND o.trial_ends_at >= %s
+                 AND o.trial_ends_at < %s""",
+            (tomorrow_start, tomorrow_end)
+        )
+        rows = cur.fetchall()
+        conn.close()
+        for row in rows:
+            _send_trial_ending_email(
+                row["email"], row["full_name"], row["trial_ends_at"], days_left=1
+            )
+    except Exception as e:
+        logger.error(f"Trial reminder check error: {e}")
+
+
+def run_daily_trial_reminder():
+    """バックグラウンドで毎日09:00 JST に実行"""
+    while True:
+        now = datetime.now(timezone.utc)
+        # 翌日の09:00 JST（00:00 UTC）まで待機
+        next_run = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        wait_seconds = (next_run - now).total_seconds()
+        time.sleep(max(wait_seconds, 3600))
+        _check_trial_ending_tomorrow()
 
 
 def _write_google_key_from_env():
@@ -357,6 +460,8 @@ def main():
     _write_google_key_from_env()
     bot_thread = threading.Thread(target=run_slack_bot, name="slack-bot", daemon=True)
     bot_thread.start()
+    reminder_thread = threading.Thread(target=run_daily_trial_reminder, name="trial-reminder", daemon=True)
+    reminder_thread.start()
     port = int(os.environ.get("PORT", 8080))
     logger.info(f"Flask サーバー起動: 0.0.0.0:{port}")
     flask_app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
