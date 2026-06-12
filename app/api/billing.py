@@ -107,13 +107,22 @@ def manage_card():
             )
             return success_response({"url": session.url})
         else:
-            # 未登録 → Setup Checkout でカード登録（課金なし）
+            # 未登録 → Customer を先に作成してから Setup Checkout
+            customer = s.Customer.create(metadata={"org_id": str(org_id)})
+            conn2 = get_db_connection()
+            cur2 = get_db_cursor(conn2)
+            cur2.execute(
+                "UPDATE organizations SET stripe_customer_id=%s WHERE id=%s",
+                (customer.id, org_id)
+            )
+            conn2.commit()
+            conn2.close()
+
             session = s.checkout.Session.create(
                 mode="setup",
-                customer_creation="always",
+                customer=customer.id,
                 success_url=f"{BASE_URL}/dashboard.html?card=registered",
                 cancel_url=f"{BASE_URL}/dashboard.html",
-                metadata={"org_id": str(org_id)},
                 locale="ja",
             )
             return success_response({"url": session.url})
