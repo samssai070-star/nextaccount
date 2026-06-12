@@ -56,7 +56,7 @@ def create_checkout():
         plan = (data.get("plan") or "").lower().strip()
 
         if plan not in _VALID_PLANS:
-            return error_response("無効なプランです"), 400
+            return error_response("無効なプランです", 400)
 
         org_id = request.organization_id
         success_url = f"{BASE_URL}/dashboard.html"
@@ -69,10 +69,10 @@ def create_checkout():
 
     except RuntimeError as e:
         logger.warning(f"Stripe not configured: {e}")
-        return error_response("Stripe 課金が設定されていません"), 503
+        return error_response("Stripe 課金が設定されていません", 503)
     except Exception as e:
         logger.error(f"create_checkout error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 
 @billing_bp.route("/status", methods=["GET"])
@@ -94,7 +94,7 @@ def get_billing_status():
         conn.close()
 
         if not org:
-            return error_response("Organization not found"), 404
+            return error_response("Organization not found", 404)
 
         return success_response({
             "billing_status": org.get("subscription_status") or "trial",
@@ -105,4 +105,4 @@ def get_billing_status():
 
     except Exception as e:
         logger.error(f"get_billing_status error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
