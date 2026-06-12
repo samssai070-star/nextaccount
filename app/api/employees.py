@@ -1,6 +1,7 @@
 """Employees API — 従業員管理（client 別）"""
 from __future__ import annotations
 import logging
+import json
 from flask import Blueprint, request
 from .helpers import get_db_connection, get_db_cursor, require_auth, success_response, error_response
 
@@ -34,7 +35,7 @@ def list_employees():
         # client 配下の従業員を取得
         cur.execute(
             """SELECT id, email, full_name, role, is_active, created_at,
-                      department, subdepartment, slack_user_id
+                      department, slack_user_id, permissions
                FROM users
                WHERE client_id=%s AND organization_id=%s
                ORDER BY full_name""",
@@ -43,6 +44,7 @@ def list_employees():
         rows = cur.fetchall()
         conn.close()
 
+        import json
         employees = [
             {
                 "id": r["id"],
@@ -51,8 +53,8 @@ def list_employees():
                 "role": r.get("role") or "staff",
                 "is_active": r.get("is_active", True),
                 "department": r.get("department") or "",
-                "subdepartment": r.get("subdepartment") or "",
                 "slack_user_id": r.get("slack_user_id") or "",
+                "permissions": json.loads(r.get("permissions") or "[]"),
                 "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
             }
             for r in rows
@@ -75,9 +77,11 @@ def create_employee():
         full_name = (data.get("full_name") or "").strip()
         client_id = data.get("client_id")
         role = (data.get("role") or "staff").strip()
+        slack_user_id = (data.get("slack_user_id") or "").strip()
+        permissions = data.get("permissions") or []
 
-        if not email or not full_name or not client_id:
-            return error_response("email, full_name, client_id required", 400)
+        if not email or not full_name or not client_id or not slack_user_id:
+            return error_response("email, full_name, client_id, slack_user_id required", 400)
 
         if role not in ("admin", "accountant", "staff"):
             return error_response("role must be 'admin', 'accountant', or 'staff'", 400)
@@ -107,17 +111,16 @@ def create_employee():
         from .helpers import hash_password
         password_hash = hash_password("temp_password_123")  # 仮パスワード
         department = (data.get("department") or "").strip()
-        subdepartment = (data.get("subdepartment") or "").strip()
-        slack_user_id = (data.get("slack_user_id") or "").strip()
+        permissions_json = json.dumps(permissions)
 
         cur.execute(
             """INSERT INTO users
                (organization_id, client_id, email, full_name, password_hash, role, is_active,
-                department, subdepartment, slack_user_id)
+                department, slack_user_id, permissions)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-               RETURNING id, email, full_name, role, is_active, created_at, department, subdepartment, slack_user_id""",
+               RETURNING id, email, full_name, role, is_active, created_at, department, slack_user_id, permissions""",
             (org_id, client_id, email, full_name, password_hash, role, True,
-             department, subdepartment, slack_user_id)
+             department, slack_user_id, permissions_json)
         )
         row = cur.fetchone()
         conn.commit()
@@ -130,8 +133,8 @@ def create_employee():
             "role": row["role"],
             "is_active": row["is_active"],
             "department": row.get("department") or "",
-            "subdepartment": row.get("subdepartment") or "",
             "slack_user_id": row.get("slack_user_id") or "",
+            "permissions": json.loads(row.get("permissions") or "[]"),
             "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
         }, 201)
 
@@ -183,13 +186,17 @@ def update_employee(user_id):
             updates.append("department=%s")
             values.append((data["department"] or "").strip())
 
-        if "subdepartment" in data:
-            updates.append("subdepartment=%s")
-            values.append((data["subdepartment"] or "").strip())
-
         if "slack_user_id" in data:
+            slack_id = (data["slack_user_id"] or "").strip()
+            if not slack_id:
+                conn.close()
+                return error_response("slack_user_id cannot be empty", 400)
             updates.append("slack_user_id=%s")
-            values.append((data["slack_user_id"] or "").strip())
+            values.append(slack_id)
+
+        if "permissions" in data:
+            updates.append("permissions=%s")
+            values.append(json.dumps(data.get("permissions") or []))
 
         if not updates:
             conn.close()
