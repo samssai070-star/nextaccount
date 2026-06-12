@@ -301,9 +301,7 @@
                 </div>
 
                 <div id="planSelector" style="display: none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
-                    <div style="padding: 10px 14px; background: #e8f5e9; border-radius: 6px; margin-bottom: 12px; font-size: 13px; color: #2e7d32;">
-                        <strong>✓ 30日間 無料トライアル</strong> — 初回は30日間無料。クレジットカード登録後すぐに使えます。
-                    </div>
+                    <div id="planSelectorBanner" style="padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; font-size: 13px;"></div>
                     <div class="plan-cards" id="planCards"></div>
                     <button class="btn btn-secondary" onclick="togglePlanSelector()" style="margin-top: 12px; font-size: 13px; padding: 7px 14px;">キャンセル</button>
                 </div>
@@ -521,6 +519,19 @@
         }
 
         function renderPlanCards() {
+            const banner = document.getElementById('planSelectorBanner');
+            if (banner) {
+                if (!currentPlanId) {
+                    banner.style.background = '#fff8e1';
+                    banner.style.color = '#856404';
+                    banner.innerHTML = '<strong>⚠ プランが選択されていません</strong> — ご希望のプランをお選びください。初回30日間無料トライアル付き。';
+                } else {
+                    const planObj = PLANS.find(p => p.id === currentPlanId);
+                    banner.style.background = '#e8f5e9';
+                    banner.style.color = '#2e7d32';
+                    banner.innerHTML = `<strong>✓ 現在のプラン: ${planObj ? planObj.name : currentPlanId}</strong> — 別のプランに変更する場合は下から選択してください。`;
+                }
+            }
             const container = document.getElementById('planCards');
             if (!container) return;
             container.innerHTML = PLANS.map(p => {
