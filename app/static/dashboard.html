@@ -1004,16 +1004,25 @@
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await res.json();
+                console.log('Employee API Response:', data);
                 const el = document.getElementById('employeesList');
-                if (!data.success || data.data.length === 0) {
+
+                if (!data.success) {
+                    el.innerHTML = '<p style="color:#e53e3e;padding:12px">エラー: ' + (data.error || '不明なエラー') + '</p>';
+                    return;
+                }
+
+                const employees = data.data || [];
+                if (!Array.isArray(employees) || employees.length === 0) {
                     el.innerHTML = '<div class="empty-state"><div class="icon">👤</div><p>従業員がまだ登録されていません</p></div>';
                     return;
                 }
+
                 el.innerHTML = `
                     <table class="clients-table">
                         <thead><tr><th>氏名</th><th>メール</th><th>ロール</th><th>状態</th><th></th></tr></thead>
                         <tbody>
-                            ${data.data.map(e => `
+                            ${employees.map(e => `
                                 <tr>
                                     <td><strong>${e.full_name}</strong></td>
                                     <td style="font-size:13px">${e.email}</td>
@@ -1026,9 +1035,10 @@
                                 </tr>`).join('')}
                         </tbody>
                     </table>`;
-                window.employeesData = data.data;
+                window.employeesData = employees;
             } catch (e) {
-                document.getElementById('employeesList').innerHTML = '<p style="color:#e53e3e;padding:12px">読み込みに失敗しました</p>';
+                console.error('loadEmployees error:', e);
+                document.getElementById('employeesList').innerHTML = '<p style="color:#e53e3e;padding:12px">読み込みに失敗しました: ' + e.message + '</p>';
             }
         }
 
