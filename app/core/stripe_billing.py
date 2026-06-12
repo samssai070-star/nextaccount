@@ -39,6 +39,7 @@ def create_checkout_session(plan: str, org_id: int,
 
     params = dict(
         mode="subscription",
+        payment_method_collection="if_required",
         line_items=[{"price": price_id, "quantity": 1}],
         subscription_data={
             "metadata": {
@@ -90,12 +91,31 @@ def handle_webhook(payload: bytes, sig_header: str) -> dict:
 
     if event_type == "checkout.session.completed":
         session = event["data"]["object"]
+        mode = session.get("mode", "")
+        customer_id = session.get("customer", "")
+
+        if mode == "setup":
+            # Setup完了後、支払い方法をデフォルトに設定
+            setup_intent_id = session.get("setup_intent")
+            if setup_intent_id and customer_id:
+                try:
+                    si = s.SetupIntent.retrieve(setup_intent_id)
+                    pm_id = si.get("payment_method")
+                    if pm_id:
+                        s.Customer.modify(
+                            customer_id,
+                            invoice_settings={"default_payment_method": pm_id}
+                        )
+                        logger.info(f"Default payment method set: customer={customer_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to set default payment method: {e}")
+
         result.update({
             "org_id": session["metadata"].get("org_id", ""),
             "plan": session["metadata"].get("plan", ""),
-            "customer_id": session.get("customer", ""),
+            "customer_id": customer_id,
             "subscription_id": session.get("subscription", ""),
-            "mode": session.get("mode", ""),
+            "mode": mode,
         })
 
     elif event_type == "customer.subscription.deleted":
