@@ -15,13 +15,13 @@ def _get_stripe():
 
 PRICE_MAP = {
     "starter":  os.environ.get("STRIPE_PRICE_STARTER",  "price_1TJxjv2OmS24DsZ6cl61EvrQ"),
-    "growth":   os.environ.get("STRIPE_PRICE_GROWTH",   "price_1TJxm32OmS24DsZ6oscLLktA"),
+    "standard": os.environ.get("STRIPE_PRICE_STANDARD", "price_1TJxm32OmS24DsZ6oscLLktA"),
     "business": os.environ.get("STRIPE_PRICE_BUSINESS", "price_1TJxko2OmS24DsZ6yCeNpOPI"),
 }
 
 PLAN_NAMES = {
     "starter":  "Starter スタータープラン",
-    "growth":   "Growth グロースプラン",
+    "standard": "Standard スタンダードプラン",
     "business": "Business ビジネスプラン",
 }
 
