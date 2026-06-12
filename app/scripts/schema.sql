@@ -119,3 +119,43 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(100)
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stripe_price_id VARCHAR(100);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS billing_status VARCHAR(50) DEFAULT 'trial';
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP;
+
+-- ============================================================
+-- organizations テーブル（Webアプリ・課金）
+-- ============================================================
+CREATE TABLE IF NOT EXISTS organizations (
+    id                      SERIAL PRIMARY KEY,
+    name                    VARCHAR(200) NOT NULL,
+    email                   VARCHAR(255) UNIQUE NOT NULL,
+    password_hash           VARCHAR(255) NOT NULL,
+    org_type                VARCHAR(20)  NOT NULL DEFAULT 'company',  -- 'company' | 'firm'
+    stripe_customer_id      VARCHAR(255),
+    stripe_subscription_id  VARCHAR(255),
+    subscription_status     VARCHAR(50)  DEFAULT 'trial',
+    plan                    VARCHAR(50),
+    trial_ends_at           TIMESTAMP,
+    created_at              TIMESTAMP    DEFAULT NOW(),
+    updated_at              TIMESTAMP    DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_orgs_email ON organizations(email);
+
+-- ============================================================
+-- clients テーブル（会計事務所の顧問先管理）
+-- ============================================================
+CREATE TABLE IF NOT EXISTS clients (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id      INTEGER      NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name        VARCHAR(200) NOT NULL,
+    description TEXT         DEFAULT '',
+    is_active   BOOLEAN      DEFAULT TRUE,
+    created_at  TIMESTAMP    DEFAULT NOW(),
+    updated_at  TIMESTAMP    DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_clients_org_id ON clients(org_id);
+
+-- tenants: clients テーブルとの連結
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS org_id INTEGER REFERENCES organizations(id);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id);
+
+-- accounting_events: 顧問先紐付け
+ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id);
