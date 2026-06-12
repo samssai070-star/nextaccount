@@ -75,7 +75,36 @@ def create_checkout():
         return error_response(str(e), 500)
 
 
-@billing_bp.route("/status", methods=["GET"])
+@billing_bp.route("/portal", methods=["POST"])
+@require_auth
+def create_portal():
+    """Stripe カスタマーポータルセッションを作成してURLを返す"""
+    try:
+        org_id = request.organization_id
+        conn = get_db_connection()
+        cur = get_db_cursor(conn)
+        cur.execute("SELECT stripe_customer_id FROM organizations WHERE id=%s", (org_id,))
+        org = cur.fetchone()
+        conn.close()
+
+        if not org or not org.get("stripe_customer_id"):
+            return error_response("Stripe顧客情報が見つかりません。先にプランを選択してください。", 404)
+
+        from core.stripe_billing import _get_stripe
+        s = _get_stripe()
+        session = s.billing_portal.Session.create(
+            customer=org["stripe_customer_id"],
+            return_url=f"{BASE_URL}/dashboard.html",
+        )
+        return success_response({"portal_url": session.url})
+
+    except RuntimeError as e:
+        return error_response("Stripe 課金が設定されていません", 503)
+    except Exception as e:
+        logger.error(f"create_portal error: {e}")
+        return error_response(str(e), 500)
+
+
 @require_auth
 def get_billing_status():
     """現在の課金状態を取得"""
