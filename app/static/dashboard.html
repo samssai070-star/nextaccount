@@ -395,6 +395,47 @@
                 </div>
             </div>
 
+            <!-- Employees (client-specific) -->
+            <div class="section" id="employeesSection" style="display:none;">
+                <div class="section-header">
+                    <div>
+                        <h2>従業員管理</h2>
+                        <div style="font-size:12px;color:#999;margin-top:4px" id="employeeClientName"></div>
+                    </div>
+                    <button class="btn btn-sm" onclick="openEmployeeModal(null)">+ 従業員を追加</button>
+                </div>
+                <div id="employeesList">
+                    <div class="loading"><div class="spinner"></div><p>読み込み中...</p></div>
+                </div>
+            </div>
+
+            <!-- Add/Edit Employee Modal -->
+            <div class="modal-overlay" id="employeeModal">
+                <div class="modal">
+                    <h3 id="employeeModalTitle">従業員を追加</h3>
+                    <div class="form-group">
+                        <label>メールアドレス <span style="color:#e53e3e">*</span></label>
+                        <input type="email" id="employeeEmail" placeholder="user@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>氏名 <span style="color:#e53e3e">*</span></label>
+                        <input type="text" id="employeeName" placeholder="山田太郎">
+                    </div>
+                    <div class="form-group">
+                        <label>ロール</label>
+                        <select id="employeeRole" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:4px">
+                            <option value="staff">スタッフ</option>
+                            <option value="accountant">経理担当</option>
+                            <option value="admin">管理者</option>
+                        </select>
+                    </div>
+                    <div class="modal-btns">
+                        <button class="btn btn-secondary btn-sm" onclick="closeEmployeeModal()">キャンセル</button>
+                        <button class="btn btn-sm" onclick="saveEmployee()">保存</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Add/Edit Client Modal -->
             <div class="modal-overlay" id="clientModal">
                 <div class="modal" style="max-width:620px;max-height:85vh;overflow-y:auto">
@@ -524,6 +565,8 @@
         let orgType = 'company';
         let editingClientId = null;
         let editingClientData = null;
+        let selectedClientId = null;
+        let editingEmployeeId = null;
         let currentPlanId = null;
         const PLANS = [
             {id: 'starter',  name: 'Starter',  price: '¥980/月',   receipts: '30枚/月',  desc: 'OCR+AI分類・Slack承認・Google Sheets連携'},
@@ -787,19 +830,19 @@
                 }
                 el.innerHTML = `
                     <table class="clients-table">
-                        <thead><tr><th>顧問先名</th><th>法人番号</th><th>電話</th><th>業種</th><th>状態</th><th></th></tr></thead>
+                        <thead><tr><th style="cursor:pointer">顧問先名</th><th>法人番号</th><th>電話</th><th>業種</th><th>状態</th><th></th></tr></thead>
                         <tbody>
                             ${data.data.map((c, idx) => `
-                                <tr>
+                                <tr style="cursor:pointer" onclick="selectClientForEmployees('${c.id}', '${c.name}')">
                                     <td><strong>${c.name}</strong><br><span style="color:#999;font-size:12px">${c.address||'住所未設定'}</span></td>
                                     <td style="font-size:13px">${c.corporate_number || '-'}</td>
                                     <td style="font-size:13px">${c.phone || '-'}</td>
                                     <td style="font-size:13px">${c.industry || '-'}</td>
                                     <td><span class="${c.is_active ? 'badge-active' : 'badge-inactive'}">${c.is_active ? '有効' : '無効'}</span></td>
                                     <td style="text-align:right; white-space:nowrap;">
-                                        <button class="btn-link" onclick="editClient('${c.id}')">編集</button>
-                                        ${c.is_active ? `<button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deactivateClient('${c.id}')">無効化</button>` : `<button class="btn-link" style="color:#2da44e;margin-left:8px" onclick="reactivateClient('${c.id}')">再有効化</button>`}
-                                        <button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deleteClient('${c.id}')">削除</button>
+                                        <button class="btn-link" onclick="event.stopPropagation();editClient('${c.id}')">編集</button>
+                                        ${c.is_active ? `<button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="event.stopPropagation();deactivateClient('${c.id}')">無効化</button>` : `<button class="btn-link" style="color:#2da44e;margin-left:8px" onclick="event.stopPropagation();reactivateClient('${c.id}')">再有効化</button>`}
+                                        <button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="event.stopPropagation();deleteClient('${c.id}')">削除</button>
                                     </td>
                                 </tr>`).join('')}
                         </tbody>
@@ -938,6 +981,116 @@
                 const data = await res.json();
                 if (!data.success) { alert(data.error || '削除に失敗しました'); return; }
                 loadClients();
+            } catch (e) { alert('エラー: ' + e.message); }
+        }
+
+        // ──────────────────────────────────────────
+        // 従業員管理
+        // ──────────────────────────────────────────
+
+        function selectClientForEmployees(clientId, clientName) {
+            selectedClientId = clientId;
+            document.getElementById('employeeClientName').textContent = `${clientName}の従業員`;
+            document.getElementById('employeesSection').style.display = 'block';
+            loadEmployees();
+            // スクロール
+            document.getElementById('employeesSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function loadEmployees() {
+            if (!selectedClientId) return;
+            try {
+                const res = await fetch(`/api/employees?client_id=${selectedClientId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                const el = document.getElementById('employeesList');
+                if (!data.success || data.data.length === 0) {
+                    el.innerHTML = '<div class="empty-state"><div class="icon">👤</div><p>従業員がまだ登録されていません</p></div>';
+                    return;
+                }
+                el.innerHTML = `
+                    <table class="clients-table">
+                        <thead><tr><th>氏名</th><th>メール</th><th>ロール</th><th>状態</th><th></th></tr></thead>
+                        <tbody>
+                            ${data.data.map(e => `
+                                <tr>
+                                    <td><strong>${e.full_name}</strong></td>
+                                    <td style="font-size:13px">${e.email}</td>
+                                    <td style="font-size:13px">${e.role === 'admin' ? '管理者' : e.role === 'accountant' ? '経理担当' : 'スタッフ'}</td>
+                                    <td><span class="${e.is_active ? 'badge-active' : 'badge-inactive'}">${e.is_active ? '有効' : '無効'}</span></td>
+                                    <td style="text-align:right; white-space:nowrap;">
+                                        <button class="btn-link" onclick="openEmployeeModal('${e.id}')">編集</button>
+                                        ${e.is_active ? `<button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deactivateEmployee('${e.id}')">無効化</button>` : ''}
+                                    </td>
+                                </tr>`).join('')}
+                        </tbody>
+                    </table>`;
+                window.employeesData = data.data;
+            } catch (e) {
+                document.getElementById('employeesList').innerHTML = '<p style="color:#e53e3e;padding:12px">読み込みに失敗しました</p>';
+            }
+        }
+
+        function openEmployeeModal(id) {
+            editingEmployeeId = id || null;
+            document.getElementById('employeeModalTitle').textContent = id ? '従業員を編集' : '従業員を追加';
+            if (id && window.employeesData) {
+                const emp = window.employeesData.find(e => e.id === id);
+                if (emp) {
+                    document.getElementById('employeeEmail').value = emp.email;
+                    document.getElementById('employeeName').value = emp.full_name;
+                    document.getElementById('employeeRole').value = emp.role;
+                }
+            } else {
+                document.getElementById('employeeEmail').value = '';
+                document.getElementById('employeeName').value = '';
+                document.getElementById('employeeRole').value = 'staff';
+            }
+            document.getElementById('employeeModal').classList.add('open');
+        }
+
+        function closeEmployeeModal() {
+            document.getElementById('employeeModal').classList.remove('open');
+            editingEmployeeId = null;
+        }
+
+        async function saveEmployee() {
+            const email = document.getElementById('employeeEmail').value.trim();
+            const name = document.getElementById('employeeName').value.trim();
+            const role = document.getElementById('employeeRole').value;
+            if (!email || !name) { alert('メールアドレスと氏名は必須です'); return; }
+            if (!selectedClientId) { alert('顧問先を選択してください'); return; }
+
+            try {
+                const url = editingEmployeeId ? `/api/employees/${editingEmployeeId}` : '/api/employees';
+                const method = editingEmployeeId ? 'PATCH' : 'POST';
+                const body = editingEmployeeId ?
+                    { full_name: name, role } :
+                    { email, full_name: name, role, client_id: selectedClientId };
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (!data.success) { alert(data.error || '保存に失敗しました'); return; }
+                closeEmployeeModal();
+                loadEmployees();
+            } catch (e) { alert('エラー: ' + e.message); }
+        }
+
+        async function deactivateEmployee(id) {
+            if (!confirm('この従業員を無効化しますか？')) return;
+            try {
+                const res = await fetch(`/api/employees/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: false })
+                });
+                const data = await res.json();
+                if (!data.success) { alert(data.error || '失敗しました'); return; }
+                loadEmployees();
             } catch (e) { alert('エラー: ' + e.message); }
         }
 
