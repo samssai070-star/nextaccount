@@ -113,6 +113,7 @@ def create_portal():
         return error_response(str(e), 500)
 
 
+@billing_bp.route("/status", methods=["GET"])
 @require_auth
 def get_billing_status():
     """現在の課金状態を取得"""
