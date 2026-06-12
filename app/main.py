@@ -52,11 +52,14 @@ def root():
     return send_from_directory(flask_app.static_folder, "index.html")
 
 
+STATIC_EXTENSIONS = {'.html', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.css', '.js', '.woff', '.woff2', '.ttf'}
+
 @flask_app.route("/<path:filename>", methods=["GET"])
 def serve_static(filename):
     static_dir = flask_app.static_folder
     file_path = os.path.join(static_dir, filename)
-    if os.path.isfile(file_path) and filename.endswith('.html'):
+    ext = os.path.splitext(filename)[1].lower()
+    if os.path.isfile(file_path) and ext in STATIC_EXTENSIONS:
         return send_from_directory(static_dir, filename)
     html_path = os.path.join(static_dir, filename + '.html')
     if os.path.isfile(html_path):
