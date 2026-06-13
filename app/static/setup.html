@@ -632,17 +632,27 @@
             const deptName = departments.find(d => d.id == dept)?.name || '';
 
             if (editingId !== null) {
-                const saved = await saveEmployeeToServer(editingId, name, email, slack, dept);
-                if (saved) {
-                    editingId = null;
-                    document.getElementById('addEmpBtn').textContent = '従業員を追加';
-                    document.getElementById('empName').value = '';
-                    document.getElementById('empEmail').value = '';
-                    document.getElementById('empSlack').value = '';
-                    document.getElementById('empDept').value = '';
+                // UUID（DB保存済み）か一時ID（ローカルのみ）かを判定
+                const isDbEmployee = typeof editingId === 'string' && editingId.includes('-');
+                if (isDbEmployee) {
+                    const saved = await saveEmployeeToServer(editingId, name, email, slack, dept);
+                    if (!saved) return;
                     employees.length = 0;
                     await loadExistingEmployees();
+                } else {
+                    // ローカル配列を更新
+                    const idx = employees.findIndex(e => e.id === editingId);
+                    if (idx !== -1) {
+                        employees[idx] = { id: editingId, name, email, slack, dept: parseInt(dept), deptName };
+                    }
+                    renderEmployees();
                 }
+                editingId = null;
+                document.getElementById('addEmpBtn').textContent = '従業員を追加';
+                document.getElementById('empName').value = '';
+                document.getElementById('empEmail').value = '';
+                document.getElementById('empSlack').value = '';
+                document.getElementById('empDept').value = '';
             } else {
                 employees.push({
                     id: Date.now(),
