@@ -35,9 +35,13 @@ def issue_upgrade_code():
         conn = get_db_connection()
         cur = get_db_cursor(conn)
 
-        # 対象組織を確認
+        # 対象組織を確認（メールは users テーブルに格納）
         cur.execute(
-            "SELECT id, name, email, org_type FROM organizations WHERE email=%s",
+            """SELECT o.id, o.name, u.email, o.org_type
+               FROM organizations o
+               JOIN users u ON u.organization_id = o.id
+               WHERE u.email=%s AND u.is_admin=TRUE
+               LIMIT 1""",
             (org_email,)
         )
         org = cur.fetchone()
@@ -135,7 +139,7 @@ def update_org_type():
         cur = get_db_cursor(conn)
 
         # 既に firm になっている場合
-        cur.execute("SELECT org_type, email, name FROM organizations WHERE id=%s", (org_id,))
+        cur.execute("SELECT org_type, name FROM organizations WHERE id=%s", (org_id,))
         org = cur.fetchone()
         if not org:
             conn.close()
