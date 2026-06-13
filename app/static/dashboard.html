@@ -679,9 +679,10 @@
         let editingEmployeeId = null;
         let currentPlanId = null;
         const PLANS = [
-            {id: 'starter',  name: 'Starter',  price: '¥980/月',   receipts: '30枚/月',  desc: 'OCR+AI分類・Slack承認・Google Sheets連携'},
-            {id: 'standard', name: 'Standard', price: '¥1,980/月', receipts: '100枚/月', desc: 'T番号照合・消費税自動区分・RFC3161タイムスタンプ'},
-            {id: 'business', name: 'Business', price: '¥5,980/月', receipts: '無制限',   desc: '複数チャンネル・APIアクセス・専任サポート'},
+            {id: 'starter',  name: 'Starter',  price: '¥980/月',   receipts: '30枚/月',  desc: '個人事業主向け - OCR+AI分類・Slack承認'},
+            {id: 'standard', name: 'Standard', price: '¥1,980/月', receipts: '100枚/月', desc: '小企業向け - 消費税自動区分・タイムスタンプ'},
+            {id: 'business', name: 'Business', price: '¥5,980/月', receipts: '無制限',   desc: '企業向け - 複数チャンネル・API・専任サポート'},
+            {id: 'partner',  name: 'Partner',  price: '¥9,800/月',  receipts: '最大10社', desc: '事務所向け - 顧問先管理・超過1社あたり¥980'},
         ];
         let selectedPlan = null;
         let planSelectorOpen = false;
