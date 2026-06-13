@@ -932,7 +932,25 @@
         }
 
         // Load existing data
+        async function loadExistingFiscalYear() {
+            const token = localStorage.getItem('authToken');
+            if (!token) return;
+            try {
+                const res = await fetch('/api/setup/summary', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.success && data.data && data.data.fiscal_year_start) {
+                    const month = new Date(data.data.fiscal_year_start).getMonth() + 1;
+                    document.getElementById('startMonth').value = month;
+                    displayFiscalYear();
+                }
+            } catch (e) {}
+        }
+
         async function initSetup() {
+            await loadExistingFiscalYear();
             await loadExistingDepartments();
             await loadExistingEmployees();
 
