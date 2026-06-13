@@ -181,6 +181,126 @@ def list_organizations():
         return error_response(str(e), 500)
 
 
+@org_bp.route("/admin/organization/<int:org_id>", methods=["GET"])
+def get_organization_detail(org_id):
+    """【管理者専用】組織の詳細情報を取得"""
+    auth_err = _require_admin()
+    if auth_err:
+        return auth_err
+
+    try:
+        conn = get_db_connection()
+        cur = get_db_cursor(conn)
+
+        # 組織基本情報
+        cur.execute("""
+            SELECT
+                o.id, o.name, o.org_type, o.subscription_status, o.plan,
+                o.trial_ends_at, o.created_at, o.stripe_customer_id,
+                u.email AS admin_email, u.full_name AS admin_name,
+                COALESCE(emp.cnt, 0) AS employee_count,
+                sp.is_completed AS setup_completed, sp.step_completed,
+                sw.workspace_name, sw.is_connected AS slack_connected
+            FROM organizations o
+            LEFT JOIN users u ON u.organization_id = o.id AND u.is_admin = TRUE
+            LEFT JOIN (
+                SELECT organization_id, COUNT(*) AS cnt
+                FROM employees WHERE is_active = TRUE
+                GROUP BY organization_id
+            ) emp ON emp.organization_id = o.id
+            LEFT JOIN setup_progress sp ON sp.organization_id = o.id
+            LEFT JOIN slack_workspaces sw ON sw.organization_id = o.id
+            WHERE o.id = %s
+        """, (org_id,))
+        org = cur.fetchone()
+        if not org:
+            conn.close()
+            return error_response("Organization not found", 404)
+
+        # 月別発票アップロード統計（過去12ヶ月）
+        # company の場合：自社従業員の仕訳
+        # firm の場合：顧問先（clients）の仕訳
+        if org["org_type"] == "company":
+            cur.execute("""
+                SELECT
+                    DATE_TRUNC('month', ae.event_date)::date AS month,
+                    COUNT(*) AS count
+                FROM accounting_events ae
+                WHERE ae.employee_name IN (
+                    SELECT full_name FROM employees WHERE organization_id = %s
+                )
+                  AND ae.event_date >= CURRENT_DATE - INTERVAL '12 months'
+                GROUP BY DATE_TRUNC('month', ae.event_date)
+                ORDER BY month DESC
+            """, (org_id,))
+        else:  # firm
+            cur.execute("""
+                SELECT
+                    DATE_TRUNC('month', ae.event_date)::date AS month,
+                    COUNT(*) AS count
+                FROM accounting_events ae
+                WHERE ae.client_id IN (
+                    SELECT id FROM clients WHERE org_id = %s
+                )
+                  AND ae.event_date >= CURRENT_DATE - INTERVAL '12 months'
+                GROUP BY DATE_TRUNC('month', ae.event_date)
+                ORDER BY month DESC
+            """, (org_id,))
+
+        monthly_stats = []
+        for row in cur.fetchall():
+            if row["month"]:
+                monthly_stats.append({
+                    "month": row["month"].isoformat(),
+                    "count": int(row["count"])
+                })
+
+        # 総発票アップロード数
+        if org["org_type"] == "company":
+            cur.execute("""
+                SELECT COUNT(*) AS total FROM accounting_events
+                WHERE employee_name IN (
+                    SELECT full_name FROM employees WHERE organization_id = %s
+                )
+            """, (org_id,))
+        else:
+            cur.execute("""
+                SELECT COUNT(*) AS total FROM accounting_events
+                WHERE client_id IN (
+                    SELECT id FROM clients WHERE org_id = %s
+                )
+            """, (org_id,))
+        total_events = cur.fetchone()["total"]
+
+        conn.close()
+
+        return success_response({
+            "organization": {
+                "id": org["id"],
+                "name": org["name"],
+                "admin_email": org["admin_email"] or "",
+                "admin_name": org["admin_name"] or "",
+                "org_type": org["org_type"] or "company",
+                "subscription_status": org["subscription_status"] or "trial",
+                "plan": org["plan"] or "",
+                "trial_ends_at": org["trial_ends_at"].isoformat() if org["trial_ends_at"] else None,
+                "created_at": org["created_at"].isoformat() if org["created_at"] else None,
+                "stripe_customer_id": org["stripe_customer_id"] or "",
+                "employee_count": int(org["employee_count"]),
+                "setup_completed": bool(org["setup_completed"]),
+                "step_completed": org["step_completed"] or 0,
+                "slack_workspace": org["workspace_name"] or "",
+                "slack_connected": bool(org["slack_connected"]),
+                "total_events": int(total_events),
+                "monthly_stats": monthly_stats
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"get_organization_detail error: {e}")
+        return error_response(str(e), 500)
+
+
 @org_bp.route("/admin/stats", methods=["GET"])
 def get_admin_stats():
     """【管理者専用】統計情報を取得"""
