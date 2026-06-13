@@ -397,6 +397,45 @@ def request_cancellation():
         return error_response(str(e), 500)
 
 
+@org_bp.route("/cancel-cancellation", methods=["POST"])
+@require_auth
+def cancel_cancellation():
+    """解約申請を取り消してアクティブに戻す"""
+    try:
+        org_id = request.organization_id
+        conn = get_db_connection()
+        cur = get_db_cursor(conn)
+
+        cur.execute("SELECT subscription_status FROM organizations WHERE id=%s", (org_id,))
+        org = cur.fetchone()
+        if not org:
+            conn.close()
+            return error_response("Organization not found", 404)
+
+        if org["subscription_status"] != "canceling":
+            conn.close()
+            return error_response("解約手続き中ではありません", 409)
+
+        cur.execute(
+            """UPDATE organizations
+               SET subscription_status='active',
+                   cancellation_effective_at=NULL,
+                   suspension_ends_at=NULL,
+                   updated_at=NOW()
+               WHERE id=%s""",
+            (org_id,)
+        )
+        conn.commit()
+        conn.close()
+
+        logger.info(f"Cancellation withdrawn for org {org_id}")
+        return success_response({"status": "active", "message": "解約のお申し込みを取り消しました。"})
+
+    except Exception as e:
+        logger.error(f"cancel_cancellation error: {e}")
+        return error_response(str(e), 500)
+
+
 @org_bp.route("/resubscribe", methods=["POST"])
 @require_auth
 def resubscribe():

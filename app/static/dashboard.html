@@ -816,7 +816,10 @@
                 } else if (status === 'canceled') {
                     btns.innerHTML = `<button class="btn" onclick="togglePlanSelector()">プランを再登録</button>`;
                 } else if (status === 'canceling') {
-                    btns.innerHTML = `<span style="color:#e53e3e;font-weight:600;font-size:14px">🔔 解約手続き中</span>`;
+                    btns.innerHTML = `
+                        <span style="color:#e53e3e;font-weight:600;font-size:14px;margin-right:12px">🔔 解約手続き中</span>
+                        <button class="btn btn-secondary" onclick="withdrawCancellation()" style="font-size:13px">解約を取り消す</button>
+                    `;
                 } else {
                     btns.innerHTML = `
                         <button class="btn btn-danger" onclick="openCancellation()" style="background:#e53e3e;color:#fff">解約</button>
@@ -1288,6 +1291,22 @@
                 alert('組織タイプを会計事務所に変更しました。');
                 loadClients();
             } catch (e) { errEl.textContent = 'エラー: ' + e.message; }
+        }
+
+        async function withdrawCancellation() {
+            if (!confirm('解約のお申し込みを取り消して、サービスを継続しますか？')) return;
+            try {
+                const res = await fetch('/api/org/cancel-cancellation', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                if (!data.success) { alert('エラー: ' + (data.error || '処理に失敗しました')); return; }
+                alert('解約のお申し込みを取り消しました。引き続きサービスをご利用いただけます。');
+                loadBillingStatus();
+            } catch (e) {
+                alert('エラー: ' + e.message);
+            }
         }
 
         function openCancellation() {
