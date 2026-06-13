@@ -823,7 +823,7 @@
                     `;
                 } else {
                     btns.innerHTML = `
-                        <button class="btn btn-danger" onclick="openCancellation()" style="background:#e53e3e;color:#fff">解約</button>
+                        <button class="btn btn-secondary" onclick="openCancellation()">解約</button>
                         <button class="btn" onclick="togglePlanSelector()">プランを変更</button>
                         ${currentPlanId ? '<button class="btn btn-secondary" onclick="manageStripe()">支払方法登録</button>' : ''}
                     `;
