@@ -272,6 +272,21 @@ def get_organization_detail(org_id):
             """, (org_id,))
         total_events = cur.fetchone()["total"]
 
+        # 顧問先リスト（firm の場合のみ）
+        clients = []
+        if org["org_type"] == "firm":
+            cur.execute("""
+                SELECT id, name
+                FROM clients
+                WHERE org_id = %s
+                ORDER BY name
+            """, (org_id,))
+            for row in cur.fetchall():
+                clients.append({
+                    "id": row["id"],
+                    "name": row["name"]
+                })
+
         conn.close()
 
         return success_response({
@@ -292,7 +307,8 @@ def get_organization_detail(org_id):
                 "slack_workspace": org["workspace_name"] or "",
                 "slack_connected": bool(org["slack_connected"]),
                 "total_events": int(total_events),
-                "monthly_stats": monthly_stats
+                "monthly_stats": monthly_stats,
+                "clients": clients
             }
         })
 
