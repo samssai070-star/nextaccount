@@ -405,7 +405,10 @@
                         <h2>従業員管理</h2>
                         <div style="font-size:12px;color:#999;margin-top:4px" id="employeeClientName"></div>
                     </div>
-                    <button class="btn btn-sm" onclick="openEmployeeModal(null)">+ 従業員を追加</button>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-sm" onclick="openEmployeeModal(null)">+ 従業員を追加</button>
+                        <button class="btn btn-sm" style="background:#999" onclick="closeEmployeesSection()">戻る</button>
+                    </div>
                 </div>
                 <div id="employeesList">
                     <div class="loading"><div class="spinner"></div><p>読み込み中...</p></div>
@@ -1026,6 +1029,11 @@
             loadEmployees();
             // スクロール
             document.getElementById('employeesSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function closeEmployeesSection() {
+            document.getElementById('employeesSection').style.display = 'none';
+            selectedClientId = null;
         }
 
         async function loadEmployees() {
