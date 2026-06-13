@@ -348,14 +348,19 @@ function renderTable(orgs) {
 
   const rows = orgs.map(o => {
     const typeB = o.org_type === 'firm'
-      ? '<span class="badge badge-firm">firm</span>'
-      : '<span class="badge badge-company">company</span>';
+      ? '<span class="badge badge-firm">事務所</span>'
+      : '<span class="badge badge-company">一般企業</span>';
 
+    const STATUS_TABLE_LABELS = {
+      'active': '有効', 'trial': 'トライアル中',
+      'canceling': '解約手続き中', 'suspended': '停止中', 'canceled': '解約済み'
+    };
+    const statusLabel = STATUS_TABLE_LABELS[o.subscription_status] || o.subscription_status;
     const statusB = o.subscription_status === 'active'
-      ? '<span class="badge badge-active">active</span>'
+      ? `<span class="badge badge-active">${statusLabel}</span>`
       : o.subscription_status === 'trial'
-      ? '<span class="badge badge-trial">trial</span>'
-      : `<span class="badge badge-cancel">${o.subscription_status}</span>`;
+      ? `<span class="badge badge-trial">${statusLabel}</span>`
+      : `<span class="badge badge-cancel">${statusLabel}</span>`;
 
     const slackB = o.slack_connected
       ? `<span class="dot dot-green"></span>${o.workspace_name || '接続済'}`
