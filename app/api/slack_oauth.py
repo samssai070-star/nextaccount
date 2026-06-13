@@ -67,7 +67,7 @@ def slack_oauth_callback():
         if ":" in state:
             parts = state.split(":", 1)
             org_id = int(parts[0])
-            client_id = int(parts[1])
+            client_id = parts[1]  # UUID string
         else:
             org_id = int(state)
             client_id = None
