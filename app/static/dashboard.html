@@ -815,6 +815,7 @@
 
                 currentPlanId = b.billing_plan || null;
                 const status = b.billing_status || 'trial';
+                const hasSubscription = b.has_subscription || false;
                 const planObj = PLANS.find(p => p.id === currentPlanId);
 
                 document.getElementById('currentPlanName').textContent =
@@ -835,7 +836,7 @@
                 if (status === 'trial') {
                     btns.innerHTML = `
                         <button class="btn btn-secondary" onclick="openTrialCancel()">解約</button>
-                        ${currentPlanId
+                        ${hasSubscription
                             ? `<button class="btn" onclick="togglePlanSelector()">プランを変更</button>
                                <button class="btn btn-secondary" onclick="manageStripe()">支払方法登録</button>`
                             : `<button class="btn" onclick="togglePlanSelector()">プランを選択してカードを登録</button>`}
