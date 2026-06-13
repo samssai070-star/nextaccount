@@ -182,3 +182,18 @@ CREATE TABLE IF NOT EXISTS slack_workspaces (
 );
 CREATE INDEX IF NOT EXISTS idx_slack_workspaces_org_id ON slack_workspaces(organization_id);
 CREATE INDEX IF NOT EXISTS idx_slack_workspaces_workspace_id ON slack_workspaces(workspace_id);
+
+-- ============================================================
+-- org_upgrade_codes テーブル（会計事務所プランへの授権コード）
+-- ============================================================
+CREATE TABLE IF NOT EXISTS org_upgrade_codes (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    is_used BOOLEAN DEFAULT FALSE,
+    used_at TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_upgrade_codes_org_id ON org_upgrade_codes(organization_id);
+CREATE INDEX IF NOT EXISTS idx_upgrade_codes_code ON org_upgrade_codes(code);
