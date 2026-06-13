@@ -266,25 +266,25 @@
     <div id="suspendedOverlay" style="display:none;position:fixed;inset:0;background:#1a202c;z-index:9999;display:none;align-items:center;justify-content:center">
         <div style="background:#fff;border-radius:16px;padding:48px 40px;max-width:480px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4)">
             <div style="font-size:48px;margin-bottom:16px">⏸</div>
-            <h2 style="font-size:22px;color:#1a202c;margin-bottom:8px">サービスを解約しました</h2>
-            <p style="color:#718096;font-size:14px;margin-bottom:24px">現在サービスは停止中です。<br>データは再契約可能期間中は保持されます。</p>
+            <h2 style="font-size:22px;color:#1a202c;margin-bottom:8px">サービスのご利用を停止しています</h2>
+            <p style="color:#718096;font-size:14px;margin-bottom:24px">解約手続きが完了したため、現在サービスをご利用いただけません。<br>ご登録データは再加入可能期間中、引き続き保持されます。</p>
             <div style="background:#fffbeb;border:1px solid #f6e05e;border-radius:8px;padding:14px;margin-bottom:24px;font-size:13px;color:#744210">
-                <div id="suspensionDeadlineText">再契約可能期間を確認中...</div>
+                <div id="suspensionDeadlineText">確認中...</div>
             </div>
-            <button onclick="openResubscribeModal()" style="width:100%;padding:14px;background:#3182ce;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px">再契約する（試用期間なし）</button>
+            <button onclick="openResubscribeModal()" style="width:100%;padding:14px;background:#3182ce;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px">サービスを再開する</button>
             <button onclick="doLogout()" style="width:100%;padding:10px;background:none;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;color:#718096;cursor:pointer">ログアウト</button>
         </div>
     </div>
 
-    <!-- 再契約確認モーダル -->
+    <!-- 再加入確認モーダル -->
     <div id="resubscribeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center">
         <div style="background:#fff;border-radius:12px;padding:32px;max-width:400px;width:90%">
-            <h3 style="font-size:18px;margin-bottom:8px">再契約の確認</h3>
-            <p style="color:#718096;font-size:14px;margin-bottom:20px">試用期間なしで即時アクティブになります。プランを選択して再契約してください。</p>
+            <h3 style="font-size:18px;margin-bottom:8px">サービス再開のご確認</h3>
+            <p style="color:#718096;font-size:14px;margin-bottom:20px">無料お試し期間なしで、すぐにサービスをご利用いただけます。</p>
             <div id="resubscribeError" style="color:#e53e3e;font-size:13px;margin-bottom:12px;display:none"></div>
             <div style="display:flex;gap:10px;margin-top:16px">
-                <button onclick="closeResubscribeModal()" style="flex:1;padding:10px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer;font-size:14px">キャンセル</button>
-                <button onclick="confirmResubscribe()" style="flex:1;padding:10px;background:#3182ce;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:600">再契約を確定</button>
+                <button onclick="closeResubscribeModal()" style="flex:1;padding:10px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer;font-size:14px">戻る</button>
+                <button onclick="confirmResubscribe()" style="flex:1;padding:10px;background:#3182ce;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:600">再開を確定する</button>
             </div>
         </div>
     </div>
@@ -816,7 +816,7 @@
                 } else if (status === 'canceled') {
                     btns.innerHTML = `<button class="btn" onclick="togglePlanSelector()">プランを再登録</button>`;
                 } else if (status === 'canceling') {
-                    btns.innerHTML = `<span style="color:#e53e3e;font-weight:600;font-size:14px">🔔 解約予定中</span>`;
+                    btns.innerHTML = `<span style="color:#e53e3e;font-weight:600;font-size:14px">🔔 解約手続き中</span>`;
                 } else {
                     btns.innerHTML = `
                         <button class="btn btn-danger" onclick="openCancellation()" style="background:#e53e3e;color:#fff">解約</button>
@@ -1324,8 +1324,8 @@
                 const endStr = ends.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
                 document.getElementById('suspensionDeadlineText').textContent =
                     diff > 0
-                        ? `再契約可能期限：${endStr}（残り${diff}日）`
-                        : '再契約可能期間が終了しました。';
+                        ? `再加入のお申し込み期限：${endStr}（残り${diff}日）`
+                        : 'サービス再開のお申し込み期限が過ぎました。';
             }
         }
 
@@ -1347,13 +1347,13 @@
                 });
                 const data = await res.json();
                 if (!data.success) {
-                    errEl.textContent = data.error || '再契約に失敗しました';
+                    errEl.textContent = data.error || 'サービス再開の処理に失敗しました';
                     errEl.style.display = 'block';
                     return;
                 }
                 closeResubscribeModal();
                 document.getElementById('suspendedOverlay').style.display = 'none';
-                alert('再契約が完了しました。ご利用ありがとうございます。');
+                alert('サービスを再開しました。引き続きよろしくお願いいたします。');
                 window.location.reload();
             } catch (e) {
                 errEl.textContent = 'エラー: ' + e.message;
