@@ -44,7 +44,6 @@ def list_employees():
         rows = cur.fetchall()
         conn.close()
 
-        import json
         employees = [
             {
                 "id": r["id"],
