@@ -31,9 +31,13 @@ def list_clients():
             conn.close()
             return error_response("この機能は会計事務所プランのみ利用できます", 403)
         cur.execute(
-            """SELECT id, name, description, corporate_number, address, phone, industry,
-                      employee_count, contact_person, is_active, created_at
-               FROM clients WHERE org_id=%s ORDER BY name""",
+            """SELECT c.id, c.name, c.description, c.corporate_number, c.address, c.phone,
+                      c.industry, c.employee_count, c.contact_person, c.is_active, c.created_at,
+                      sw.workspace_name AS slack_workspace_name,
+                      sw.is_connected AS slack_connected
+               FROM clients c
+               LEFT JOIN slack_workspaces sw ON sw.client_id = c.id AND sw.is_connected = TRUE
+               WHERE c.org_id=%s ORDER BY c.name""",
             (org_id,)
         )
         rows = cur.fetchall()
@@ -51,6 +55,8 @@ def list_clients():
                 "contact_person": r.get("contact_person") or "",
                 "is_active": r["is_active"],
                 "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                "slack_connected": bool(r.get("slack_connected")),
+                "slack_workspace_name": r.get("slack_workspace_name") or "",
             }
             for r in rows
         ]

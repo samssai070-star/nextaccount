@@ -976,7 +976,7 @@
                 }
                 el.innerHTML = `
                     <table class="clients-table">
-                        <thead><tr><th style="cursor:pointer">顧問先名</th><th>法人番号</th><th>電話</th><th>業種</th><th>状態</th><th></th></tr></thead>
+                        <thead><tr><th>顧問先名</th><th>法人番号</th><th>電話</th><th>業種</th><th>状態</th><th>Slack</th><th></th></tr></thead>
                         <tbody>
                             ${data.data.map((c, idx) => `
                                 <tr>
@@ -985,6 +985,12 @@
                                     <td style="font-size:13px">${c.phone || '-'}</td>
                                     <td style="font-size:13px">${c.industry || '-'}</td>
                                     <td><span class="${c.is_active ? 'badge-active' : 'badge-inactive'}">${c.is_active ? '有効' : '無効'}</span></td>
+                                    <td style="font-size:12px;white-space:nowrap">
+                                        ${c.slack_connected
+                                            ? `<span style="color:#27ae60;font-weight:600">✓ ${c.slack_workspace_name || '接続済'}</span>`
+                                            : `<button class="btn-link" style="color:#3182ce;font-size:12px" onclick="connectClientSlack('${c.id}')">+ Slack連携</button>`
+                                        }
+                                    </td>
                                     <td style="text-align:right; white-space:nowrap;">
                                         <button class="btn-link" style="color:#3182ce;margin-right:4px" onclick="selectClientForEmployees('${c.id}', '${c.name}')">従業員管理</button>
                                         <button class="btn-link" onclick="editClient('${c.id}')">編集</button>
@@ -998,6 +1004,26 @@
                 window.clientsData = data.data;
             } catch (e) {
                 document.getElementById('clientsList').innerHTML = '<p style="color:#e53e3e;padding:12px">読み込みに失敗しました</p>';
+            }
+        }
+
+        async function connectClientSlack(clientId) {
+            try {
+                const res = await fetch(`/api/slack/oauth/start?client_id=${clientId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (!data.success) { alert('エラー: ' + data.error); return; }
+                const popup = window.open(data.data.oauth_url, 'slack_oauth', 'width=600,height=700,scrollbars=yes');
+                // ポップアップが閉じたら顧問先一覧を再読み込み
+                const timer = setInterval(() => {
+                    if (popup && popup.closed) {
+                        clearInterval(timer);
+                        loadClients();
+                    }
+                }, 1000);
+            } catch (e) {
+                alert('Slack連携の開始に失敗しました');
             }
         }
 
