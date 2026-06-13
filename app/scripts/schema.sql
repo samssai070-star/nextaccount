@@ -164,3 +164,21 @@ ALTER TABLE accounting_events ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES
 ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100) DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS slack_user_id VARCHAR(50) NOT NULL DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT DEFAULT '[]';
+
+-- ============================================================
+-- slack_workspaces テーブル（Slack連携情報）
+-- ============================================================
+CREATE TABLE IF NOT EXISTS slack_workspaces (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    workspace_id VARCHAR(50) UNIQUE NOT NULL,
+    workspace_name VARCHAR(200),
+    bot_token VARCHAR(500),
+    bot_user_id VARCHAR(50),
+    channel_name VARCHAR(100),
+    is_connected BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_slack_workspaces_org_id ON slack_workspaces(organization_id);
+CREATE INDEX IF NOT EXISTS idx_slack_workspaces_workspace_id ON slack_workspaces(workspace_id);
