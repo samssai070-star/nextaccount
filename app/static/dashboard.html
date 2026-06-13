@@ -375,7 +375,10 @@
 
             <!-- User Accounts -->
             <div class="section">
-                <h2>ユーザーアカウント</h2>
+                <div class="section-header">
+                    <h2>ユーザーアカウント</h2>
+                    <a href="/setup.html" class="btn btn-sm">+ スタッフを追加</a>
+                </div>
                 <div id="usersList">
                     <div class="empty-state">
                         <div class="icon">🔐</div>
@@ -679,21 +682,23 @@
                         '</ul>';
                 }
 
-                // Load users
+                // Load users (firm's own staff only)
                 const usersRes = await fetch('/api/dashboard/users', { headers });
                 const usersData = await usersRes.json();
+                const usersList = document.getElementById('usersList');
                 if (usersData.success && usersData.data.length > 0) {
-                    const usersList = document.getElementById('usersList');
-                    usersList.innerHTML = '<ul class="list">' +
-                        usersData.data.map(u => `
-                            <li>
-                                <div>
-                                    <div class="list-item-name">${u.full_name}</div>
-                                    <div class="list-item-meta">${u.email}${u.is_admin ? ' (管理者)' : ''}</div>
-                                </div>
-                            </li>
-                        `).join('') +
-                        '</ul>';
+                    usersList.innerHTML = `<table class="clients-table">
+                        <thead><tr><th>氏名</th><th>メール</th><th>ロール</th><th>状態</th></tr></thead>
+                        <tbody>${usersData.data.map(u => `
+                            <tr>
+                                <td><strong>${u.full_name}</strong></td>
+                                <td style="font-size:13px">${u.email}</td>
+                                <td style="font-size:13px">${u.role === 'admin' ? '管理者' : u.role === 'accountant' ? '経理担当' : 'スタッフ'}</td>
+                                <td><span class="${u.is_active ? 'badge-active' : 'badge-inactive'}">${u.is_active ? '有効' : '無効'}</span></td>
+                            </tr>`).join('')}
+                        </tbody></table>`;
+                } else {
+                    usersList.innerHTML = '<div class="empty-state"><div class="icon">👤</div><p>スタッフがまだ登録されていません。<a href="/setup.html">こちら</a>から追加できます。</p></div>';
                 }
 
                 // Load billing status
@@ -858,16 +863,17 @@
                         <thead><tr><th style="cursor:pointer">顧問先名</th><th>法人番号</th><th>電話</th><th>業種</th><th>状態</th><th></th></tr></thead>
                         <tbody>
                             ${data.data.map((c, idx) => `
-                                <tr style="cursor:pointer" onclick="selectClientForEmployees('${c.id}', '${c.name}')">
+                                <tr>
                                     <td><strong>${c.name}</strong><br><span style="color:#999;font-size:12px">${c.address||'住所未設定'}</span></td>
                                     <td style="font-size:13px">${c.corporate_number || '-'}</td>
                                     <td style="font-size:13px">${c.phone || '-'}</td>
                                     <td style="font-size:13px">${c.industry || '-'}</td>
                                     <td><span class="${c.is_active ? 'badge-active' : 'badge-inactive'}">${c.is_active ? '有効' : '無効'}</span></td>
                                     <td style="text-align:right; white-space:nowrap;">
-                                        <button class="btn-link" onclick="event.stopPropagation();editClient('${c.id}')">編集</button>
-                                        ${c.is_active ? `<button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="event.stopPropagation();deactivateClient('${c.id}')">無効化</button>` : `<button class="btn-link" style="color:#2da44e;margin-left:8px" onclick="event.stopPropagation();reactivateClient('${c.id}')">再有効化</button>`}
-                                        <button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="event.stopPropagation();deleteClient('${c.id}')">削除</button>
+                                        <button class="btn-link" style="color:#3182ce;margin-right:4px" onclick="selectClientForEmployees('${c.id}', '${c.name}')">従業員</button>
+                                        <button class="btn-link" onclick="editClient('${c.id}')">編集</button>
+                                        ${c.is_active ? `<button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deactivateClient('${c.id}')">無効化</button>` : `<button class="btn-link" style="color:#2da44e;margin-left:8px" onclick="reactivateClient('${c.id}')">再有効化</button>`}
+                                        <button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deleteClient('${c.id}')">削除</button>
                                     </td>
                                 </tr>`).join('')}
                         </tbody>

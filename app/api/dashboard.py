@@ -211,9 +211,9 @@ def get_users():
         cur = get_db_cursor(conn)
 
         cur.execute(
-            """SELECT id, email, full_name, is_admin, is_active, last_login_at
+            """SELECT id, email, full_name, role, is_active, last_login_at
                FROM users
-               WHERE organization_id=%s
+               WHERE organization_id=%s AND client_id IS NULL
                ORDER BY full_name""",
             (org_id,)
         )
@@ -225,7 +225,7 @@ def get_users():
                 "id": u["id"],
                 "email": u["email"],
                 "full_name": u["full_name"],
-                "is_admin": u["is_admin"],
+                "role": u.get("role") or "staff",
                 "is_active": u["is_active"],
                 "last_login_at": u["last_login_at"].isoformat() if u["last_login_at"] else None
             }
