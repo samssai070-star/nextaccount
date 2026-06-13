@@ -27,6 +27,7 @@ try:
     from api.clients import clients_bp
     from api.org import org_bp
     from api.employees import employees_bp
+    from api.export import export_bp
 
     flask_app.register_blueprint(auth_bp)
     flask_app.register_blueprint(setup_bp)
@@ -36,6 +37,7 @@ try:
     flask_app.register_blueprint(clients_bp)
     flask_app.register_blueprint(org_bp)
     flask_app.register_blueprint(employees_bp)
+    flask_app.register_blueprint(export_bp)
     ensure_billing_columns()
     logger.info("API blueprints registered successfully")
 except ImportError as e:

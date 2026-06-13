@@ -404,6 +404,40 @@
                 </div>
             </div>
 
+            <!-- CSV Export (business/partner plan only) -->
+            <div class="section" id="csvExportSection" style="display:none;">
+                <div class="section-header">
+                    <h2>CSV エクスポート</h2>
+                    <span style="font-size:12px;color:#888;background:#eef3ff;padding:2px 8px;border-radius:10px;">Business / Partner プラン</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+                    <div class="form-group" style="margin:0">
+                        <label style="display:block;font-size:13px;color:#555;margin-bottom:4px;font-weight:500">開始日</label>
+                        <input type="date" id="csvStartDate" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:4px;font-size:14px;">
+                    </div>
+                    <div class="form-group" style="margin:0">
+                        <label style="display:block;font-size:13px;color:#555;margin-bottom:4px;font-weight:500">終了日</label>
+                        <input type="date" id="csvEndDate" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:4px;font-size:14px;">
+                    </div>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:13px;color:#555;font-weight:500;margin-bottom:8px;">フォーマット</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;" id="csvFormatBtns">
+                        <button class="btn btn-secondary btn-sm csv-fmt-btn" data-fmt="yayoi" onclick="downloadCsv('yayoi')">弥生</button>
+                        <button class="btn btn-secondary btn-sm csv-fmt-btn" data-fmt="freee" onclick="downloadCsv('freee')">freee</button>
+                        <button class="btn btn-secondary btn-sm csv-fmt-btn" data-fmt="mf" onclick="downloadCsv('mf')">マネーフォワード</button>
+                        <button class="btn btn-secondary btn-sm csv-fmt-btn" data-fmt="csv" onclick="downloadCsv('csv')">汎用CSV</button>
+                        <button class="btn btn-secondary btn-sm csv-fmt-btn" data-fmt="yenbo" onclick="downloadCsv('yenbo')">クラウド円簿</button>
+                        <button class="btn btn-secondary btn-sm csv-fmt-btn" data-fmt="kanjo" onclick="downloadCsv('kanjo')">勘定奉行</button>
+                        <button class="btn btn-secondary btn-sm csv-fmt-btn" data-fmt="pca" onclick="downloadCsv('pca')">PCA会計</button>
+                        <button class="btn btn-secondary btn-sm csv-fmt-btn" data-fmt="tkc" onclick="downloadCsv('tkc')">TKC</button>
+                        <button class="btn btn-secondary btn-sm csv-fmt-btn" data-fmt="jdl" onclick="downloadCsv('jdl')">JDL</button>
+                        <button class="btn btn-secondary btn-sm csv-fmt-btn" data-fmt="mjs" onclick="downloadCsv('mjs')">MJS</button>
+                    </div>
+                </div>
+                <div id="csvExportMsg" style="font-size:13px;color:#555;min-height:20px;"></div>
+            </div>
+
             <!-- Clients (firm only) -->
             <div class="section" id="clientsSection" style="display:none;">
                 <div class="section-header">
@@ -829,6 +863,19 @@
                 const status = b.billing_status || 'trial';
                 const hasSubscription = b.has_subscription || false;
                 const planObj = PLANS.find(p => p.id === currentPlanId);
+
+                // CSV エクスポートセクション表示（business/partner のみ）
+                if (currentPlanId === 'business' || currentPlanId === 'partner') {
+                    const sec = document.getElementById('csvExportSection');
+                    sec.style.display = 'block';
+                    // 日付初期値：今月
+                    const now = new Date();
+                    const y = now.getFullYear();
+                    const m = String(now.getMonth() + 1).padStart(2, '0');
+                    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+                    document.getElementById('csvStartDate').value = `${y}-${m}-01`;
+                    document.getElementById('csvEndDate').value = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+                }
 
                 document.getElementById('currentPlanName').textContent =
                     planObj ? planObj.name : (currentPlanId || 'プラン未設定');
@@ -1468,6 +1515,52 @@
             } catch (e) {
                 errEl.textContent = 'エラー: ' + e.message;
                 errEl.style.display = 'block';
+            }
+        }
+
+        // ─── CSV エクスポート ──────────────────────────────
+        async function downloadCsv(fmt) {
+            const start = document.getElementById('csvStartDate').value;
+            const end = document.getElementById('csvEndDate').value;
+            const msg = document.getElementById('csvExportMsg');
+            if (!start || !end) {
+                msg.textContent = '開始日と終了日を選択してください。';
+                msg.style.color = '#e53e3e';
+                return;
+            }
+            if (start > end) {
+                msg.textContent = '開始日は終了日より前に設定してください。';
+                msg.style.color = '#e53e3e';
+                return;
+            }
+            msg.textContent = 'ダウンロード中...';
+            msg.style.color = '#555';
+            try {
+                const res = await fetch(
+                    `/api/export/csv?format=${fmt}&start=${start}&end=${end}`,
+                    { headers: { 'Authorization': `Bearer ${token}` } }
+                );
+                if (!res.ok) {
+                    const d = await res.json().catch(() => ({}));
+                    msg.textContent = 'エラー: ' + (d.error || res.statusText);
+                    msg.style.color = '#e53e3e';
+                    return;
+                }
+                const blob = await res.blob();
+                const disposition = res.headers.get('Content-Disposition') || '';
+                const match = disposition.match(/filename\*=UTF-8''(.+)/);
+                const filename = match ? decodeURIComponent(match[1]) : `${fmt}_export.csv`;
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+                msg.textContent = `ダウンロード完了: ${filename}`;
+                msg.style.color = '#27ae60';
+            } catch (e) {
+                msg.textContent = 'エラー: ' + e.message;
+                msg.style.color = '#e53e3e';
             }
         }
 
