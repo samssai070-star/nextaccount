@@ -34,7 +34,7 @@ def register():
         # チェック: メール重複
         cur.execute("SELECT id FROM users WHERE email=%s", (email,))
         if cur.fetchone():
-            return error_response("Email already registered"), 409
+            return error_response("Email already registered", 409)
 
         # 組織を作成
         cur.execute(
@@ -73,7 +73,7 @@ def register():
 
     except Exception as e:
         logger.error(f"Registration error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
@@ -98,16 +98,16 @@ def login():
 
         if not user:
             conn.close()
-            return error_response("Invalid email or password"), 401
+            return error_response("Invalid email or password", 401)
 
         if not user["is_active"]:
             conn.close()
-            return error_response("User account is disabled"), 403
+            return error_response("User account is disabled", 403)
 
         # パスワード検証
         if hash_password(password) != user["password_hash"]:
             conn.close()
-            return error_response("Invalid email or password"), 401
+            return error_response("Invalid email or password", 401)
 
         # ログイン時刻を更新
         cur.execute(
@@ -148,7 +148,7 @@ def login():
 
     except Exception as e:
         logger.error(f"Login error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @auth_bp.route("/select", methods=["POST"])
 def select_organization():
@@ -173,7 +173,7 @@ def select_organization():
         user = cur.fetchone()
         if not user:
             conn.close()
-            return error_response("Invalid user or organization"), 401
+            return error_response("Invalid user or organization", 401)
 
         # client_id が指定されている場合、ユーザーがそのclientに属するか確認
         if client_id:
@@ -202,7 +202,7 @@ def select_organization():
 
     except Exception as e:
         logger.error(f"Select organization error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 
 @auth_bp.route("/me", methods=["GET"])
@@ -229,7 +229,7 @@ def get_current_user():
         conn.close()
 
         if not user:
-            return error_response("User not found"), 404
+            return error_response("User not found", 404)
 
         return success_response({
             "id": user["id"],
@@ -245,7 +245,7 @@ def get_current_user():
 
     except Exception as e:
         logger.error(f"Get user error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @auth_bp.route("/logout", methods=["POST"])
 @require_auth

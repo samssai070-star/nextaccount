@@ -28,7 +28,7 @@ def get_progress():
         conn.close()
 
         if not progress:
-            return error_response("Setup progress not found"), 404
+            return error_response("Setup progress not found", 404)
 
         return success_response({
             "step_completed": progress["step_completed"],
@@ -37,7 +37,7 @@ def get_progress():
 
     except Exception as e:
         logger.error(f"Get progress error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @setup_bp.route("/step1", methods=["POST"])
 @require_auth
@@ -93,7 +93,7 @@ def setup_step1():
 
     except Exception as e:
         logger.error(f"Setup step1 error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @setup_bp.route("/step2", methods=["POST"])
 @require_auth
@@ -144,7 +144,7 @@ def setup_step2():
 
     except Exception as e:
         logger.error(f"Setup step2 error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @setup_bp.route("/step3", methods=["POST"])
 @require_auth
@@ -229,7 +229,7 @@ def setup_step3():
 
     except Exception as e:
         logger.error(f"Setup step3 error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @setup_bp.route("/step4", methods=["POST"])
 @require_auth
@@ -281,7 +281,7 @@ def setup_step4():
 
     except Exception as e:
         logger.error(f"Setup step4 error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @setup_bp.route("/summary", methods=["GET"])
 @require_auth
@@ -326,4 +326,4 @@ def get_setup_summary():
 
     except Exception as e:
         logger.error(f"Get setup summary error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)

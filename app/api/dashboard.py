@@ -66,7 +66,7 @@ def get_summary():
 
     except Exception as e:
         logger.error(f"Get summary error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @dashboard_bp.route("/organization", methods=["GET"])
 @require_auth
@@ -86,7 +86,7 @@ def get_organization():
         conn.close()
 
         if not org:
-            return error_response("Organization not found"), 404
+            return error_response("Organization not found", 404)
 
         return success_response({
             "id": org["id"],
@@ -96,7 +96,7 @@ def get_organization():
 
     except Exception as e:
         logger.error(f"Get organization error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @dashboard_bp.route("/departments", methods=["GET"])
 @require_auth
@@ -122,7 +122,7 @@ def get_departments():
 
     except Exception as e:
         logger.error(f"Get departments error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @dashboard_bp.route("/employees/<int:emp_id>", methods=["PUT"])
 @require_auth
@@ -138,7 +138,7 @@ def update_employee(emp_id):
         department_id = data.get("department_id")
 
         if not full_name or not email:
-            return error_response("氏名とメールアドレスは必須です"), 400
+            return error_response("氏名とメールアドレスは必須です", 400)
 
         conn = get_db_connection()
         cur = get_db_cursor(conn)
@@ -152,7 +152,7 @@ def update_employee(emp_id):
 
         if cur.rowcount == 0:
             conn.close()
-            return error_response("従業員が見つかりません"), 404
+            return error_response("従業員が見つかりません", 404)
 
         conn.commit()
         conn.close()
@@ -162,7 +162,7 @@ def update_employee(emp_id):
 
     except Exception as e:
         logger.error(f"Update employee error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @dashboard_bp.route("/employees", methods=["GET"])
 @require_auth
@@ -198,7 +198,7 @@ def get_employees():
 
     except Exception as e:
         logger.error(f"Get employees error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @dashboard_bp.route("/users", methods=["GET"])
 @require_auth
@@ -234,4 +234,4 @@ def get_users():
 
     except Exception as e:
         logger.error(f"Get users error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)

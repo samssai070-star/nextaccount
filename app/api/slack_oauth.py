@@ -22,7 +22,7 @@ def slack_oauth_start():
         org_id = request.organization_id
 
         if not SLACK_CLIENT_ID:
-            return error_response("Slack OAuth not configured"), 503
+            return error_response("Slack OAuth not configured", 503)
 
         # OAuth URLを生成 - core/slack_oauth.py と同じscopes配置を使用
         scopes = ",".join([
@@ -53,7 +53,7 @@ def slack_oauth_start():
 
     except Exception as e:
         logger.error(f"OAuth start error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 @slack_bp.route("/oauth/callback", methods=["GET"])
 def slack_oauth_callback():
@@ -157,7 +157,7 @@ def get_workspace_info():
         conn.close()
 
         if not workspace:
-            return error_response("No Slack workspace connected"), 404
+            return error_response("No Slack workspace connected", 404)
 
         return success_response({
             "workspace_id": workspace["workspace_id"],
@@ -169,7 +169,7 @@ def get_workspace_info():
 
     except Exception as e:
         logger.error(f"Get workspace info error: {e}")
-        return error_response(str(e)), 500
+        return error_response(str(e), 500)
 
 def _ensure_expense_channel(bot_token: str) -> tuple[str, str]:
     """#経費申請 チャンネルを確認または作成"""
