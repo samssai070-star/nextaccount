@@ -120,11 +120,26 @@ def login():
         # ユーザーが属する organization/client を取得
         cur.execute(
             """SELECT id, name, org_type, subscription_status,
-                      cancellation_effective_at, suspension_ends_at, data_deleted_at
+                      cancellation_effective_at, suspension_ends_at, data_deleted_at,
+                      trial_ends_at
                FROM organizations WHERE id=%s""",
             (user["organization_id"],)
         )
         org_data = cur.fetchone()
+
+        # トライアル期限切れで未契約 → 自動 canceled へ遷移
+        if org_data and org_data["subscription_status"] == "trial" and org_data["trial_ends_at"]:
+            te = org_data["trial_ends_at"]
+            if te.tzinfo is None:
+                te = te.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) >= te:
+                cur.execute(
+                    "UPDATE organizations SET subscription_status='canceled', updated_at=NOW() WHERE id=%s",
+                    (user["organization_id"],)
+                )
+                conn.commit()
+                org_data = dict(org_data)
+                org_data["subscription_status"] = "canceled"
 
         # 即時解約済み（トライアルキャンセル）はログイン不可
         if org_data and org_data["subscription_status"] == "canceled" and org_data["data_deleted_at"]:
