@@ -58,13 +58,15 @@ def setup_step1():
         # 会計年度を計算
         today = date.today()
         current_year = today.year
+        m = int(start_month)
+        end_month = 12 if m == 1 else m - 1
 
-        if int(start_month) <= today.month:
-            fiscal_year_start = date(current_year, int(start_month), 1)
-            fiscal_year_end = date(current_year + 1, int(start_month) - 1, 28)
+        if m <= today.month:
+            fiscal_year_start = date(current_year, m, 1)
+            fiscal_year_end = date(current_year + 1 if m > 1 else current_year, end_month, 28)
         else:
-            fiscal_year_start = date(current_year - 1, int(start_month), 1)
-            fiscal_year_end = date(current_year, int(start_month) - 1, 28)
+            fiscal_year_start = date(current_year - 1, m, 1)
+            fiscal_year_end = date(current_year, end_month, 28)
 
         # 既存の会計年度を削除
         cur.execute("DELETE FROM accounting_periods WHERE organization_id=%s", (org_id,))
