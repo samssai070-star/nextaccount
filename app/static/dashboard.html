@@ -873,7 +873,7 @@
                                     <td style="font-size:13px">${c.industry || '-'}</td>
                                     <td><span class="${c.is_active ? 'badge-active' : 'badge-inactive'}">${c.is_active ? '有効' : '無効'}</span></td>
                                     <td style="text-align:right; white-space:nowrap;">
-                                        <button class="btn-link" style="color:#3182ce;margin-right:4px" onclick="selectClientForEmployees('${c.id}', '${c.name}')">従業員</button>
+                                        <button class="btn-link" style="color:#3182ce;margin-right:4px" onclick="selectClientForEmployees('${c.id}', '${c.name}')">従業員管理</button>
                                         <button class="btn-link" onclick="editClient('${c.id}')">編集</button>
                                         ${c.is_active ? `<button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deactivateClient('${c.id}')">無効化</button>` : `<button class="btn-link" style="color:#2da44e;margin-left:8px" onclick="reactivateClient('${c.id}')">再有効化</button>`}
                                         <button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deleteClient('${c.id}')">削除</button>
