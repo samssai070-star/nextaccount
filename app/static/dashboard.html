@@ -262,6 +262,33 @@
     </style>
 </head>
 <body>
+    <!-- サービス停止中オーバーレイ -->
+    <div id="suspendedOverlay" style="display:none;position:fixed;inset:0;background:#1a202c;z-index:9999;display:none;align-items:center;justify-content:center">
+        <div style="background:#fff;border-radius:16px;padding:48px 40px;max-width:480px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4)">
+            <div style="font-size:48px;margin-bottom:16px">⏸</div>
+            <h2 style="font-size:22px;color:#1a202c;margin-bottom:8px">サービスを解約しました</h2>
+            <p style="color:#718096;font-size:14px;margin-bottom:24px">現在サービスは停止中です。<br>データは再契約可能期間中は保持されます。</p>
+            <div style="background:#fffbeb;border:1px solid #f6e05e;border-radius:8px;padding:14px;margin-bottom:24px;font-size:13px;color:#744210">
+                <div id="suspensionDeadlineText">再契約可能期間を確認中...</div>
+            </div>
+            <button onclick="openResubscribeModal()" style="width:100%;padding:14px;background:#3182ce;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px">再契約する（試用期間なし）</button>
+            <button onclick="doLogout()" style="width:100%;padding:10px;background:none;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;color:#718096;cursor:pointer">ログアウト</button>
+        </div>
+    </div>
+
+    <!-- 再契約確認モーダル -->
+    <div id="resubscribeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center">
+        <div style="background:#fff;border-radius:12px;padding:32px;max-width:400px;width:90%">
+            <h3 style="font-size:18px;margin-bottom:8px">再契約の確認</h3>
+            <p style="color:#718096;font-size:14px;margin-bottom:20px">試用期間なしで即時アクティブになります。プランを選択して再契約してください。</p>
+            <div id="resubscribeError" style="color:#e53e3e;font-size:13px;margin-bottom:12px;display:none"></div>
+            <div style="display:flex;gap:10px;margin-top:16px">
+                <button onclick="closeResubscribeModal()" style="flex:1;padding:10px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer;font-size:14px">キャンセル</button>
+                <button onclick="confirmResubscribe()" style="flex:1;padding:10px;background:#3182ce;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:600">再契約を確定</button>
+            </div>
+        </div>
+    </div>
+
     <header>
         <h1>NextAccount Dashboard</h1>
         <div class="header-right">
@@ -663,6 +690,14 @@
                     orgType = user.org_type || 'company';
                     document.getElementById('orgTypeDisplay').textContent = orgType === 'firm' ? '会計事務所' : '一般企業';
                     document.getElementById('orgTypeItem').style.display = orgType === 'company' ? 'block' : 'none';
+
+                    // サービス停止中チェック
+                    const subStatus = user.organization?.subscription_status || '';
+                    if (subStatus === 'suspended') {
+                        showSuspendedOverlay(user.organization);
+                        return;
+                    }
+
                     if (orgType === 'firm') {
                         document.getElementById('clientsSection').style.display = 'block';
                         loadClients();
@@ -1276,6 +1311,53 @@
                 loadBillingStatus();
             } catch (e) {
                 alert('エラー: ' + e.message);
+            }
+        }
+
+        // ─── 停止中オーバーレイ ──────────────────────────────
+        function showSuspendedOverlay(org) {
+            const overlay = document.getElementById('suspendedOverlay');
+            overlay.style.display = 'flex';
+            if (org && org.suspension_ends_at) {
+                const ends = new Date(org.suspension_ends_at);
+                const diff = Math.ceil((ends - Date.now()) / 86400000);
+                const endStr = ends.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+                document.getElementById('suspensionDeadlineText').textContent =
+                    diff > 0
+                        ? `再契約可能期限：${endStr}（残り${diff}日）`
+                        : '再契約可能期間が終了しました。';
+            }
+        }
+
+        function openResubscribeModal() {
+            document.getElementById('resubscribeError').style.display = 'none';
+            document.getElementById('resubscribeModal').style.display = 'flex';
+        }
+
+        function closeResubscribeModal() {
+            document.getElementById('resubscribeModal').style.display = 'none';
+        }
+
+        async function confirmResubscribe() {
+            const errEl = document.getElementById('resubscribeError');
+            try {
+                const res = await fetch('/api/org/resubscribe', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    errEl.textContent = data.error || '再契約に失敗しました';
+                    errEl.style.display = 'block';
+                    return;
+                }
+                closeResubscribeModal();
+                document.getElementById('suspendedOverlay').style.display = 'none';
+                alert('再契約が完了しました。ご利用ありがとうございます。');
+                window.location.reload();
+            } catch (e) {
+                errEl.textContent = 'エラー: ' + e.message;
+                errEl.style.display = 'block';
             }
         }
 

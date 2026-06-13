@@ -342,15 +342,14 @@ def get_admin_stats():
 @org_bp.route("/request-cancellation", methods=["POST"])
 @require_auth
 def request_cancellation():
-    """解約を申請（1ヶ月後に正式解約）"""
+    """解約を申請（次次月から正式解約・3ヶ月間ログインのみ可能）"""
     try:
         org_id = request.organization_id
         conn = get_db_connection()
         cur = get_db_cursor(conn)
 
-        # 組織の現在の状態を確認
         cur.execute(
-            """SELECT subscription_status, trial_ends_at FROM organizations WHERE id=%s""",
+            "SELECT subscription_status FROM organizations WHERE id=%s",
             (org_id,)
         )
         org = cur.fetchone()
@@ -358,35 +357,97 @@ def request_cancellation():
             conn.close()
             return error_response("Organization not found", 404)
 
-        # 既にキャンセル予定の場合
-        if org["subscription_status"] == "canceling":
+        if org["subscription_status"] in ("canceling", "suspended"):
             conn.close()
-            return error_response("既に解約予定です", 409)
+            return error_response("既に解約予定または解約済みです", 409)
 
-        # subscription_status を 'canceling' に変更
-        cancellation_at = datetime.now(timezone.utc)
-        # 実際の解約日は1ヶ月後
-        actual_cancellation_at = cancellation_at + timedelta(days=30)
+        now = datetime.now(timezone.utc)
+        # 次次月 1日（今月・来月は課金継続）
+        month = now.month + 2
+        year = now.year
+        if month > 12:
+            month -= 12
+            year += 1
+        cancellation_effective_at = datetime(year, month, 1, tzinfo=timezone.utc)
+        # サービス停止から3ヶ月間はログイン・再契約可能
+        suspension_ends_at = cancellation_effective_at + timedelta(days=92)
 
         cur.execute(
             """UPDATE organizations
-               SET subscription_status=%s, updated_at=NOW()
+               SET subscription_status='canceling',
+                   cancellation_effective_at=%s,
+                   suspension_ends_at=%s,
+                   updated_at=NOW()
                WHERE id=%s""",
-            ("canceling", org_id)
+            (cancellation_effective_at, suspension_ends_at, org_id)
         )
         conn.commit()
         conn.close()
 
-        logger.info(f"Cancellation requested for org {org_id}, effective: {actual_cancellation_at}")
+        logger.info(f"Cancellation requested for org {org_id}, effective: {cancellation_effective_at}")
         return success_response({
             "status": "canceling",
-            "cancellation_requested_at": cancellation_at.isoformat(),
-            "effective_cancellation_at": actual_cancellation_at.isoformat(),
-            "message": "解約申請が完了しました。1ヶ月後に正式解約となります。"
+            "cancellation_effective_at": cancellation_effective_at.isoformat(),
+            "suspension_ends_at": suspension_ends_at.isoformat(),
+            "message": "解約申請が完了しました。"
         })
 
     except Exception as e:
         logger.error(f"request_cancellation error: {e}")
+        return error_response(str(e), 500)
+
+
+@org_bp.route("/resubscribe", methods=["POST"])
+@require_auth
+def resubscribe():
+    """解約後の再契約（試用期間なし）"""
+    try:
+        org_id = request.organization_id
+        conn = get_db_connection()
+        cur = get_db_cursor(conn)
+
+        cur.execute(
+            """SELECT subscription_status, suspension_ends_at
+               FROM organizations WHERE id=%s""",
+            (org_id,)
+        )
+        org = cur.fetchone()
+        if not org:
+            conn.close()
+            return error_response("Organization not found", 404)
+
+        if org["subscription_status"] not in ("canceling", "suspended"):
+            conn.close()
+            return error_response("再契約対象外のステータスです", 409)
+
+        # 3ヶ月の停止期限を過ぎていたら再契約不可
+        if org["suspension_ends_at"]:
+            now = datetime.now(timezone.utc)
+            ends = org["suspension_ends_at"]
+            if ends.tzinfo is None:
+                ends = ends.replace(tzinfo=timezone.utc)
+            if now > ends:
+                conn.close()
+                return error_response("再契約可能期間が終了しました", 403)
+
+        cur.execute(
+            """UPDATE organizations
+               SET subscription_status='active',
+                   cancellation_effective_at=NULL,
+                   suspension_ends_at=NULL,
+                   trial_ends_at=NULL,
+                   updated_at=NOW()
+               WHERE id=%s""",
+            (org_id,)
+        )
+        conn.commit()
+        conn.close()
+
+        logger.info(f"Resubscribed org {org_id}")
+        return success_response({"status": "active", "message": "再契約が完了しました。"})
+
+    except Exception as e:
+        logger.error(f"resubscribe error: {e}")
         return error_response(str(e), 500)
 
 

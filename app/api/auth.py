@@ -1,6 +1,7 @@
 """Authentication API Routes"""
 from __future__ import annotations
 from flask import Blueprint, request
+from datetime import datetime, timezone
 import logging
 from .helpers import (
     get_db_connection, get_db_cursor, hash_password, generate_token,
@@ -118,10 +119,27 @@ def login():
 
         # ユーザーが属する organization/client を取得
         cur.execute(
-            """SELECT id, name, org_type FROM organizations WHERE id=%s""",
+            """SELECT id, name, org_type, subscription_status,
+                      cancellation_effective_at, suspension_ends_at
+               FROM organizations WHERE id=%s""",
             (user["organization_id"],)
         )
         org_data = cur.fetchone()
+
+        # canceling → suspended 自動遷移
+        if org_data and org_data["subscription_status"] == "canceling":
+            eff = org_data["cancellation_effective_at"]
+            if eff:
+                if eff.tzinfo is None:
+                    eff = eff.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) >= eff:
+                    cur.execute(
+                        "UPDATE organizations SET subscription_status='suspended', updated_at=NOW() WHERE id=%s",
+                        (org_data["id"],)
+                    )
+                    conn.commit()
+                    org_data = dict(org_data)
+                    org_data["subscription_status"] = "suspended"
 
         # ユーザーが属しているクライアントを取得
         cur.execute(
@@ -141,7 +159,10 @@ def login():
             "organization": {
                 "id": org_data["id"],
                 "name": org_data["name"],
-                "org_type": org_data.get("org_type") or "company"
+                "org_type": org_data.get("org_type") or "company",
+                "subscription_status": org_data.get("subscription_status") or "trial",
+                "cancellation_effective_at": org_data["cancellation_effective_at"].isoformat() if org_data.get("cancellation_effective_at") else None,
+                "suspension_ends_at": org_data["suspension_ends_at"].isoformat() if org_data.get("suspension_ends_at") else None
             },
             "user_clients": [{"id": str(c["id"]), "name": c["name"]} for c in user_clients]
         })
