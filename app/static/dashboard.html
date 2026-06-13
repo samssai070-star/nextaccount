@@ -732,6 +732,17 @@
                     const summary = summaryData.data;
                     document.getElementById('employeeCount').textContent = summary.employee_count || 0;
                     document.getElementById('departmentCount').textContent = summary.department_count || 0;
+
+                    // Slack 接続状態
+                    const slackStatus = document.getElementById('slackStatus');
+                    if (summary.slack_connected) {
+                        slackStatus.textContent = '✓';
+                        slackStatus.style.color = '#27ae60';  // 緑
+                    } else {
+                        slackStatus.textContent = '❌';
+                        slackStatus.style.color = '#e53e3e';  // 赤
+                    }
+
                     if (summary.fiscal_year_start) {
                         const start = new Date(summary.fiscal_year_start);
                         const end = new Date(summary.fiscal_year_end);

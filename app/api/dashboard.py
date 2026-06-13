@@ -54,6 +54,14 @@ def get_summary():
         )
         department_count = cur.fetchone()["count"]
 
+        # Slack 接続状態
+        cur.execute(
+            "SELECT is_connected FROM slack_workspaces WHERE organization_id=%s LIMIT 1",
+            (org_id,)
+        )
+        slack = cur.fetchone()
+        slack_connected = bool(slack and slack["is_connected"]) if slack else False
+
         conn.close()
 
         return success_response({
@@ -61,7 +69,8 @@ def get_summary():
             "fiscal_year_start": period["fiscal_year_start"].isoformat() if period else None,
             "fiscal_year_end": period["fiscal_year_end"].isoformat() if period else None,
             "employee_count": employee_count,
-            "department_count": department_count
+            "department_count": department_count,
+            "slack_connected": slack_connected
         })
 
     except Exception as e:
