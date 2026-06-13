@@ -454,9 +454,13 @@
                                 <input type="checkbox" id="permConfirm" value="confirm" style="width:auto;margin-right:8px">
                                 仕訳確認
                             </label>
-                            <label style="display:flex;align-items:center;font-weight:400">
+                            <label style="display:flex;align-items:center;margin-bottom:8px;font-weight:400">
                                 <input type="checkbox" id="permExport" value="export" style="width:auto;margin-right:8px">
                                 CSV エクスポート
+                            </label>
+                            <label style="display:flex;align-items:center;font-weight:400">
+                                <input type="checkbox" id="permApprove" value="approve" style="width:auto;margin-right:8px">
+                                承認
                             </label>
                         </div>
                     </div>
@@ -1090,6 +1094,7 @@
             document.getElementById('permUpload').checked = false;
             document.getElementById('permConfirm').checked = false;
             document.getElementById('permExport').checked = false;
+            document.getElementById('permApprove').checked = false;
 
             if (id && window.employeesData) {
                 const emp = window.employeesData.find(e => e.id === id);
@@ -1105,6 +1110,7 @@
                     if (perms.includes('upload')) document.getElementById('permUpload').checked = true;
                     if (perms.includes('confirm')) document.getElementById('permConfirm').checked = true;
                     if (perms.includes('export')) document.getElementById('permExport').checked = true;
+                    if (perms.includes('approve')) document.getElementById('permApprove').checked = true;
                 }
             } else {
                 document.getElementById('employeeEmail').value = '';
@@ -1133,6 +1139,7 @@
             if (document.getElementById('permUpload').checked) permissions.push('upload');
             if (document.getElementById('permConfirm').checked) permissions.push('confirm');
             if (document.getElementById('permExport').checked) permissions.push('export');
+            if (document.getElementById('permApprove').checked) permissions.push('approve');
 
             if (!email || !name) { alert('メールアドレスと氏名は必須です'); return; }
             if (!slackId) { alert('Slack ユーザー IDは必須です'); return; }
