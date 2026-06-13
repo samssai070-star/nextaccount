@@ -405,6 +405,23 @@
                 </div>
             </div>
 
+            <!-- Upgrade to Firm Modal -->
+            <div class="modal-overlay" id="upgradeModal">
+                <div class="modal" style="max-width:420px">
+                    <h3>会計事務所に変更</h3>
+                    <p style="color:#666;font-size:14px;margin:12px 0 20px">この変更にはプラットフォームから発行された授権コードが必要です。</p>
+                    <div class="form-group">
+                        <label>授権コード <span style="color:#e53e3e">*</span></label>
+                        <input type="text" id="upgradeCodeInput" placeholder="授権コードを入力" autocomplete="off">
+                    </div>
+                    <p id="upgradeError" style="color:#e53e3e;font-size:13px;margin:8px 0 0"></p>
+                    <div class="modal-actions" style="margin-top:20px">
+                        <button class="btn btn-secondary" onclick="closeUpgradeModal()">キャンセル</button>
+                        <button class="btn btn-primary" onclick="confirmUpgrade()">変更を確定</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Add/Edit Employee Modal -->
             <div class="modal-overlay" id="employeeModal">
                 <div class="modal" style="max-width:540px;max-height:85vh;overflow-y:auto">
@@ -1181,23 +1198,37 @@
             } catch (e) { alert('エラー: ' + e.message); }
         }
 
-        async function switchToFirm() {
-            if (!confirm('この組織を「会計事務所」に変更しますか？\n顧問先管理機能が有効になります。')) return;
+        function switchToFirm() {
+            document.getElementById('upgradeModal').classList.add('open');
+            document.getElementById('upgradeCodeInput').value = '';
+            document.getElementById('upgradeError').textContent = '';
+        }
+
+        function closeUpgradeModal() {
+            document.getElementById('upgradeModal').classList.remove('open');
+        }
+
+        async function confirmUpgrade() {
+            const authCode = document.getElementById('upgradeCodeInput').value.trim();
+            const errEl = document.getElementById('upgradeError');
+            if (!authCode) { errEl.textContent = '授権コードを入力してください'; return; }
+            errEl.textContent = '';
             try {
                 const res = await fetch('/api/org/update-type', {
                     method: 'PATCH',
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ org_type: 'firm' })
+                    body: JSON.stringify({ org_type: 'firm', auth_code: authCode })
                 });
                 const data = await res.json();
-                if (!data.success) { alert(data.error || '変更に失敗しました'); return; }
+                if (!data.success) { errEl.textContent = data.error || '変更に失敗しました'; return; }
+                closeUpgradeModal();
                 orgType = 'firm';
                 document.getElementById('orgTypeDisplay').textContent = '会計事務所';
                 document.getElementById('orgTypeItem').style.display = 'none';
                 document.getElementById('clientsSection').style.display = 'block';
                 alert('組織タイプを会計事務所に変更しました。');
                 loadClients();
-            } catch (e) { alert('エラー: ' + e.message); }
+            } catch (e) { errEl.textContent = 'エラー: ' + e.message; }
         }
 
         loadDashboard();
