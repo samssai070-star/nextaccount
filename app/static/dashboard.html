@@ -832,10 +832,13 @@
 
                 // ボタンをステータスに応じて生成
                 const btns = document.getElementById('billingBtns');
-                if (status === 'trial' && !currentPlanId) {
+                if (status === 'trial') {
                     btns.innerHTML = `
-                        <button class="btn" onclick="togglePlanSelector()">プランを選択してカードを登録</button>
-                        <button class="btn btn-secondary" onclick="openTrialCancel()" style="font-size:13px">解約</button>
+                        <button class="btn btn-secondary" onclick="openTrialCancel()">解約</button>
+                        ${currentPlanId
+                            ? `<button class="btn" onclick="togglePlanSelector()">プランを変更</button>
+                               <button class="btn btn-secondary" onclick="manageStripe()">支払方法登録</button>`
+                            : `<button class="btn" onclick="togglePlanSelector()">プランを選択してカードを登録</button>`}
                     `;
                 } else if (status === 'canceled') {
                     btns.innerHTML = `<button class="btn" onclick="togglePlanSelector()">プランを再登録</button>`;
