@@ -787,7 +787,8 @@
 
         async function loadBillingStatus(hdrs) {
             try {
-                const res = await fetch('/api/billing/status', { headers: hdrs });
+                const headers = hdrs || { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+                const res = await fetch('/api/billing/status', { headers });
                 const data = await res.json();
                 if (!data.success) return;
                 const b = data.data;
@@ -1303,7 +1304,7 @@
                 const data = await res.json();
                 if (!data.success) { alert('エラー: ' + (data.error || '処理に失敗しました')); return; }
                 alert('解約のお申し込みを取り消しました。引き続きサービスをご利用いただけます。');
-                loadBillingStatus();
+                window.location.reload();
             } catch (e) {
                 alert('エラー: ' + e.message);
             }
