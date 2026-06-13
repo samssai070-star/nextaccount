@@ -339,6 +339,57 @@ def get_admin_stats():
         return error_response(str(e), 500)
 
 
+@org_bp.route("/request-cancellation", methods=["POST"])
+@require_auth
+def request_cancellation():
+    """解約を申請（1ヶ月後に正式解約）"""
+    try:
+        org_id = request.organization_id
+        conn = get_db_connection()
+        cur = get_db_cursor(conn)
+
+        # 組織の現在の状態を確認
+        cur.execute(
+            """SELECT subscription_status, trial_ends_at FROM organizations WHERE id=%s""",
+            (org_id,)
+        )
+        org = cur.fetchone()
+        if not org:
+            conn.close()
+            return error_response("Organization not found", 404)
+
+        # 既にキャンセル予定の場合
+        if org["subscription_status"] == "canceling":
+            conn.close()
+            return error_response("既に解約予定です", 409)
+
+        # subscription_status を 'canceling' に変更
+        cancellation_at = datetime.now(timezone.utc)
+        # 実際の解約日は1ヶ月後
+        actual_cancellation_at = cancellation_at + timedelta(days=30)
+
+        cur.execute(
+            """UPDATE organizations
+               SET subscription_status=%s, updated_at=NOW()
+               WHERE id=%s""",
+            ("canceling", org_id)
+        )
+        conn.commit()
+        conn.close()
+
+        logger.info(f"Cancellation requested for org {org_id}, effective: {actual_cancellation_at}")
+        return success_response({
+            "status": "canceling",
+            "cancellation_requested_at": cancellation_at.isoformat(),
+            "effective_cancellation_at": actual_cancellation_at.isoformat(),
+            "message": "解約申請が完了しました。1ヶ月後に正式解約となります。"
+        })
+
+    except Exception as e:
+        logger.error(f"request_cancellation error: {e}")
+        return error_response(str(e), 500)
+
+
 @org_bp.route("/update-type", methods=["PATCH"])
 @require_auth
 def update_org_type():

@@ -423,6 +423,26 @@
                 </div>
             </div>
 
+            <!-- Cancellation Modal -->
+            <div class="modal-overlay" id="cancellationModal">
+                <div class="modal" style="max-width:420px">
+                    <h3>サービスを解約</h3>
+                    <div style="background:#fff5f5;border-left:4px solid #e53e3e;padding:12px;border-radius:6px;margin-bottom:16px;font-size:13px;color:#742a2a">
+                        <div style="font-weight:600;margin-bottom:6px">解約の条件</div>
+                        <ul style="margin-left:16px;line-height:1.6">
+                            <li>今月末までの料金は発生します</li>
+                            <li>来月の料金も発生します</li>
+                            <li>再来月から正式に解約となります</li>
+                        </ul>
+                    </div>
+                    <p style="color:#666;font-size:13px;margin-bottom:16px">本当に解約しますか？この決定は戻せません。</p>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="closeCancellationModal()">キャンセル</button>
+                        <button class="btn btn-danger" style="background:#e53e3e;color:#fff;border:none" onclick="confirmCancellation()">解約を確定</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Add/Edit Employee Modal -->
             <div class="modal-overlay" id="employeeModal">
                 <div class="modal" style="max-width:540px;max-height:85vh;overflow-y:auto">
@@ -760,8 +780,11 @@
                     btns.innerHTML = `<button class="btn" onclick="togglePlanSelector()">プランを選択してカードを登録</button>`;
                 } else if (status === 'canceled') {
                     btns.innerHTML = `<button class="btn" onclick="togglePlanSelector()">プランを再登録</button>`;
+                } else if (status === 'canceling') {
+                    btns.innerHTML = `<span style="color:#e53e3e;font-weight:600;font-size:14px">🔔 解約予定中</span>`;
                 } else {
                     btns.innerHTML = `
+                        <button class="btn btn-danger" onclick="openCancellation()" style="background:#e53e3e;color:#fff">解約</button>
                         <button class="btn" onclick="togglePlanSelector()">プランを変更</button>
                         ${currentPlanId ? '<button class="btn btn-secondary" onclick="manageStripe()">支払い方式登録</button>' : ''}
                     `;
@@ -1230,6 +1253,30 @@
                 alert('組織タイプを会計事務所に変更しました。');
                 loadClients();
             } catch (e) { errEl.textContent = 'エラー: ' + e.message; }
+        }
+
+        function openCancellation() {
+            document.getElementById('cancellationModal').classList.add('open');
+        }
+
+        function closeCancellationModal() {
+            document.getElementById('cancellationModal').classList.remove('open');
+        }
+
+        async function confirmCancellation() {
+            try {
+                const res = await fetch('/api/org/request-cancellation', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                if (!data.success) { alert('エラー: ' + (data.error || '解約に失敗しました')); return; }
+                closeCancellationModal();
+                alert('解約申請が完了しました。\n\n1ヶ月後に正式に解約となります。\nご利用ありがとうございました。');
+                loadBillingStatus();
+            } catch (e) {
+                alert('エラー: ' + e.message);
+            }
         }
 
         loadDashboard();
