@@ -22,9 +22,10 @@ from datetime import datetime
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-from core.config import SLACK_BOT_TOKEN, SLACK_APP_TOKEN, GOOGLE_SHEET_ID
+from core.config import SLACK_APP_TOKEN, GOOGLE_SHEET_ID
 import os
 APPROVAL_CHANNEL_ID = os.environ.get("APPROVAL_CHANNEL_ID", "")
+_SIGNING_SECRET = os.environ.get("SLACK_SIGNING_SECRET", "dummy")
 from core.ocr import parse_receipt, OcrResult
 from core.accounting import build_journal_entry, generate_event_id, build_credit_account
 from core.database import get_tenant_by_slack_team
@@ -83,7 +84,11 @@ def _get_tenant(team_id: str) -> dict | None:
 # アプリ・サービス初期化
 # ============================================================
 
-app = App(token=SLACK_BOT_TOKEN)
+from core.installation_store import DBInstallationStore
+app = App(
+    signing_secret=_SIGNING_SECRET,
+    installation_store=DBInstallationStore(),
+)
 
 sheets: SheetsManager | None = None
 if GOOGLE_SHEET_ID:
@@ -265,7 +270,7 @@ def handle_file_shared(event, client, logger):
         employee_name = _get_employee_name(client, user_id) if user_id else "不明"
 
         # ファイルダウンロード
-        file_bytes = _download_file(file_info["url_private"], SLACK_BOT_TOKEN)
+        file_bytes = _download_file(file_info["url_private"], client.token)
         ext = ".pdf" if mime == "application/pdf" else ".jpg"
         temp_path  = f"/tmp/receipt_{file_id}{ext}"
         with open(temp_path, "wb") as f:
