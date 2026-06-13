@@ -200,7 +200,7 @@ def get_organization_detail(org_id):
         cur.execute("""
             SELECT
                 o.id, o.name, o.org_type, o.subscription_status, o.plan,
-                o.trial_ends_at, o.created_at, o.stripe_customer_id,
+                o.trial_ends_at, o.created_at, o.stripe_customer_id, o.stripe_subscription_id,
                 u.email AS admin_email, u.full_name AS admin_name,
                 COALESCE(emp.cnt, 0) AS employee_count,
                 sp.is_completed AS setup_completed, sp.step_completed,
