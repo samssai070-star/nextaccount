@@ -246,7 +246,7 @@
         .badge-inactive { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
         .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #e0e0e0; }
         .section-header h2 { margin: 0; border: none; padding: 0; font-size: 18px; }
-        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(128,128,128,0.5); z-index: 1000; align-items: center; justify-content: center; }
         .modal-overlay.open { display: flex; }
         .modal { background: white; border-radius: 8px; padding: 24px; width: 100%; max-width: 440px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
         .modal h3 { font-size: 16px; margin-bottom: 16px; color: #333; }
@@ -825,7 +825,7 @@
                     btns.innerHTML = `
                         <button class="btn btn-danger" onclick="openCancellation()" style="background:#e53e3e;color:#fff">解約</button>
                         <button class="btn" onclick="togglePlanSelector()">プランを変更</button>
-                        ${currentPlanId ? '<button class="btn btn-secondary" onclick="manageStripe()">支払い方式登録</button>' : ''}
+                        ${currentPlanId ? '<button class="btn btn-secondary" onclick="manageStripe()">支払方法登録</button>' : ''}
                     `;
                 }
             } catch (e) {
