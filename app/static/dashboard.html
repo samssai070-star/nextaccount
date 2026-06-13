@@ -453,19 +453,19 @@
             <!-- Cancellation Modal -->
             <div class="modal-overlay" id="cancellationModal">
                 <div class="modal" style="max-width:420px">
-                    <h3>サービスを解約</h3>
+                    <h3>解約のお申し込み</h3>
                     <div style="background:#fff5f5;border-left:4px solid #e53e3e;padding:12px;border-radius:6px;margin-bottom:16px;font-size:13px;color:#742a2a">
-                        <div style="font-weight:600;margin-bottom:6px">解約の条件</div>
-                        <ul style="margin-left:16px;line-height:1.6">
-                            <li>今月末までの料金は発生します</li>
-                            <li>来月の料金も発生します</li>
-                            <li>再来月から正式に解約となります</li>
+                        <div style="font-weight:600;margin-bottom:6px">ご注意事項</div>
+                        <ul style="margin-left:16px;line-height:1.8">
+                            <li>当月分のご利用料金が発生します</li>
+                            <li>翌月分のご利用料金も発生します</li>
+                            <li>翌々月1日より正式に解約となります</li>
                         </ul>
                     </div>
-                    <p style="color:#666;font-size:13px;margin-bottom:16px">本当に解約しますか？この決定は戻せません。</p>
+                    <p style="color:#666;font-size:13px;margin-bottom:16px">解約後のお取り消しはできません。ご確認の上、お手続きをお進めください。</p>
                     <div class="modal-actions">
-                        <button class="btn btn-secondary" onclick="closeCancellationModal()">キャンセル</button>
-                        <button class="btn btn-danger" style="background:#e53e3e;color:#fff;border:none" onclick="confirmCancellation()">解約を確定</button>
+                        <button class="btn btn-secondary" onclick="closeCancellationModal()">戻る</button>
+                        <button class="btn btn-danger" style="background:#e53e3e;color:#fff;border:none" onclick="confirmCancellation()">解約を申し込む</button>
                     </div>
                 </div>
             </div>
@@ -1307,7 +1307,7 @@
                 const data = await res.json();
                 if (!data.success) { alert('エラー: ' + (data.error || '解約に失敗しました')); return; }
                 closeCancellationModal();
-                alert('解約申請が完了しました。\n\n1ヶ月後に正式に解約となります。\nご利用ありがとうございました。');
+                alert('解約のお申し込みが完了しました。\n\n翌々月1日より正式に解約となります。\nご利用いただきありがとうございました。');
                 loadBillingStatus();
             } catch (e) {
                 alert('エラー: ' + e.message);
