@@ -3,140 +3,402 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NextAccount 管理者ページ</title>
+<title>NextAccount 管理者ダッシュボード</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-  .card { background: #fff; border-radius: 12px; padding: 40px; width: 100%; max-width: 480px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-  h1 { font-size: 22px; color: #1a202c; margin-bottom: 8px; }
-  .subtitle { color: #718096; font-size: 14px; margin-bottom: 32px; }
-  .form-group { margin-bottom: 20px; }
-  label { display: block; font-size: 13px; font-weight: 600; color: #4a5568; margin-bottom: 6px; }
-  input { width: 100%; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; outline: none; transition: border-color 0.2s; }
-  input:focus { border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.1); }
-  .btn { width: 100%; padding: 12px; background: #667eea; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-  .btn:hover { background: #5a6fd6; }
-  .btn:disabled { background: #a0aec0; cursor: not-allowed; }
-  .result { margin-top: 24px; padding: 16px; border-radius: 8px; font-size: 14px; display: none; }
-  .result.success { background: #f0fff4; border: 1px solid #68d391; color: #276749; }
-  .result.error { background: #fff5f5; border: 1px solid #fc8181; color: #c53030; }
-  .code-box { background: #2d3748; color: #68d391; padding: 12px 16px; border-radius: 6px; font-family: monospace; font-size: 22px; letter-spacing: 4px; text-align: center; margin: 12px 0; }
-  .meta { font-size: 12px; color: #4a5568; }
-  .divider { border: none; border-top: 1px solid #e2e8f0; margin: 28px 0; }
-  #loginSection, #mainSection { }
-  #mainSection { display: none; }
-  .badge { display: inline-block; background: #ebf4ff; color: #3182ce; font-size: 11px; padding: 2px 8px; border-radius: 99px; margin-left: 8px; vertical-align: middle; }
-  .history { margin-top: 24px; }
-  .history h3 { font-size: 14px; font-weight: 600; color: #4a5568; margin-bottom: 12px; }
-  .history-item { padding: 10px 14px; background: #f7fafc; border-radius: 6px; margin-bottom: 8px; font-size: 13px; }
-  .history-item .email { font-weight: 600; color: #2d3748; }
-  .history-item .info { color: #718096; margin-top: 2px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
+
+/* ログイン画面 */
+#loginScreen { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-card { background: #fff; border-radius: 12px; padding: 40px; width: 100%; max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+.login-card h1 { font-size: 22px; color: #1a202c; margin-bottom: 6px; }
+.login-card p { color: #718096; font-size: 14px; margin-bottom: 28px; }
+
+/* メイン画面 */
+#mainScreen { display: none; }
+.header { background: #1a202c; color: #fff; padding: 0 32px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
+.header-right { display: flex; align-items: center; gap: 16px; font-size: 13px; color: #a0aec0; }
+.header-right button { background: none; border: 1px solid #4a5568; color: #a0aec0; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.header-right button:hover { border-color: #718096; color: #fff; }
+
+.content { padding: 28px 32px; max-width: 1400px; margin: 0 auto; }
+
+/* 統計カード */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+.stat-card { background: #fff; border-radius: 10px; padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.stat-card .label { font-size: 12px; color: #718096; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.stat-card .value { font-size: 32px; font-weight: 700; color: #1a202c; }
+.stat-card .sub { font-size: 12px; color: #a0aec0; margin-top: 4px; }
+.stat-card.blue .value { color: #3182ce; }
+.stat-card.green .value { color: #38a169; }
+.stat-card.orange .value { color: #dd6b20; }
+.stat-card.purple .value { color: #805ad5; }
+
+/* 顧客テーブル */
+.section { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 24px; }
+.section-header { padding: 18px 24px; border-bottom: 1px solid #f0f2f5; display: flex; align-items: center; justify-content: space-between; }
+.section-header h2 { font-size: 15px; font-weight: 700; color: #1a202c; }
+.section-header .actions { display: flex; gap: 10px; }
+
+table { width: 100%; border-collapse: collapse; }
+thead th { padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 700; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; background: #f7fafc; border-bottom: 1px solid #e2e8f0; }
+tbody tr { border-bottom: 1px solid #f0f2f5; transition: background 0.1s; }
+tbody tr:hover { background: #f7fafc; }
+tbody tr:last-child { border-bottom: none; }
+td { padding: 12px 16px; font-size: 13px; color: #2d3748; vertical-align: middle; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+.badge-firm { background: #ebf4ff; color: #2b6cb0; }
+.badge-company { background: #f0fff4; color: #276749; }
+.badge-trial { background: #fffbeb; color: #b7791f; }
+.badge-active { background: #f0fff4; color: #276749; }
+.badge-cancel { background: #fff5f5; color: #c53030; }
+
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+.dot-green { background: #48bb78; }
+.dot-gray { background: #cbd5e0; }
+.dot-red { background: #fc8181; }
+
+/* ボタン */
+.btn { padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
+.btn-primary { background: #3182ce; color: #fff; }
+.btn-primary:hover { background: #2c5282; }
+.btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 5px; }
+.btn-outline { background: transparent; border: 1px solid #e2e8f0; color: #4a5568; }
+.btn-outline:hover { border-color: #3182ce; color: #3182ce; background: #ebf4ff; }
+.btn-green { background: #38a169; color: #fff; }
+.btn-green:hover { background: #276749; }
+.btn-red { background: #e53e3e; color: #fff; }
+.btn-red:hover { background: #c53030; }
+
+/* フォーム */
+.form-group { margin-bottom: 16px; }
+label { display: block; font-size: 13px; font-weight: 600; color: #4a5568; margin-bottom: 5px; }
+input, select { width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 7px; font-size: 14px; outline: none; }
+input:focus, select:focus { border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.1); }
+
+/* モーダル */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: #fff; border-radius: 12px; padding: 32px; width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto; }
+.modal h3 { font-size: 18px; font-weight: 700; color: #1a202c; margin-bottom: 6px; }
+.modal .modal-sub { font-size: 13px; color: #718096; margin-bottom: 20px; }
+.modal-footer { display: flex; gap: 10px; margin-top: 20px; }
+.modal-footer .btn { flex: 1; padding: 10px; }
+
+.result-box { padding: 14px; border-radius: 8px; margin-top: 14px; font-size: 13px; display: none; }
+.result-box.success { background: #f0fff4; border: 1px solid #68d391; color: #276749; }
+.result-box.error { background: #fff5f5; border: 1px solid #fc8181; color: #c53030; }
+.code-display { background: #2d3748; color: #68d391; font-family: monospace; font-size: 24px; letter-spacing: 5px; text-align: center; padding: 14px; border-radius: 6px; margin: 10px 0; }
+
+/* 検索・フィルター */
+.toolbar { display: flex; gap: 10px; align-items: center; }
+.search-input { width: 240px; padding: 7px 12px; border: 1px solid #e2e8f0; border-radius: 7px; font-size: 13px; outline: none; }
+.search-input:focus { border-color: #667eea; }
+select.filter-sel { padding: 7px 12px; border: 1px solid #e2e8f0; border-radius: 7px; font-size: 13px; outline: none; background: #fff; cursor: pointer; }
+
+/* ローディング */
+.loading { text-align: center; padding: 40px; color: #a0aec0; font-size: 14px; }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #e2e8f0; border-top-color: #3182ce; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 8px; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* セットアップ進捗バー */
+.progress-bar { height: 5px; background: #e2e8f0; border-radius: 99px; overflow: hidden; width: 60px; display: inline-block; vertical-align: middle; margin-left: 6px; }
+.progress-fill { height: 100%; background: #3182ce; border-radius: 99px; }
+
+@media (max-width: 768px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .content { padding: 16px; }
+  .header { padding: 0 16px; }
+}
 </style>
 </head>
 <body>
-<div class="card">
-  <h1>🔐 NextAccount 管理者</h1>
-  <p class="subtitle">授権コード発行ページ</p>
 
-  <!-- ログインセクション -->
-  <div id="loginSection">
+<!-- ログイン画面 -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h1>🔐 NextAccount</h1>
+    <p>管理者ダッシュボード</p>
     <div class="form-group">
       <label>管理者キー</label>
-      <input type="password" id="adminKey" placeholder="管理者キーを入力" autocomplete="off">
+      <input type="password" id="loginKey" placeholder="管理者キーを入力" autocomplete="off">
     </div>
-    <button class="btn" onclick="login()">ログイン</button>
-    <div class="result" id="loginResult"></div>
+    <button class="btn btn-primary" style="width:100%;padding:11px" onclick="login()">ログイン</button>
+    <div class="result-box" id="loginError" style="display:none;margin-top:12px"></div>
+  </div>
+</div>
+
+<!-- メイン画面 -->
+<div id="mainScreen">
+  <div class="header">
+    <h1>NextAccount 管理者ダッシュボード</h1>
+    <div class="header-right">
+      <span id="lastUpdated"></span>
+      <button onclick="loadAll()">🔄 更新</button>
+      <button onclick="logout()">ログアウト</button>
+    </div>
   </div>
 
-  <!-- メインセクション -->
-  <div id="mainSection">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-      <span style="font-size:13px;color:#68d369;font-weight:600;">✓ 管理者認証済み</span>
-      <button onclick="logout()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:13px;">ログアウト</button>
+  <div class="content">
+    <!-- 統計カード -->
+    <div class="stats-grid">
+      <div class="stat-card blue">
+        <div class="label">総顧客数</div>
+        <div class="value" id="statTotal">—</div>
+        <div class="sub">登録組織</div>
+      </div>
+      <div class="stat-card green">
+        <div class="label">アクティブ</div>
+        <div class="value" id="statActive">—</div>
+        <div class="sub">課金中</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="label">トライアル</div>
+        <div class="value" id="statTrials">—</div>
+        <div class="sub">試用中</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="label">会計事務所</div>
+        <div class="value" id="statFirms">—</div>
+        <div class="sub">firm タイプ</div>
+      </div>
     </div>
 
+    <!-- 顧客一覧 -->
+    <div class="section">
+      <div class="section-header">
+        <h2>顧客一覧</h2>
+        <div class="toolbar">
+          <input class="search-input" type="text" id="searchInput" placeholder="名前・メールで検索..." oninput="filterTable()">
+          <select class="filter-sel" id="typeFilter" onchange="filterTable()">
+            <option value="">すべてのタイプ</option>
+            <option value="company">company</option>
+            <option value="firm">firm</option>
+          </select>
+          <select class="filter-sel" id="statusFilter" onchange="filterTable()">
+            <option value="">すべてのステータス</option>
+            <option value="trial">trial</option>
+            <option value="active">active</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="openIssueModal()">＋ 授権コード発行</button>
+        </div>
+      </div>
+      <div id="tableArea">
+        <div class="loading"><span class="spinner"></span>読み込み中...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 授権コード発行モーダル -->
+<div class="modal-overlay" id="issueModal">
+  <div class="modal">
+    <h3>授権コード発行</h3>
+    <p class="modal-sub">発行すると顧客に自動でメールが送信されます。</p>
     <div class="form-group">
-      <label>顧客メールアドレス <span class="badge">管理者ユーザー</span></label>
-      <input type="email" id="orgEmail" placeholder="customer@example.com">
+      <label>顧客メールアドレス</label>
+      <input type="email" id="issueEmail" placeholder="customer@example.com">
     </div>
-    <button class="btn" id="issueBtn" onclick="issueCode()">授権コードを発行してメール送信</button>
-
-    <div class="result" id="issueResult"></div>
-
-    <div class="history" id="historySection" style="display:none">
-      <hr class="divider">
-      <h3>📋 発行履歴（今回のセッション）</h3>
-      <div id="historyList"></div>
+    <div class="result-box" id="issueResult"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeIssueModal()">キャンセル</button>
+      <button class="btn btn-primary" id="issueSubmitBtn" onclick="issueCode()">発行してメール送信</button>
     </div>
   </div>
 </div>
 
 <script>
 let adminKey = '';
-const history = [];
+let allOrgs = [];
 
+// ─── 認証 ───────────────────────────────────────────────
 function login() {
-  const key = document.getElementById('adminKey').value.trim();
+  const key = document.getElementById('loginKey').value.trim();
   if (!key) return;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
 
-  // キーを一時的に保存してテスト
-  adminKey = key;
-  const resultEl = document.getElementById('loginResult');
-  resultEl.style.display = 'block';
-  resultEl.className = 'result';
-  resultEl.textContent = '認証中...';
-
-  // ダミーリクエストで認証テスト
-  fetch('/api/org/admin/issue-upgrade-code', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
-    body: JSON.stringify({ organization_email: '' })
+  fetch('/api/org/admin/stats', {
+    headers: { 'X-Admin-Key': key }
   }).then(r => r.json()).then(data => {
-    if (data.error === 'organization_email required') {
-      // 認証成功（リクエスト自体は通った）
-      document.getElementById('loginSection').style.display = 'none';
-      document.getElementById('mainSection').style.display = 'block';
-    } else if (data.error === 'Unauthorized') {
-      adminKey = '';
-      resultEl.className = 'result error';
-      resultEl.textContent = '管理者キーが正しくありません。';
+    if (data.success) {
+      adminKey = key;
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('mainScreen').style.display = 'block';
+      loadAll();
     } else {
-      adminKey = '';
-      resultEl.className = 'result error';
-      resultEl.textContent = '認証エラー: ' + data.error;
+      errEl.style.display = 'block';
+      errEl.className = 'result-box error';
+      errEl.textContent = '管理者キーが正しくありません。';
     }
   }).catch(() => {
-    adminKey = '';
-    resultEl.className = 'result error';
-    resultEl.textContent = 'サーバーに接続できません。';
+    errEl.style.display = 'block';
+    errEl.className = 'result-box error';
+    errEl.textContent = 'サーバーに接続できません。';
   });
 }
 
 function logout() {
   adminKey = '';
-  document.getElementById('adminKey').value = '';
-  document.getElementById('loginResult').style.display = 'none';
-  document.getElementById('mainSection').style.display = 'none';
-  document.getElementById('loginSection').style.display = 'block';
+  document.getElementById('loginKey').value = '';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('mainScreen').style.display = 'none';
+}
+
+document.getElementById('loginKey').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+
+// ─── データ読み込み ────────────────────────────────────────
+function loadAll() {
+  loadStats();
+  loadOrgs();
+  document.getElementById('lastUpdated').textContent = '最終更新: ' + new Date().toLocaleTimeString('ja-JP');
+}
+
+function loadStats() {
+  fetch('/api/org/admin/stats', { headers: { 'X-Admin-Key': adminKey } })
+    .then(r => r.json()).then(data => {
+      if (!data.success) return;
+      const d = data.data;
+      document.getElementById('statTotal').textContent = d.total;
+      document.getElementById('statActive').textContent = d.active;
+      document.getElementById('statTrials').textContent = d.trials;
+      document.getElementById('statFirms').textContent = d.firms;
+    });
+}
+
+function loadOrgs() {
+  document.getElementById('tableArea').innerHTML = '<div class="loading"><span class="spinner"></span>読み込み中...</div>';
+  fetch('/api/org/admin/organizations', { headers: { 'X-Admin-Key': adminKey } })
+    .then(r => r.json()).then(data => {
+      if (!data.success) return;
+      allOrgs = data.data.organizations;
+      renderTable(allOrgs);
+    });
+}
+
+// ─── テーブル描画 ──────────────────────────────────────────
+function renderTable(orgs) {
+  if (!orgs.length) {
+    document.getElementById('tableArea').innerHTML = '<div class="loading">顧客データがありません</div>';
+    return;
+  }
+
+  const rows = orgs.map(o => {
+    const typeB = o.org_type === 'firm'
+      ? '<span class="badge badge-firm">firm</span>'
+      : '<span class="badge badge-company">company</span>';
+
+    const statusB = o.subscription_status === 'active'
+      ? '<span class="badge badge-active">active</span>'
+      : o.subscription_status === 'trial'
+      ? '<span class="badge badge-trial">trial</span>'
+      : `<span class="badge badge-cancel">${o.subscription_status}</span>`;
+
+    const slackB = o.slack_connected
+      ? `<span class="dot dot-green"></span>${o.workspace_name || '接続済'}`
+      : '<span class="dot dot-gray"></span>未接続';
+
+    const setupB = o.setup_completed
+      ? '<span style="color:#38a169;font-weight:600">✓ 完了</span>'
+      : `<span style="color:#718096">STEP ${o.step_completed}/4</span>
+         <div class="progress-bar"><div class="progress-fill" style="width:${o.step_completed * 25}%"></div></div>`;
+
+    const trialStr = o.trial_ends_at
+      ? (() => {
+          const d = new Date(o.trial_ends_at);
+          const diff = Math.ceil((d - Date.now()) / 86400000);
+          return diff > 0
+            ? `<span style="color:${diff <= 7 ? '#dd6b20' : '#718096'}">${diff}日残</span>`
+            : '<span style="color:#c53030">期限切れ</span>';
+        })()
+      : '—';
+
+    const createdStr = o.created_at
+      ? new Date(o.created_at).toLocaleDateString('ja-JP')
+      : '—';
+
+    return `<tr>
+      <td><strong>${escHtml(o.name)}</strong></td>
+      <td style="color:#718096">${escHtml(o.admin_email)}</td>
+      <td>${typeB}</td>
+      <td>${statusB} ${trialStr}</td>
+      <td>${setupB}</td>
+      <td>${o.employee_count}名</td>
+      <td style="font-size:12px">${slackB}</td>
+      <td>${createdStr}</td>
+      <td>
+        ${o.org_type !== 'firm'
+          ? `<button class="btn btn-outline btn-sm" onclick="openIssueModalFor('${escHtml(o.admin_email)}')">授権コード</button>`
+          : '<span style="color:#a0aec0;font-size:12px">firm済</span>'}
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('tableArea').innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>組織名</th>
+          <th>管理者メール</th>
+          <th>タイプ</th>
+          <th>ステータス</th>
+          <th>セットアップ</th>
+          <th>従業員</th>
+          <th>Slack</th>
+          <th>登録日</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function filterTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const type = document.getElementById('typeFilter').value;
+  const status = document.getElementById('statusFilter').value;
+  const filtered = allOrgs.filter(o => {
+    const matchQ = !q || o.name.toLowerCase().includes(q) || (o.admin_email || '').toLowerCase().includes(q);
+    const matchType = !type || o.org_type === type;
+    const matchStatus = !status || o.subscription_status === status;
+    return matchQ && matchType && matchStatus;
+  });
+  renderTable(filtered);
+}
+
+// ─── 授権コード発行 ───────────────────────────────────────
+function openIssueModal() {
+  document.getElementById('issueEmail').value = '';
+  document.getElementById('issueResult').style.display = 'none';
+  document.getElementById('issueModal').classList.add('open');
+}
+
+function openIssueModalFor(email) {
+  document.getElementById('issueEmail').value = email;
+  document.getElementById('issueResult').style.display = 'none';
+  document.getElementById('issueModal').classList.add('open');
+}
+
+function closeIssueModal() {
+  document.getElementById('issueModal').classList.remove('open');
 }
 
 function issueCode() {
-  const email = document.getElementById('orgEmail').value.trim().toLowerCase();
+  const email = document.getElementById('issueEmail').value.trim().toLowerCase();
   const resultEl = document.getElementById('issueResult');
+  const btn = document.getElementById('issueSubmitBtn');
 
   if (!email) {
     resultEl.style.display = 'block';
-    resultEl.className = 'result error';
+    resultEl.className = 'result-box error';
     resultEl.textContent = 'メールアドレスを入力してください。';
     return;
   }
 
-  const btn = document.getElementById('issueBtn');
   btn.disabled = true;
   btn.textContent = '発行中...';
-  resultEl.style.display = 'block';
-  resultEl.className = 'result';
-  resultEl.textContent = '処理中...';
 
   fetch('/api/org/admin/issue-upgrade-code', {
     method: 'POST',
@@ -144,50 +406,41 @@ function issueCode() {
     body: JSON.stringify({ organization_email: email })
   }).then(r => r.json()).then(data => {
     btn.disabled = false;
-    btn.textContent = '授権コードを発行してメール送信';
+    btn.textContent = '発行してメール送信';
+    resultEl.style.display = 'block';
 
     if (data.success) {
-      const expiry = new Date(data.data.expires_at).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
-      resultEl.className = 'result success';
+      const d = data.data;
+      const expiry = new Date(d.expires_at).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+      resultEl.className = 'result-box success';
       resultEl.innerHTML = `
-        <div style="font-weight:600;margin-bottom:8px">✓ 発行完了・メール送信済み</div>
-        <div class="code-box">${data.data.code}</div>
-        <div class="meta">
-          <div>組織名: <strong>${data.data.organization}</strong></div>
-          <div>送信先: ${data.data.email}</div>
-          <div>有効期限: ${expiry}</div>
-        </div>
-      `;
-
-      // 履歴に追加
-      history.unshift({ email: data.data.email, org: data.data.organization, code: data.data.code, expiry, time: new Date().toLocaleTimeString('ja-JP') });
-      renderHistory();
-      document.getElementById('orgEmail').value = '';
+        <div style="font-weight:700;margin-bottom:6px">✓ 発行完了・メール送信済み</div>
+        <div class="code-display">${d.code}</div>
+        <div style="font-size:12px;color:#4a5568">
+          組織: <strong>${escHtml(d.organization)}</strong><br>
+          送信先: ${escHtml(d.email)}<br>
+          有効期限: ${expiry}
+        </div>`;
+      loadAll();
     } else {
-      resultEl.className = 'result error';
+      resultEl.className = 'result-box error';
       resultEl.textContent = 'エラー: ' + data.error;
     }
   }).catch(() => {
     btn.disabled = false;
-    btn.textContent = '授権コードを発行してメール送信';
-    resultEl.className = 'result error';
+    btn.textContent = '発行してメール送信';
+    resultEl.className = 'result-box error';
     resultEl.textContent = 'サーバーエラーが発生しました。';
   });
 }
 
-function renderHistory() {
-  if (history.length === 0) return;
-  document.getElementById('historySection').style.display = 'block';
-  document.getElementById('historyList').innerHTML = history.map(h => `
-    <div class="history-item">
-      <div class="email">${h.email} — ${h.org}</div>
-      <div class="info">コード: <strong>${h.code}</strong> ／ 有効期限: ${h.expiry} ／ 発行: ${h.time}</div>
-    </div>
-  `).join('');
-}
+document.getElementById('issueModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('issueModal')) closeIssueModal();
+});
 
-document.getElementById('adminKey').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
-document.getElementById('orgEmail') && document.getElementById('orgEmail').addEventListener('keydown', e => { if (e.key === 'Enter') issueCode(); });
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 </script>
 </body>
 </html>

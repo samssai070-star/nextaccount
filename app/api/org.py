@@ -122,6 +122,103 @@ NextAccount サポートチーム
         logger.error(f"Failed to send upgrade code email: {e}")
 
 
+@org_bp.route("/admin/organizations", methods=["GET"])
+def list_organizations():
+    """【管理者専用】全組織一覧を取得"""
+    auth_err = _require_admin()
+    if auth_err:
+        return auth_err
+
+    try:
+        conn = get_db_connection()
+        cur = get_db_cursor(conn)
+
+        cur.execute("""
+            SELECT
+                o.id, o.name, o.org_type,
+                o.subscription_status, o.plan,
+                o.trial_ends_at, o.created_at,
+                u.email AS admin_email,
+                COALESCE(emp.cnt, 0) AS employee_count,
+                sp.is_completed AS setup_completed,
+                sp.step_completed,
+                sw.is_connected AS slack_connected,
+                sw.workspace_name
+            FROM organizations o
+            LEFT JOIN users u ON u.organization_id = o.id AND u.is_admin = TRUE
+            LEFT JOIN (
+                SELECT organization_id, COUNT(*) AS cnt
+                FROM employees WHERE is_active = TRUE
+                GROUP BY organization_id
+            ) emp ON emp.organization_id = o.id
+            LEFT JOIN setup_progress sp ON sp.organization_id = o.id
+            LEFT JOIN slack_workspaces sw ON sw.organization_id = o.id
+            ORDER BY o.created_at DESC
+        """)
+        orgs = cur.fetchall()
+        conn.close()
+
+        return success_response({
+            "organizations": [{
+                "id": org["id"],
+                "name": org["name"],
+                "admin_email": org["admin_email"] or "",
+                "org_type": org["org_type"] or "company",
+                "subscription_status": org["subscription_status"] or "trial",
+                "plan": org["plan"] or "",
+                "trial_ends_at": org["trial_ends_at"].isoformat() if org["trial_ends_at"] else None,
+                "created_at": org["created_at"].isoformat() if org["created_at"] else None,
+                "employee_count": int(org["employee_count"]),
+                "setup_completed": bool(org["setup_completed"]),
+                "step_completed": org["step_completed"] or 0,
+                "slack_connected": bool(org["slack_connected"]),
+                "workspace_name": org["workspace_name"] or ""
+            } for org in orgs]
+        })
+
+    except Exception as e:
+        logger.error(f"list_organizations error: {e}")
+        return error_response(str(e), 500)
+
+
+@org_bp.route("/admin/stats", methods=["GET"])
+def get_admin_stats():
+    """【管理者専用】統計情報を取得"""
+    auth_err = _require_admin()
+    if auth_err:
+        return auth_err
+
+    try:
+        conn = get_db_connection()
+        cur = get_db_cursor(conn)
+
+        cur.execute("SELECT COUNT(*) AS total FROM organizations")
+        total = cur.fetchone()["total"]
+
+        cur.execute("SELECT COUNT(*) AS cnt FROM organizations WHERE org_type='firm'")
+        firms = cur.fetchone()["cnt"]
+
+        cur.execute("SELECT COUNT(*) AS cnt FROM organizations WHERE subscription_status='trial'")
+        trials = cur.fetchone()["cnt"]
+
+        cur.execute("SELECT COUNT(*) AS cnt FROM organizations WHERE subscription_status='active'")
+        active = cur.fetchone()["cnt"]
+
+        conn.close()
+
+        return success_response({
+            "total": int(total),
+            "firms": int(firms),
+            "companies": int(total) - int(firms),
+            "trials": int(trials),
+            "active": int(active)
+        })
+
+    except Exception as e:
+        logger.error(f"get_admin_stats error: {e}")
+        return error_response(str(e), 500)
+
+
 @org_bp.route("/update-type", methods=["PATCH"])
 @require_auth
 def update_org_type():
