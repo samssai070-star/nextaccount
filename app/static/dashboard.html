@@ -1056,6 +1056,7 @@
                                     <td style="text-align:right; white-space:nowrap;">
                                         <button class="btn-link" onclick="openEmployeeModal('${e.id}')">編集</button>
                                         ${e.is_active ? `<button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deactivateEmployee('${e.id}')">無効化</button>` : ''}
+                                        <button class="btn-link" style="color:#e53e3e;margin-left:8px" onclick="deleteEmployee('${e.id}')">削除</button>
                                     </td>
                                 </tr>`).join('')}
                         </tbody>
@@ -1138,6 +1139,19 @@
                 const data = await res.json();
                 if (!data.success) { alert(data.error || '保存に失敗しました'); return; }
                 closeEmployeeModal();
+                loadEmployees();
+            } catch (e) { alert('エラー: ' + e.message); }
+        }
+
+        async function deleteEmployee(id) {
+            if (!confirm('この従業員を削除しますか？この操作は元に戻せません。')) return;
+            try {
+                const res = await fetch(`/api/employees/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (!data.success) { alert(data.error || '失敗しました'); return; }
                 loadEmployees();
             } catch (e) { alert('エラー: ' + e.message); }
         }
