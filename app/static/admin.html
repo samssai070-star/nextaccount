@@ -253,9 +253,7 @@ let adminKey = '';
 let allOrgs = [];
 
 // ─── 認証 ───────────────────────────────────────────────
-function login() {
-  const key = document.getElementById('loginKey').value.trim();
-  if (!key) return;
+function doLogin(key) {
   const errEl = document.getElementById('loginError');
   errEl.style.display = 'none';
 
@@ -264,29 +262,48 @@ function login() {
   }).then(r => r.json()).then(data => {
     if (data.success) {
       adminKey = key;
+      localStorage.setItem('na_admin_key', key);
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('mainScreen').style.display = 'block';
       loadAll();
     } else {
-      errEl.style.display = 'block';
-      errEl.className = 'result-box error';
-      errEl.textContent = '管理者キーが正しくありません。';
+      localStorage.removeItem('na_admin_key');
+      if (errEl) {
+        errEl.style.display = 'block';
+        errEl.className = 'result-box error';
+        errEl.textContent = '管理者キーが正しくありません。';
+      }
     }
   }).catch(() => {
-    errEl.style.display = 'block';
-    errEl.className = 'result-box error';
-    errEl.textContent = 'サーバーに接続できません。';
+    if (errEl) {
+      errEl.style.display = 'block';
+      errEl.className = 'result-box error';
+      errEl.textContent = 'サーバーに接続できません。';
+    }
   });
+}
+
+function login() {
+  const key = document.getElementById('loginKey').value.trim();
+  if (!key) return;
+  doLogin(key);
 }
 
 function logout() {
   adminKey = '';
+  localStorage.removeItem('na_admin_key');
   document.getElementById('loginKey').value = '';
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('mainScreen').style.display = 'none';
 }
 
 document.getElementById('loginKey').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+
+// ページロード時に保存済みキーがあれば自動ログイン
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('na_admin_key');
+  if (saved) doLogin(saved);
+});
 
 // ─── データ読み込み ────────────────────────────────────────
 function loadAll() {
