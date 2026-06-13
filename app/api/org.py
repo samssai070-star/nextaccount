@@ -612,3 +612,38 @@ def update_org_type():
     except Exception as e:
         logger.error(f"update_org_type error: {e}")
         return error_response(str(e), 500)
+
+
+@org_bp.route("/admin/organization/<int:org_id>", methods=["DELETE"])
+def delete_organization(org_id):
+    """【管理者専用】組織を完全削除"""
+    auth_err = _require_admin()
+    if auth_err:
+        return auth_err
+
+    try:
+        conn = get_db_connection()
+        cur = get_db_cursor(conn)
+
+        cur.execute("SELECT name FROM organizations WHERE id=%s", (org_id,))
+        org = cur.fetchone()
+        if not org:
+            conn.close()
+            return error_response("組織が見つかりません", 404)
+
+        org_name = org["name"]
+
+        # 関連データを削除（順序依存）
+        cur.execute("DELETE FROM slack_workspaces WHERE organization_id=%s", (org_id,))
+        cur.execute("DELETE FROM clients WHERE org_id=%s", (org_id,))
+        cur.execute("DELETE FROM users WHERE organization_id=%s", (org_id,))
+        cur.execute("DELETE FROM organizations WHERE id=%s", (org_id,))
+
+        conn.commit()
+        conn.close()
+        logger.info(f"Organization deleted by admin: id={org_id} name={org_name}")
+        return success_response({"deleted": True, "name": org_name})
+
+    except Exception as e:
+        logger.error(f"delete_organization error: {e}")
+        return error_response(str(e), 500)
