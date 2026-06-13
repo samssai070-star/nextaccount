@@ -120,11 +120,16 @@ def login():
         # ユーザーが属する organization/client を取得
         cur.execute(
             """SELECT id, name, org_type, subscription_status,
-                      cancellation_effective_at, suspension_ends_at
+                      cancellation_effective_at, suspension_ends_at, data_deleted_at
                FROM organizations WHERE id=%s""",
             (user["organization_id"],)
         )
         org_data = cur.fetchone()
+
+        # 即時解約済み（トライアルキャンセル）はログイン不可
+        if org_data and org_data["subscription_status"] == "canceled" and org_data["data_deleted_at"]:
+            conn.close()
+            return error_response("このアカウントは解約済みです", 403)
 
         # canceling → suspended 自動遷移
         if org_data and org_data["subscription_status"] == "canceling":

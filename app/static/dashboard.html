@@ -450,6 +450,26 @@
                 </div>
             </div>
 
+            <!-- Trial Cancel Modal -->
+            <div class="modal-overlay" id="trialCancelModal">
+                <div class="modal" style="max-width:420px">
+                    <h3>トライアルの解約</h3>
+                    <div style="background:#fff5f5;border-left:4px solid #e53e3e;padding:12px;border-radius:6px;margin-bottom:16px;font-size:13px;color:#742a2a">
+                        <div style="font-weight:600;margin-bottom:6px">ご注意事項</div>
+                        <ul style="margin-left:16px;line-height:1.8">
+                            <li>解約後は即時アカウントが削除されます</li>
+                            <li>登録データはすべて削除されます</li>
+                            <li>解約後のログインはできません</li>
+                        </ul>
+                    </div>
+                    <p style="color:#666;font-size:13px;margin-bottom:16px">解約後のお取り消しはできません。ご確認の上、お手続きをお進めください。</p>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="closeTrialCancel()">戻る</button>
+                        <button class="btn btn-danger" style="background:#e53e3e;color:#fff;border:none" onclick="confirmTrialCancel()">解約を申し込む</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Cancellation Modal -->
             <div class="modal-overlay" id="cancellationModal">
                 <div class="modal" style="max-width:420px">
@@ -813,7 +833,10 @@
                 // ボタンをステータスに応じて生成
                 const btns = document.getElementById('billingBtns');
                 if (status === 'trial' && !currentPlanId) {
-                    btns.innerHTML = `<button class="btn" onclick="togglePlanSelector()">プランを選択してカードを登録</button>`;
+                    btns.innerHTML = `
+                        <button class="btn" onclick="togglePlanSelector()">プランを選択してカードを登録</button>
+                        <button class="btn btn-secondary" onclick="openTrialCancel()" style="font-size:13px">解約</button>
+                    `;
                 } else if (status === 'canceled') {
                     btns.innerHTML = `<button class="btn" onclick="togglePlanSelector()">プランを再登録</button>`;
                 } else if (status === 'canceling') {
@@ -1292,6 +1315,31 @@
                 alert('組織タイプを会計事務所に変更しました。');
                 loadClients();
             } catch (e) { errEl.textContent = 'エラー: ' + e.message; }
+        }
+
+        function openTrialCancel() {
+            document.getElementById('trialCancelModal').classList.add('open');
+        }
+
+        function closeTrialCancel() {
+            document.getElementById('trialCancelModal').classList.remove('open');
+        }
+
+        async function confirmTrialCancel() {
+            try {
+                const res = await fetch('/api/org/cancel-trial', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                if (!data.success) { alert('エラー: ' + (data.error || '処理に失敗しました')); return; }
+                closeTrialCancel();
+                alert('解約が完了しました。ご利用いただきありがとうございました。');
+                localStorage.removeItem('token');
+                window.location.href = '/login.html';
+            } catch (e) {
+                alert('エラー: ' + e.message);
+            }
         }
 
         async function withdrawCancellation() {

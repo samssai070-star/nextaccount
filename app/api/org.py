@@ -397,6 +397,44 @@ def request_cancellation():
         return error_response(str(e), 500)
 
 
+@org_bp.route("/cancel-trial", methods=["POST"])
+@require_auth
+def cancel_trial():
+    """トライアル中の即時解約（データ削除・ログイン不可）"""
+    try:
+        org_id = request.organization_id
+        conn = get_db_connection()
+        cur = get_db_cursor(conn)
+
+        cur.execute("SELECT subscription_status FROM organizations WHERE id=%s", (org_id,))
+        org = cur.fetchone()
+        if not org:
+            conn.close()
+            return error_response("Organization not found", 404)
+
+        if org["subscription_status"] != "trial":
+            conn.close()
+            return error_response("トライアル中のみ利用できます", 409)
+
+        cur.execute(
+            """UPDATE organizations
+               SET subscription_status='canceled',
+                   data_deleted_at=NOW(),
+                   updated_at=NOW()
+               WHERE id=%s""",
+            (org_id,)
+        )
+        conn.commit()
+        conn.close()
+
+        logger.info(f"Trial canceled for org {org_id}")
+        return success_response({"status": "canceled", "message": "解約が完了しました。"})
+
+    except Exception as e:
+        logger.error(f"cancel_trial error: {e}")
+        return error_response(str(e), 500)
+
+
 @org_bp.route("/cancel-cancellation", methods=["POST"])
 @require_auth
 def cancel_cancellation():
