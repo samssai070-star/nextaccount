@@ -20,33 +20,26 @@ def slack_oauth_start():
     """Slack OAuth フローを開始"""
     try:
         org_id = request.organization_id
+        client_id = request.args.get("client_id")  # 顧問先ID（事務所の場合のみ）
 
         if not SLACK_CLIENT_ID:
             return error_response("Slack OAuth not configured", 503)
 
-        # OAuth URLを生成 - core/slack_oauth.py と同じscopes配置を使用
         scopes = ",".join([
-            "channels:history",
-            "channels:read",
-            "chat:write",
-            "commands",
-            "files:read",
-            "files:write",
-            "groups:history",
-            "im:history",
-            "im:write",
-            "mpim:history",
-            "team:read",
-            "users:read",
-            "usergroups:read"
+            "channels:history", "channels:read", "chat:write", "commands",
+            "files:read", "files:write", "groups:history", "im:history",
+            "im:write", "mpim:history", "team:read", "users:read", "usergroups:read"
         ])
+
+        # state: "org_id" or "org_id:client_id"
+        state = f"{org_id}:{client_id}" if client_id else str(org_id)
 
         oauth_url = (
             f"https://slack.com/oauth/v2/authorize?"
             f"client_id={SLACK_CLIENT_ID}&"
             f"scope={scopes}&"
             f"redirect_uri={SLACK_REDIRECT_URI}&"
-            f"state={org_id}"
+            f"state={state}"
         )
 
         return success_response({"oauth_url": oauth_url})
@@ -70,7 +63,14 @@ def slack_oauth_callback():
         if not code or not state:
             return redirect("https://nextaccount.jp/setup?error=missing_params")
 
-        org_id = int(state)
+        # state: "org_id" or "org_id:client_id"
+        if ":" in state:
+            parts = state.split(":", 1)
+            org_id = int(parts[0])
+            client_id = int(parts[1])
+        else:
+            org_id = int(state)
+            client_id = None
 
         # トークンを交換
         response = requests.post(
@@ -101,36 +101,46 @@ def slack_oauth_callback():
             return redirect("https://nextaccount.jp/setup?error=missing_slack_data")
 
         # #経費申請 チャンネルを作成または取得
-        logger.info(f"Ensuring expense channel for org {org_id}...")
+        logger.info(f"Ensuring expense channel for org {org_id} client {client_id}...")
         channel_id, channel_name = _ensure_expense_channel(bot_token)
         logger.info(f"Channel result: channel_id={channel_id}, channel_name={channel_name}")
 
-        logger.info(f"Connecting to database...")
         conn = get_db_connection()
         cur = get_db_cursor(conn)
 
-        # Slack Workspaceを保存
-        logger.info(f"Inserting Slack workspace: org_id={org_id}, team_id={team_id}, bot_user_id={bot_user_id}")
+        # slack_workspaces に保存
         cur.execute(
             """INSERT INTO slack_workspaces
-               (organization_id, workspace_id, workspace_name, bot_token, bot_user_id, channel_id, channel_name, is_connected)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+               (organization_id, client_id, workspace_id, workspace_name, bot_token, bot_user_id, channel_id, channel_name, is_connected)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                ON CONFLICT (organization_id, workspace_id) DO UPDATE SET
+               client_id = EXCLUDED.client_id,
                bot_token = EXCLUDED.bot_token,
                bot_user_id = EXCLUDED.bot_user_id,
                channel_id = EXCLUDED.channel_id,
                is_connected = true,
                connected_at = CURRENT_TIMESTAMP""",
-            (org_id, team_id, team_name, bot_token, bot_user_id, channel_id, channel_name, True)
+            (org_id, client_id, team_id, team_name, bot_token, bot_user_id, channel_id, channel_name, True)
         )
 
-        logger.info(f"Committing transaction...")
+        # tenants テーブルにも同期（Bot の get_tenant_by_slack_team() 用）
+        cur.execute(
+            """INSERT INTO tenants (slack_team_id, slack_bot_token)
+               VALUES (%s, %s)
+               ON CONFLICT (slack_team_id) DO UPDATE SET
+               slack_bot_token = EXCLUDED.slack_bot_token, is_active = TRUE""",
+            (team_id, bot_token)
+        )
+
         conn.commit()
         conn.close()
 
-        logger.info(f"Slack workspace {team_id} connected for org {org_id}")
+        logger.info(f"Slack workspace {team_id} connected for org {org_id} client {client_id}")
 
-        return redirect("https://nextaccount.jp/setup?step=4&success=true")
+        redirect_url = "https://nextaccount.jp/setup?step=4&success=true"
+        if client_id:
+            redirect_url = f"https://nextaccount.jp/dashboard.html?slack_connected=1"
+        return redirect(redirect_url)
 
     except Exception as e:
         import traceback

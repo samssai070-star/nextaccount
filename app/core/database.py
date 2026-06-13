@@ -108,7 +108,24 @@ def get_tenant_by_slack_team(slack_team_id):
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("SELECT * FROM tenants WHERE slack_team_id = %s AND is_active = TRUE", (slack_team_id,))
             row = cur.fetchone()
-    return dict(row) if row else None
+            if not row:
+                return None
+            result = dict(row)
+            # organization_id と client_id を slack_workspaces から補完
+            try:
+                cur.execute(
+                    """SELECT organization_id, client_id FROM slack_workspaces
+                       WHERE workspace_id = %s AND is_connected = TRUE
+                       ORDER BY connected_at DESC LIMIT 1""",
+                    (slack_team_id,)
+                )
+                sw = cur.fetchone()
+                if sw:
+                    result["organization_id"] = sw["organization_id"]
+                    result["client_id"] = sw["client_id"]
+            except Exception:
+                pass
+    return result
 
 def create_tenant(slack_team_id, slack_bot_token, google_sheet_id=None):
     with _get_conn() as conn:
