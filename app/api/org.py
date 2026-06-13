@@ -138,6 +138,8 @@ def list_organizations():
                 o.id, o.name, o.org_type,
                 o.subscription_status, o.plan,
                 o.trial_ends_at, o.created_at,
+                o.stripe_customer_id,
+                o.stripe_subscription_id,
                 u.email AS admin_email,
                 COALESCE(emp.cnt, 0) AS employee_count,
                 sp.is_completed AS setup_completed,
@@ -172,7 +174,9 @@ def list_organizations():
                 "setup_completed": bool(org["setup_completed"]),
                 "step_completed": org["step_completed"] or 0,
                 "slack_connected": bool(org["slack_connected"]),
-                "workspace_name": org["workspace_name"] or ""
+                "workspace_name": org["workspace_name"] or "",
+                "has_payment": bool(org["stripe_subscription_id"]),
+                "has_customer": bool(org["stripe_customer_id"])
             } for org in orgs]
         })
 
@@ -301,6 +305,8 @@ def get_organization_detail(org_id):
                 "trial_ends_at": org["trial_ends_at"].isoformat() if org["trial_ends_at"] else None,
                 "created_at": org["created_at"].isoformat() if org["created_at"] else None,
                 "stripe_customer_id": org["stripe_customer_id"] or "",
+                "has_payment": bool(org["stripe_subscription_id"]),
+                "has_customer": bool(org["stripe_customer_id"]),
                 "employee_count": int(org["employee_count"]),
                 "setup_completed": bool(org["setup_completed"]),
                 "step_completed": org["step_completed"] or 0,

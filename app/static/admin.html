@@ -232,6 +232,10 @@ select.filter-sel { padding: 7px 12px; border: 1px solid #e2e8f0; border-radius:
         <div style="color:#718096;margin-bottom:3px">Slack連携</div>
         <div id="detailSlack" style="font-weight:600;font-size:14px">—</div>
       </div>
+      <div>
+        <div style="color:#718096;margin-bottom:3px">支払方法</div>
+        <div id="detailPayment" style="font-weight:600;font-size:14px">—</div>
+      </div>
     </div>
 
     <h4 style="font-size:13px;font-weight:700;color:#1a202c;margin:16px 0 10px">📋 月別発票アップロード数</h4>
@@ -385,11 +389,18 @@ function renderTable(orgs) {
       ? new Date(o.created_at).toLocaleDateString('ja-JP')
       : '—';
 
+    const payB = o.has_payment
+      ? '<span style="color:#38a169;font-weight:600">✓ 支払中</span>'
+      : o.has_customer
+      ? '<span style="color:#d69e2e;font-weight:600">カード登録済</span>'
+      : '<span style="color:#a0aec0">未登録</span>';
+
     return `<tr>
       <td><strong>${escHtml(o.name)}</strong></td>
       <td style="color:#718096">${escHtml(o.admin_email)}</td>
       <td>${typeB}</td>
       <td>${statusB} ${trialStr}</td>
+      <td style="font-size:12px">${payB}</td>
       <td>${setupB}</td>
       <td>${o.employee_count}名</td>
       <td style="font-size:12px">${slackB}</td>
@@ -411,6 +422,7 @@ function renderTable(orgs) {
           <th>管理者メール</th>
           <th>タイプ</th>
           <th>ステータス</th>
+          <th>支払</th>
           <th>セットアップ</th>
           <th>従業員</th>
           <th>Slack</th>
@@ -553,6 +565,17 @@ function openDetailModal(orgId) {
       document.getElementById('detailPlan').textContent = (o.plan && PLAN_LABELS[o.plan]) || o.plan || '—';
       document.getElementById('detailEmployees').textContent = o.employee_count + '名';
       document.getElementById('detailSlack').textContent = o.slack_connected ? `✓ ${o.slack_workspace || '接続済'}` : '❌ 未接続';
+      const payEl = document.getElementById('detailPayment');
+      if (o.has_payment) {
+        payEl.textContent = '✓ 支払中';
+        payEl.style.color = '#38a169';
+      } else if (o.has_customer) {
+        payEl.textContent = 'カード登録済（未課金）';
+        payEl.style.color = '#d69e2e';
+      } else {
+        payEl.textContent = '未登録';
+        payEl.style.color = '#a0aec0';
+      }
       document.getElementById('detailTotal').textContent = o.total_events + '件';
 
       // 顧問先リスト（firm の場合）
